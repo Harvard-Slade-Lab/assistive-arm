@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "assistive-arm"
+version = "0.1.0"
+description = ""
+authors = ["Xabier Irizar <xirizar@seas.harvard.edu>"]
+readme = "README.md"
+repository = "https://github.com/xabirizar9/assistive-arm"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "^1.25.0"
+matplotlib = "^3.7.2"
+importlib = "^1.0.4"
+pathlib = "^1.0.1"
+jupyter = "^1.0.0"
+ipykernel = "^6.24.0"
+tqdm = "^4.65.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
