@@ -1,0 +1,21 @@
+version: "1"
+services:
+  raspberry-pi:
+    image: raspberry-pi:0.1
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    restart: always
+    volumes:
+      - $PWD:/home/projects/assistive-arm/
+    ulimits:
+      rtprio: 99
+      rttime: -1 # corresponds to 'unlimited'
+      memlock: 8428281856
+  jupyter:
+    image: jupyter/datascience-notebook
+    ports:
+      - "8888:8888"
+    volumes:
+      - $PWD:/home/projects/
+    restart: always

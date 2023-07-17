@@ -16,6 +16,8 @@ jupyter = "^1.0.0"
 ipykernel = "^6.24.0"
 tqdm = "^4.65.0"
 sympy = "^1.12"
+qtm-rt = "^3.0.1"
+pyzmq = "^25.1.0"
 
 [build-system]
 requires = ["poetry-core"]
