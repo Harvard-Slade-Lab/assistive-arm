@@ -17,14 +17,14 @@ class ServoControl:
         self.angle_range = servo_range(0, 180)
 
         GPIO.setmode(GPIO.BOARD)  # Set GPIO numbering mode
-        GPIO.setup(self.gpio_pin, GPIO.OUT)
-        self.pwm = GPIO.PWM(self.gpio_pin, self.pwm_cycle)
+        GPIO.setup(self._gpio_pin, GPIO.OUT)
+        self.pwm = GPIO.PWM(self._gpio_pin, self._pwm_cycle)
 
         self.pwm.start(2)  # Start PWM running, set servo to 0 degree.
 
     def set_angle(self, angle: int) -> None:
         clamp_angle = np.clip(angle, self.angle_range.min, self.angle_range.max)
-        self.pwm.ChangeDutyCycle(self.servo_min + self.servo_max * clamp_angle / 180)
+        self.pwm.ChangeDutyCycle(self._servo_min + self._servo_max * clamp_angle / 180)
 
     def stop(self) -> None:
         self.pwm.stop()

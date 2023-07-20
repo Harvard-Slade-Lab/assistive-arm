@@ -58,8 +58,8 @@ class BaseArm(ABC):
 class AssistiveArm(BaseArm):
     def __init__(self):
         self.joints = [
-            Joint(limits=np.array([0, 180]), name="joint_1"),
-            Joint(limits=np.array([0, 180]), name="joint_2"),
+            Joint(name="joint_1"),
+            Joint(name="joint_2"),
         ]
 
         self.link_length = 0.3
@@ -141,7 +141,7 @@ class AssistiveArm(BaseArm):
         for joint, transf_matrix in zip(self.joints[:-1], self.transformations[:-1]):
             joint.pose = transf_matrix[:3, 3]
 
-        return self.T_0_3[:3, 3]
+        return self._T_0_3[:3, 3]
 
     def get_pose(self) -> np.ndarray:
         """Return 3D pose of the end effector in robot frame
@@ -172,7 +172,7 @@ class Joint:
         self.qpos = None
         self.name = name
         self.pose = None
-        self._motor = ServoControl(port=self._assign_port())
+        self._motor = ServoControl(pin=self._assign_port())
         self.limits = self._motor.angle_range
 
     def get_qpos(self) -> float:
