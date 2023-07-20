@@ -38,6 +38,15 @@ class BaseArm(ABC):
         # TODO Decide if we want to take the CoG as the link position or the origin
         pass
 
+    @abstractmethod
+    def set_joint_positions(joint: int, position: np.ndarray):
+        pass
+
+
+class AssistiveArm(BaseArm):
+    def __init__(self):
+        self.joints = []
+
 
 class Joint:
     def __init__(self, limits: np.ndarray, name: str) -> None:
