@@ -148,7 +148,7 @@ class AssistiveArm(BaseArm):
         Returns:
             np.ndarray: x, y, z position of the end effector
         """
-        return self.T_0_3[:3, 3]
+        return self._T_0_3[:3, 3]
 
 
     def get_joint_positions(self) -> np.ndarray:
