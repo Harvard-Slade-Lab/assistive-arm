@@ -14,8 +14,8 @@ def on_packet(packet):
     force_plates = packet.get_force()
     dict_force = {f"plate_{plate.id}": forces
                   for plate, forces in force_plates}
-    # E.g.: {'plate_1': [RTForce.x, RTForce.y, ...], 
-    #        'plate_2': [...]}
+    # {'plate_1': [RTForce.x, RTForce.y, ...], 
+    #  'plate_2': [...]}
 
     dict_marker = {
         f"marker_{i}": {"x": marker.x, "y": marker.y, "z": marker.z}
