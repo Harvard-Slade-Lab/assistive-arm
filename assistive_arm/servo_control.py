@@ -10,10 +10,10 @@ servo_range = namedtuple("servo_range", ["min", "max"])
 class ServoControl:
     def __init__(self, pin: int):
         # TODO Make sure that there is no other servo connected at this pin
-        self.gpio_pin = pin
-        self.servo_min = 2
-        self.servo_max = 10
-        self.pwm_cycle = 50  # Hz
+        self._gpio_pin = pin
+        self._servo_min = 2
+        self._servo_max = 10
+        self._pwm_cycle = 50  # Hz
         self.angle_range = servo_range(0, 180)
 
         GPIO.setmode(GPIO.BOARD)  # Set GPIO numbering mode
