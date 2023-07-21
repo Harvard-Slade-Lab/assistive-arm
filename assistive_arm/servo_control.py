@@ -1,5 +1,6 @@
 import numpy as np
 
+from time import sleep
 from collections import namedtuple
 
 import RPi.GPIO as GPIO
@@ -19,14 +20,17 @@ class ServoControl:
         GPIO.setmode(GPIO.BOARD)  # Set GPIO numbering mode
         GPIO.setup(self._gpio_pin, GPIO.OUT)
         self.pwm = GPIO.PWM(self._gpio_pin, self._pwm_cycle)
-
-        self.pwm.start(2)  # Start PWM running, set servo to 0 degree.
+        self.start()  # Start PWM running, set servo to 0 degree.
 
     def set_angle(self, angle: float) -> None:
         # Angle is between -pi/2 and pi/2, convert to 0 and 180
         clamped_angle = np.clip(angle, self.angle_range.min, self.angle_range.max)
         degree = (np.pi / 2 - clamped_angle) * 180 / np.pi
         self.pwm.ChangeDutyCycle(self._servo_min + self._servo_max * degree / 180)
+        sleep(0.1)
+    
+    def start(self) -> None:
+        self.pwm.start(0)
 
     def stop(self) -> None:
         self.pwm.stop()

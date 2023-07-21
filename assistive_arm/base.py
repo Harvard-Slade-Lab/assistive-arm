@@ -2,6 +2,7 @@ import numpy as np
 
 from abc import ABC, abstractmethod
 from typing import List
+from time import sleep
 
 from assistive_arm.servo_control import ServoControl
 
@@ -177,7 +178,7 @@ class Joint:
     # See https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png
 
     def __init__(self, name: str) -> None:
-        self.qpos = None
+        self.qpos = 0
         self.name = name
         self.pose = None
         self._motor = ServoControl(pin=self._assign_port())
@@ -193,6 +194,9 @@ class Joint:
     def set_qpos(self, angle: int) -> None:
         self._motor.set_angle(angle)
         self.qpos = angle
+        sleep(0.05)
+        # TODO Figure out what's the ideal sleep time for the motors
+        # sleep(abs(angle)*0.14/(np.pi/3) + self.qpos)
 
     def get_limits(self) -> np.ndarray:
         return self.limits
