@@ -90,11 +90,14 @@ class AssistiveArm(BaseArm):
             np.ndarray: x, y, z position of the end effector
         """
         # TODO Implement forward kinematics
+        theta_1 = self._get_radians(theta_1)
+        theta_2 = self._get_radians(theta_2)
+
         self._T_0_1 = np.array(
             [
                 [np.cos(theta_1), -np.sin(theta_1), 0, 0],
                 [np.sin(theta_1), np.cos(theta_1), 0, 0],
-                [0, 0, 1, 0],
+                [0, 0, 1, self.dist_links],
                 [0, 0, 0, 1],
             ]
         )
@@ -112,25 +115,25 @@ class AssistiveArm(BaseArm):
                     0,
                     self.link_length * np.sin(theta_1),
                 ],
-                [0, 0, 1, self.dist_links],
+                [0, 0, 1, 2*self.dist_links],
                 [0, 0, 0, 1],
             ]
         )
         self._T_0_3 = np.array(
             [
                 [
-                    0,
+                    np.cos(theta_1 + theta_2),
                     -np.sin(theta_1 + theta_2),
                     0,
                     self.link_length * (np.cos(theta_1) + np.cos(theta_1 + theta_2)),
                 ],
                 [
-                    0,
+                    np.sin(theta_1 + theta_2),
                     np.cos(theta_1 + theta_2),
                     0,
                     self.link_length * (np.sin(theta_1) + np.sin(theta_1 + theta_2)),
                 ],
-                [0, 0, 1, self.dist_links],
+                [0, 0, 1, 2*self.dist_links],
                 [0, 0, 0, 1],
             ]
         )
@@ -142,6 +145,9 @@ class AssistiveArm(BaseArm):
             joint.pose = transf_matrix[:3, 3]
 
         return self._T_0_3[:3, 3]
+    
+    def _get_radians(self, angle) -> float:
+        return angle * np.pi / 180
 
     def get_pose(self) -> np.ndarray:
         """Return 3D pose of the end effector in robot frame
@@ -149,7 +155,6 @@ class AssistiveArm(BaseArm):
             np.ndarray: x, y, z position of the end effector
         """
         return self._T_0_3[:3, 3]
-
 
     def get_joint_positions(self) -> np.ndarray:
         """Get 3D position of a given joint
@@ -163,9 +168,12 @@ class AssistiveArm(BaseArm):
     def get_joint_angles(self) -> np.ndarray:
         return np.array([joint.get_qpos() for joint in self.joints])
 
+    def _cleanup_ports(self) -> None:
+        self.joints[0]._motor.cleanup()
+
 
 class Joint:
-    ports = [11, 13, 15, 16, 18, 22] # List of ports that can be used for the servos
+    ports = [11, 13, 15, 16, 18, 22]  # List of ports that can be used for the servos
     # See https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png
 
     def __init__(self, name: str) -> None:
