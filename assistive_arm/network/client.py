@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 
@@ -9,8 +10,9 @@ def setup_logger() -> logging.Logger:
     """Setup logger for client"""
     # Generate logfile name
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    logfile = f"../../logs/{current_time}_client_marker_processing.log"
-
+    logfile = f"../logs/{current_time}_client_marker_processing.log"
+    
+    os.makedirs(os.path.dirname(logfile), exist_ok=True)
     logging.basicConfig(
         filename=logfile, format="%(asctime)s %(message)s", filemode="w"
     )
@@ -38,9 +40,9 @@ def request_data(logger, socket):
             return markers, force_data
 
         markers = {key: coordinates(**value) for key, value in rt_data.items() if "marker" in key}
-        force_data = {key: forces(**value) for key, value in rt_data.items() if "plate" in key}
+        #force_data = {key: forces(**value) for key, value in rt_data.items() if "plate" in key}
         logger.info("Marker 3D position: \n", markers)
-        logger.info("Force plate data: \n", force_data)
+        #logger.info("Force plate data: \n", force_data)
 
     except Exception as general_error:
         logger.error(f"An unexpected error occurred: {general_error}")

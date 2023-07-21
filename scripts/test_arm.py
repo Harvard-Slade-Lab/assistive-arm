@@ -16,13 +16,14 @@ def main():
     arm = AssistiveArm()
     arm.forward(theta_1=45, theta_2=90)
 
-    while True:
-        markers, force_data = request_data(logger, socket)
-        print("Joint positions (fw kin): ", arm.get_joint_positions())
-        # Get marker 2D coordinates (x, y)
-        print("Error: ")
-
-    arm.joints[0]._motor.cleanup()
+    try:    
+        while True:
+            markers, _ = request_data(logger, socket)
+            print("Joint positions (fw kin): ", arm.get_joint_positions())
+            print(markers)
+            # Get marker 2D coordinates (x, y)
+    except KeyboardInterrupt:
+        arm._cleanup_ports()
 
 
 if __name__ == "__main__":
