@@ -25,7 +25,7 @@ class ServoControl:
     def set_angle(self, angle: float) -> None:
         # Angle is between -pi/2 and pi/2, convert to 0 and 180
         clamped_angle = np.clip(angle, self.angle_range.min, self.angle_range.max)
-        degree = (np.pi / 2 - clamped_angle) * 180 / np.pi
+        degree = np.pi / 2 - clamped_angle
         self.pwm.ChangeDutyCycle(self._servo_min + self._servo_max * degree / 180)
         sleep(0.1)
     
