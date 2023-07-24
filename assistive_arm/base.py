@@ -173,6 +173,32 @@ class AssistiveArm(BaseArm):
 
         return self._T_W_3[:3, 3]
 
+    def inverse(self, x: float, y: float) -> np.array:
+        """Inverse kinematics of the arm
+
+        Args:
+            x (float): x position of the end effector
+            y (float): y position of the end effector
+
+        Returns:
+            np.array: [theta_1, theta_2]
+        """
+        theta_2 = -np.arccos(
+            (x**2 + y**2 - 2 * self.link_length**2) / (2 * self.link_length**2)
+        )
+        theta_1 = np.arctan(y / x) + np.arctan(
+            self.link_length
+            * np.sin(theta_2)
+            / (self.link_length * (1 + np.cos(theta_2)))
+        )
+        # Save angles in degrees
+        target_angles = np.degrees(np.array([theta_1, theta_2]))
+        print("target: ", target_angles)
+
+        self.set_joint_angles(target_angles)
+
+        return target_angles
+
     def _get_radians(self, angle: int) -> float:
         """Convert angle from degrees to radians
 
