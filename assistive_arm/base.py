@@ -30,11 +30,11 @@ class BaseArm(ABC):
         pass
 
     @abstractmethod
-    def get_joint_positions(joint: List[int]) -> np.ndarray:
-        """Get 3D position of a given joint
+    def get_joint_positions() -> np.ndarray:
+        """Get 3D position of the joints
 
-        Args:
-            joint (int): joint number starting from 0
+        Returns:
+            np.ndarray: 3D position of all joints
         """
         pass
 
@@ -67,9 +67,11 @@ class AssistiveArm(BaseArm):
         self.link_length = 0.3
         self.dist_links = 0.03
 
-        self._T_0_1 = None
-        self._T_1_2 = None
-        self._T_2_3 = None
+        self._T_W_0 = np.eye(4)
+
+        self._T_W_1 = None
+        self._T_W_2 = None
+        self._T_W_3 = None
 
     def set_joint_angles(self, angles: np.ndarray):
         """Set the joint to a given angle and move motors
@@ -117,7 +119,8 @@ class AssistiveArm(BaseArm):
         rad_1 = self._get_radians(theta_1)
         rad_2 = self._get_radians(theta_2)
 
-        self._T_0_1 = np.array(
+        # For all transformations, _T_W_0 * T_0_N
+        self._T_W_1 = self._T_W_0 * np.array(
             [
                 [np.cos(rad_1), -np.sin(rad_1), 0, 0],
                 [np.sin(rad_1), np.cos(rad_1), 0, 0],
@@ -125,7 +128,7 @@ class AssistiveArm(BaseArm):
                 [0, 0, 0, 1],
             ]
         )
-        self._T_0_2 = np.array(
+        self._T_W_2 = self._T_W_0 * np.array(
             [
                 [
                     np.cos(rad_1 + rad_2),
@@ -143,7 +146,7 @@ class AssistiveArm(BaseArm):
                 [0, 0, 0, 1],
             ]
         )
-        self._T_0_3 = np.array(
+        self._T_W_3 = self._T_W_0 * np.array(
             [
                 [
                     np.cos(rad_1 + rad_2),
@@ -162,13 +165,13 @@ class AssistiveArm(BaseArm):
             ]
         )
 
-        self.transformations = [self._T_0_1, self._T_0_2, self._T_0_3]
+        self.transformations = [self._T_W_1, self._T_W_2, self._T_W_3]
         self.set_joint_angles(np.array([theta_1, theta_2]))
 
         for joint, transf_matrix in zip(self.joints[:-1], self.transformations[:-1]):
             joint.pose = transf_matrix[:3, 3]
 
-        return self._T_0_3[:3, 3]
+        return self._T_W_3[:3, 3]
 
     def _get_radians(self, angle: int) -> float:
         """Convert angle from degrees to radians
@@ -186,7 +189,7 @@ class AssistiveArm(BaseArm):
         Returns:
             np.ndarray: x, y, z position of the end effector
         """
-        return self._T_0_3[:3, 3]
+        return self._T_W_3[:3, 3]
 
     def get_joint_positions(self) -> np.ndarray:
         """Get 3D position of a given joint
