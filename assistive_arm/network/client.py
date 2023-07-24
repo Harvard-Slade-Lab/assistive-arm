@@ -1,8 +1,10 @@
 import os
 import json
 import logging
+import numpy as np
+import zmq
 
-from zmq import Socket
+
 from datetime import datetime
 from collections import namedtuple
 
@@ -13,7 +15,15 @@ forces = namedtuple(
 )
 
 
-def setup_logger() -> logging.Logger:
+def connect_to_server(logger: logging.Logger=None) -> zmq.Socket:
+    context = zmq.Context()
+    logger.info("Connecting to server...")
+    socket = context.socket(zmq.REQ)
+    socket.connect("tcp://10.245.250.27:5555")
+
+    return socket
+
+def setup_client_logger() -> logging.Logger:
     """Setup logger for client"""
     # Generate logfile name
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -30,7 +40,7 @@ def setup_logger() -> logging.Logger:
     return logger
 
 
-def get_qrt_data(logger: logging.Logger, socket: Socket) -> dict:
+def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
     markers = {}
     force_data = {}
 
@@ -38,7 +48,7 @@ def get_qrt_data(logger: logging.Logger, socket: Socket) -> dict:
     rt_data = request_data(logger, socket)
 
     markers = {
-        key: coordinates(**value) for key, value in rt_data.items() if "marker" in key
+        key: np.array(value) for key, value in rt_data.items() if "marker" in key
     }
     force_data = {
         key: forces(**value) for key, value in rt_data.items() if "plate" in key
