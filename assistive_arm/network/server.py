@@ -3,9 +3,6 @@ import zmq
 import asyncio
 import qtm_rt
 
-context = zmq.Context()
-socket = context.socket(zmq.REP)
-socket.bind("tcp://*:5555")
 
 
 def on_packet(packet):
@@ -43,5 +40,9 @@ async def setup():
 
 
 if __name__ == "__main__":
+    context = zmq.Context()
+    socket = context.socket(zmq.REP)
+    socket.bind("tcp://*:5555")
+    
     asyncio.ensure_future(setup())
     asyncio.get_event_loop().run_forever()

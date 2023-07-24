@@ -8,20 +8,20 @@ import zmq
 from datetime import datetime
 from collections import namedtuple
 
-coordinates = namedtuple("coordinates", ["x", "y", "z"])
 forces = namedtuple(
     "forces",
     ["x", "y", "z", "moment_x", "moment_y", "moment_z", "acc_x", "acc_y", "acc_z"],
 )
 
 
-def connect_to_server(logger: logging.Logger=None) -> zmq.Socket:
+def connect_to_server(logger: logging.Logger = None) -> zmq.Socket:
     context = zmq.Context()
     logger.info("Connecting to server...")
     socket = context.socket(zmq.REQ)
     socket.connect("tcp://10.245.250.27:5555")
 
     return socket
+
 
 def setup_client_logger() -> logging.Logger:
     """Setup logger for client"""
@@ -59,7 +59,7 @@ def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
     return markers, force_data
 
 
-def request_data(logger, socket):
+def request_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
     try:
         logger.info("Sending request...")
         socket.send_string("Retrieve marker data")
