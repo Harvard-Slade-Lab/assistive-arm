@@ -1,12 +1,61 @@
 import numpy as np
 
 from time import sleep
-from collections import namedtuple
+from abc import ABC, abstractmethod, abstractproperty
 
 import RPi.GPIO as GPIO
 
-servo_range = namedtuple("servo_range", ["min", "max"])
+class ServoBase(ABC):
+    """Base class for future servos"""
+    
+    @abstractproperty
+    def angle_range(self) -> np.array:
+        """Range of angles that the servo can move to"""
+        pass
 
+    @abstractproperty
+    def _gpio_pin(self) -> int:
+        """GPIO pin that the servo is connected to"""
+        pass
+    
+    @abstractproperty
+    def _servo_min(self) -> int:
+        """Minimum duty cycle for the servo"""
+        pass
+    
+    @abstractproperty
+    def _servo_max(self) -> int:
+        """Maximum duty cycle for the servo"""
+        pass
+    
+    @abstractproperty
+    def _pwm_cycle(self) -> int:
+        """PWM cycle for the servo"""
+        pass
+
+    @abstractmethod
+    def set_angle(self, angle: float) -> None:
+        """Set the angle of the servo
+
+        Args:
+            angle (float): Angle in radians
+        """
+        pass
+
+    @abstractmethod
+    def start(self) -> None:
+        """Start the servo"""
+        pass
+
+    @abstractmethod
+    def stop(self) -> None:
+        """Stop the servo"""
+        pass
+
+    @abstractmethod
+    def cleanup(self) -> None:
+        """Cleanup the servo ports"""
+        pass
 
 class ServoControl:
     def __init__(self, pin: int):
@@ -15,7 +64,7 @@ class ServoControl:
         self._servo_min = 2
         self._servo_max = 10
         self._pwm_cycle = 50  # Hz
-        self.angle_range = servo_range(-np.pi/2, np.pi/2)
+        self.angle_range = np.array([-90, 90])
 
         GPIO.setmode(GPIO.BOARD)  # Set GPIO numbering mode
         GPIO.setup(self._gpio_pin, GPIO.OUT)
@@ -23,12 +72,12 @@ class ServoControl:
         self.start()  # Start PWM running, set servo to 0 degree.
 
     def set_angle(self, angle: float) -> None:
-        # Angle is between -pi/2 and pi/2, convert to 0 and 180
+        # Angle is between -90 and 90, convert to 0 and 180
         clamped_angle = np.clip(angle, self.angle_range.min, self.angle_range.max)
-        degree = np.pi / 2 - clamped_angle
+        degree = 90 - clamped_angle
         self.pwm.ChangeDutyCycle(self._servo_min + self._servo_max * degree / 180)
         sleep(0.1)
-    
+
     def start(self) -> None:
         self.pwm.start(0)
 
