@@ -3,6 +3,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import List
 from time import sleep
+from threading import Thread
 
 from assistive_arm.servo_control import ServoControl
 
@@ -75,10 +76,16 @@ class AssistiveArm(BaseArm):
         Args:
             positions (np.ndarray): array of joint angles [theta_1, theta_2]
         """
+        threads = []
         for joint, angle in zip(self.joints, angles):
             if np.isnan(angle):
                 continue
-            joint.set_qpos(angle)
+            # joint.set_qpos(angle)
+            thread = Thread(target=joint.set_qpos, args=(angle,))
+            thread.start()
+            threads.append(thread)
+        for thread in threads:
+            thread.join()
 
     def get_link_position(link: int):
         """Get 3D pose of a given link
