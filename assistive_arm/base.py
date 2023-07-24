@@ -70,15 +70,15 @@ class AssistiveArm(BaseArm):
         self._T_1_2 = None
         self._T_2_3 = None
 
-    def set_joint_angles(self, positions: np.ndarray):
+    def set_joint_angles(self, angles: np.ndarray):
         """Set the joint to a given angle and move motors
         Args:
             positions (np.ndarray): array of joint angles [theta_1, theta_2]
         """
-        for joint, position in zip(self.joints, positions):
-            if np.isnan(position):
+        for joint, angle in zip(self.joints, angles):
+            if np.isnan(angle):
                 continue
-            joint.set_qpos(position)
+            joint.set_qpos(angle)
 
     def get_link_position(link: int):
         """Get 3D pose of a given link
