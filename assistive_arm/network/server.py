@@ -3,9 +3,6 @@ import zmq
 import asyncio
 import qtm_rt
 
-context = zmq.Context()
-socket = context.socket(zmq.REP)
-socket.bind("tcp://*:5555")
 
 
 def on_packet(packet):
@@ -18,7 +15,7 @@ def on_packet(packet):
     #  'plate_2': [...]}
 
     dict_marker = {
-        f"marker_{i}": {"x": marker.x, "y": marker.y, "z": marker.z}
+        f"marker_{i}": [marker.x, marker.y, marker.z]
         for i, marker in enumerate(markers)
     }
     combined_dict = {**dict_marker, **dict_force}
@@ -43,5 +40,9 @@ async def setup():
 
 
 if __name__ == "__main__":
+    context = zmq.Context()
+    socket = context.socket(zmq.REP)
+    socket.bind("tcp://*:5555")
+    
     asyncio.ensure_future(setup())
     asyncio.get_event_loop().run_forever()
