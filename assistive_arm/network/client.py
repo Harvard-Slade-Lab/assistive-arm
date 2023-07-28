@@ -15,6 +15,12 @@ forces = namedtuple(
 
 
 def connect_to_server(logger: logging.Logger = None) -> zmq.Socket:
+    """Connect to server
+    Args:
+        logger (logging.Logger, optional): Logger, defaults to None.
+    Returns:
+        zmq.Socket: socket
+    """
     context = zmq.Context()
     logger.info("Connecting to server...")
     socket = context.socket(zmq.REQ)
@@ -41,6 +47,15 @@ def setup_client_logger() -> logging.Logger:
 
 
 def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
+    """Get marker and force data from Motion Capture
+
+    Args:
+        logger (logging.Logger): logger
+        socket (zmq.Socket): zmq socket
+
+    Returns:
+        dict: contains organized marker and force data
+    """
     # Retrieve data from server
     marker_data = {}
     force_data = {}
@@ -52,13 +67,21 @@ def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
             force_data[rt_id] = [forces(*sensor) for sensor in data]
         elif "marker" in rt_id:
             marker_data[rt_id] = np.array(data)
-    logger.info(f"Force data: \n{force_data}" )
-    logger.info(f"Marker data: \n{marker_data}" )
-    
+    logger.info(f"Force data: \n{force_data}")
+    logger.info(f"Marker data: \n{marker_data}")
+
     return marker_data, force_data
 
 
 def request_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
+    """Request data from server
+
+    Args:
+        logger (logging.Logger): logger
+        socket (zmq.Socket): zmq socket
+    Returns:
+        dict: contains raw data from server
+    """
     try:
         logger.info("Sending request...")
         socket.send_string("Retrieve marker data")
