@@ -33,6 +33,7 @@ def main():
 
             sleep(0.1)
     except KeyboardInterrupt:
+        arm._cleanup_ports()
         exit(0)
 
 

@@ -7,7 +7,7 @@ def main():
     # Socket to talk to server
     print("Connecting to hello world server...")
     socket = context.socket(zmq.REQ)
-    socket.connect("tcp://10.15.232.156:5555")
+    socket.connect("tcp://10.245.250.27:5555")
 
     for request in range(10):
         print("Sending request %s ..." % request)
