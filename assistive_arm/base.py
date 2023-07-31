@@ -64,8 +64,8 @@ class AssistiveArm(BaseArm):
             Joint(name="joint_2"),
         ]
 
-        self.link_length = 0.3
-        self.dist_links = 0.03
+        self.link_length = 0.25
+        self.z_offset = 0.025
 
         self._T_W_0 = np.eye(4)
 
@@ -124,7 +124,7 @@ class AssistiveArm(BaseArm):
             [
                 [np.cos(rad_1), -np.sin(rad_1), 0, 0],
                 [np.sin(rad_1), np.cos(rad_1), 0, 0],
-                [0, 0, 1, self.dist_links],
+                [0, 0, 1, self.z_offset],
                 [0, 0, 0, 1],
             ]
         )
@@ -142,7 +142,7 @@ class AssistiveArm(BaseArm):
                     0,
                     self.link_length * np.sin(rad_1),
                 ],
-                [0, 0, 1, 2 * self.dist_links],
+                [0, 0, 1, 2 * self.z_offset],
                 [0, 0, 0, 1],
             ]
         )
@@ -160,7 +160,7 @@ class AssistiveArm(BaseArm):
                     0,
                     self.link_length * (np.sin(rad_1) + np.sin(rad_1 + rad_2)),
                 ],
-                [0, 0, 1, 2 * self.dist_links],
+                [0, 0, 1, 2 * self.z_offset],
                 [0, 0, 0, 1],
             ]
         )
