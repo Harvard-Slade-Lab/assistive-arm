@@ -1,4 +1,4 @@
-from time import sleep
+import time
 
 from assistive_arm.network.client import (
     setup_client_logger,
@@ -13,8 +13,10 @@ def main():
 
     try:
         while True:
+            cur_time = time.time()
             markers, forces = get_qrt_data(logger=client_logger, socket=socket)
-            sleep(0.1)
+            print(f"Elapsed time: {time.time() - cur_time}")
+            time.sleep(0.1)
     except KeyboardInterrupt:
         exit(0)
 

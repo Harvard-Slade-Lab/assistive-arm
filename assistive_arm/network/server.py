@@ -2,13 +2,19 @@ import json
 import zmq
 import asyncio
 import qtm_rt
+import timeit
+
+from assistive_arm.utils import print_elapsed_time
 
 
-
+@print_elapsed_time()
 def on_packet(packet):
     """Callback function that is called everytime a data packet arrives from QTM"""
     header, markers = packet.get_3d_markers()
     force_plates = packet.get_force()
+
+    # Measure how long it takes to build dicts
+    start_time = timeit.default_timer()
     dict_force = {f"plate_{plate.id}": forces
                   for plate, forces in force_plates}
     # {'plate_1': [RTForce.x, RTForce.y, ...], 
@@ -19,6 +25,9 @@ def on_packet(packet):
         for i, marker in enumerate(markers)
     }
     combined_dict = {**dict_marker, **dict_force}
+    end_time = timeit.default_timer()
+    print(f"Elapsed time: {end_time - start_time} seconds")
+
     marker_json = json.dumps(combined_dict)
 
     print(f"Component info: {header}")
