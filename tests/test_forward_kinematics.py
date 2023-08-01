@@ -22,21 +22,19 @@ def main():
 
     try:
         while True:
-            print()
             markers, _ = get_qrt_data(logger=client_logger, socket=socket)
             marker_array = np.vstack(list(markers.values()))
             # We assume that the first marker is the robot base
-            for marker, coordinates in markers.items():
-                print(f"{marker}: {coordinates}")
-
-            print("Robot pose (robot frame): ", poses)
-            error = np.linalg.norm(marker_array - poses, axis=1)
-            print(f"Offset: {error} mm")
-
+            offset = np.linalg.norm(marker_array - poses, axis=1)
+            
+            for joint_position, coordinates in zip(poses, markers.values()):
+                offset = np.linalg.norm(joint_position - coordinates)
+                print("Joint Position (WF) | Marker Position (WF) | Offset (mm)")
+                print(f"{joint_position} | {coordinates} | {offset}")
+            print("\n")
 
     except KeyboardInterrupt:
         arm._cleanup_ports()
-        exit(0)
 
 
 if __name__ == "__main__":
