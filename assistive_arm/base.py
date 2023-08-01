@@ -64,10 +64,14 @@ class AssistiveArm(BaseArm):
             Joint(name="joint_2"),
         ]
 
-        self.link_length = 0.25
-        self.z_offset = 0.025
+        self.link_length = 250
+        self.dist_links = 25
 
-        self._T_W_0 = np.eye(4)
+        # REMINDER: Offset z by 25mm
+        self._T_W_0 = np.array([[0, -1, 0, 516.78],
+                                [1, 0, 0, -1672.9],
+                                [0, 0, 1, 732.7],
+                                [0, 0, 0, 1]])
 
         self._T_W_1 = None
         self._T_W_2 = None
@@ -120,7 +124,7 @@ class AssistiveArm(BaseArm):
         rad_2 = self._get_radians(theta_2)
 
         # For all transformations, _T_W_0 * T_0_N
-        self._T_W_1 = self._T_W_0 * np.array(
+        self._T_W_1 = self._T_W_0 @ np.array(
             [
                 [np.cos(rad_1), -np.sin(rad_1), 0, 0],
                 [np.sin(rad_1), np.cos(rad_1), 0, 0],
@@ -128,7 +132,7 @@ class AssistiveArm(BaseArm):
                 [0, 0, 0, 1],
             ]
         )
-        self._T_W_2 = self._T_W_0 * np.array(
+        self._T_W_2 = self._T_W_0 @ np.array(
             [
                 [
                     np.cos(rad_1 + rad_2),
@@ -146,7 +150,7 @@ class AssistiveArm(BaseArm):
                 [0, 0, 0, 1],
             ]
         )
-        self._T_W_3 = self._T_W_0 * np.array(
+        self._T_W_3 = self._T_W_0 @ np.array(
             [
                 [
                     np.cos(rad_1 + rad_2),

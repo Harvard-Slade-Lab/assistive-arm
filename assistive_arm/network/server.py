@@ -11,10 +11,7 @@ from assistive_arm.utils import print_elapsed_time
 def on_packet(packet):
     """Callback function that is called everytime a data packet arrives from QTM"""
     header, markers = packet.get_3d_markers()
-    force_plates = packet.get_force()
-
-    # Measure how long it takes to build dicts
-    start_time = timeit.default_timer()
+    force_plates = packet.get_force()[1]
     dict_force = {f"plate_{plate.id}": forces
                   for plate, forces in force_plates}
     # {'plate_1': [RTForce.x, RTForce.y, ...], 
@@ -26,12 +23,9 @@ def on_packet(packet):
     }
     combined_dict = {**dict_marker, **dict_force}
     end_time = timeit.default_timer()
-    print(f"Elapsed time: {end_time - start_time} seconds")
 
     marker_json = json.dumps(combined_dict)
 
-    print(f"Component info: {header}")
-    print(dict_marker)
 
     # Send packet to client
     message = socket.recv_string()
@@ -45,7 +39,7 @@ async def setup():
     if connection is None:
         return
 
-    await connection.stream_frames(components=["3d"], on_packet=on_packet)
+    await connection.stream_frames(components=["3d","force"], on_packet=on_packet)
 
 
 if __name__ == "__main__":
