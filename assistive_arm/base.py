@@ -64,10 +64,11 @@ class AssistiveArm(BaseArm):
             Joint(name="joint_2"),
         ]
 
+        # Measurements in mm
         self.link_length = 250
         self.dist_links = 25
 
-        # REMINDER: Offset z by 25mm
+        # REMINDER: Offset z by dist_links
         self._T_W_0 = np.array([[0, -1, 0, 516.78],
                                 [1, 0, 0, -1672.9],
                                 [0, 0, 1, 732.7],

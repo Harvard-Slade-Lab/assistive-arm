@@ -12,6 +12,7 @@ def on_packet(packet):
     """Callback function that is called everytime a data packet arrives from QTM"""
     header, markers = packet.get_3d_markers()
     force_plates = packet.get_force()[1]
+    
     dict_force = {f"plate_{plate.id}": forces
                   for plate, forces in force_plates}
     # {'plate_1': [RTForce.x, RTForce.y, ...], 
