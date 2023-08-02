@@ -66,14 +66,11 @@ def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
     rt_data = request_data(logger, socket)
 
     # Measure time to build dicts
-    start_time = timeit.default_timer()
     for rt_id, data in rt_data.items():
         if "plate" in rt_id:
             force_data[rt_id] = [forces(*sensor) for sensor in data]
         elif "marker" in rt_id:
             marker_data[rt_id] = np.array(data)
-    end_time = timeit.default_timer()
-    print(f"Elapsed time for building dicts: {end_time - start_time} seconds")
 
     logger.info(f"Force data: \n{force_data}")
     logger.info(f"Marker data: \n{marker_data}")
