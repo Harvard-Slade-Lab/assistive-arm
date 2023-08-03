@@ -17,19 +17,24 @@ forces = namedtuple(
 )
 
 
-def connect_to_server(logger: logging.Logger = None) -> zmq.Socket:
-    """Connect to server
+def connect_to_publisher(logger: logging.Logger = None) -> zmq.Socket:
+    """Connect to publisher socket and return subscriber socket
+    
     Args:
         logger (logging.Logger, optional): Logger, defaults to None.
     Returns:
-        zmq.Socket: socket
+        zmq.Socket: subscriber socket
     """
+    if logger:
+        logger.info("Connecting to publisher...")
     context = zmq.Context()
-    logger.info("Connecting to server...")
-    socket = context.socket(zmq.REQ)
-    socket.connect("tcp://10.245.250.27:5555")
 
-    return socket
+    # Set up subscriber
+    subscriber = context.socket(zmq.SUB)
+    subscriber.connect("tcp://10.245.250.27:5555")
+    subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
+
+    return subscriber
 
 
 def setup_client_logger() -> logging.Logger:
@@ -48,13 +53,14 @@ def setup_client_logger() -> logging.Logger:
 
     return logger
 
+
 @print_elapsed_time()
 def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
     """Get marker and force data from Motion Capture
 
     Args:
         logger (logging.Logger): logger
-        socket (zmq.Socket): zmq socket
+        socket (zmq.Socket): zmq publisher socket
 
     Returns:
         dict: contains organized marker and force data
@@ -63,7 +69,7 @@ def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
     marker_data = {}
     force_data = {}
 
-    rt_data = request_data(logger, socket)
+    rt_data = read_mocap_data(logger=logger, socket=socket)
 
     # Measure time to build dicts
     for rt_id, data in rt_data.items():
@@ -77,9 +83,10 @@ def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
 
     return marker_data, force_data
 
+
 @print_elapsed_time()
-def request_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
-    """Request data from server
+def read_mocap_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
+    """ Read mocap data from publisher node
 
     Args:
         logger (logging.Logger): logger
@@ -88,10 +95,8 @@ def request_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
         dict: contains raw data from server
     """
     try:
-        logger.info("Sending request...")
-        socket.send_string("Retrieve marker data")
+        # Read data from publisher
         message = socket.recv_string()
-
         try:
             rt_data = json.loads(message)
         except json.JSONDecodeError as error:

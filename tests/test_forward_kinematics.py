@@ -7,13 +7,13 @@ from assistive_arm.base import AssistiveArm
 from assistive_arm.network.client import (
     setup_client_logger,
     get_qrt_data,
-    connect_to_server,
+    connect_to_publisher,
 )
 
 
 def main():
     client_logger = setup_client_logger()
-    socket = connect_to_server(logger=client_logger)
+    socket = connect_to_publisher(logger=client_logger)
 
     arm = AssistiveArm()
     arm.forward(theta_1=0, theta_2=0)
@@ -26,7 +26,7 @@ def main():
             marker_array = np.vstack(list(markers.values()))
             # We assume that the first marker is the robot base
             offset = np.linalg.norm(marker_array - poses, axis=1)
-            
+
             for joint_position, coordinates in zip(poses, markers.values()):
                 offset = np.linalg.norm(joint_position - coordinates)
                 print("Joint Position (WF) | Marker Position (WF) | Offset (mm)")

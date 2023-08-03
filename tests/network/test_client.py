@@ -1,3 +1,4 @@
+import time
 import zmq
 
 def main():
@@ -6,16 +7,15 @@ def main():
 
     # Socket to talk to server
     print("Connecting to hello world server...")
-    socket = context.socket(zmq.REQ)
-    socket.connect("tcp://10.245.250.27:5555")
+    subscriber = context.socket(zmq.SUB)
+    subscriber.connect("tcp://10.245.250.27:5555")
 
-    for request in range(10):
-        print("Sending request %s ..." % request)
-        socket.send_string("Hello from client! Request number: %s" % request)
+    subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
 
-        # Wait for the reply.
-        message = socket.recv_string()
-        print("Received reply %s [ %s ]" % (request, message))
+    while True:
+        # Receive message from publisher
+        message = subscriber.recv_string()
+        print("Time elapsed: ", time.time() - float(message))
 
 if __name__ == "__main__":
     main()

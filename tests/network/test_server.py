@@ -1,17 +1,17 @@
+import time
 import zmq
 
 def main():
     """Server function."""
     context = zmq.Context()
-    socket = context.socket(zmq.REP)
-    socket.bind("tcp://*:5555")
+    publisher = context.socket(zmq.PUB)
+    publisher.bind("tcp://*:5555")
 
     while True:
-        message = socket.recv_string()
-        print("Received request: %s" % message)
-
-        # Process the request and Send reply back to client.
-        socket.send_string("Hello from server! Your message was: %s" % message)
+        # Publish message to all subscribers
+        freq = 10 #Hz
+        publisher.send_string(f"{time.time()}")
+        time.sleep(1/freq)
 
 if __name__ == "__main__":
     main()

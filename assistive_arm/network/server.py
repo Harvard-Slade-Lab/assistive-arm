@@ -10,7 +10,7 @@ from assistive_arm.utils.logging import print_elapsed_time
 @print_elapsed_time()
 def on_packet(packet):
     """Callback function that is called everytime a data packet arrives from QTM"""
-    header, markers = packet.get_3d_markers()
+    _, markers = packet.get_3d_markers()
     force_plates = packet.get_force()[1]
     
     dict_force = {f"plate_{plate.id}": forces
@@ -23,15 +23,10 @@ def on_packet(packet):
         for i, marker in enumerate(markers)
     }
     combined_dict = {**dict_marker, **dict_force}
-    end_time = timeit.default_timer()
-
     marker_json = json.dumps(combined_dict)
 
-
-    # Send packet to client
-    message = socket.recv_string()
-    print(f'Received request "{message}"')
-    socket.send_string(marker_json)
+    # Publish message to all subscribers
+    publisher.send_string(marker_json)
 
 
 async def setup():
@@ -45,8 +40,8 @@ async def setup():
 
 if __name__ == "__main__":
     context = zmq.Context()
-    socket = context.socket(zmq.REP)
-    socket.bind("tcp://*:5555")
+    publisher = context.socket(zmq.PUB)
+    publisher.bind("tcp://*:5555")
     
     asyncio.ensure_future(setup())
     asyncio.get_event_loop().run_forever()
