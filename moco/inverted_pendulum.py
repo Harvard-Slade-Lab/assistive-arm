@@ -1,9 +1,10 @@
+import os
 import opensim as osim
 
 
 model = osim.Model()
 model.setName("inverted_pendulum")
-model.set_gravity(osim.Vec3(0, 0, 0))
+model.set_gravity(osim.Vec3(0, -9.81, 0))
 
 # Create rectangular cart
 cart = osim.Body("body", 2.0, osim.Vec3(0), osim.Inertia(0))
@@ -49,32 +50,40 @@ actu.setCoordinate(coord)
 actu.setName("horizontal_force")
 actu.setMaxControl(1)
 actu.setMinControl(-1)
-actu.setOptimalForce(100)
+actu.setOptimalForce(10)
 
 model.addComponent(actu)
 
 model.finalizeConnections()
 
-model.printToXML("inverted_pendulum.osim")
+model.printToXML("./moco/models/inverted_pendulum.osim")
 
 # Create MocoStudy.
 # ================
 study = osim.MocoStudy()
-study.setName("inverted_pendulum")
+study.setName("invertedPendulum")
 
 # Define the optimal control problem.
 # ===================================
 problem = study.updProblem()
-
-# Model (dynamics).
-# -----------------
 problem.setModel(model)
+problem.setTimeBounds(0, 20)
+problem.setStateInfo("/jointset/pin/pin_coord_0/value", [-10, 10], 0.2, 0)
+problem.setStateInfo("/jointset/pin/pin_coord_0/speed", [-50, 50], 0, 0)
+problem.setStateInfo("/jointset/cart/position/value", [-2, 2], 0, 0)
+problem.setStateInfo("/jointset/cart/position/speed", [-50, 50], 0, 0)
 
-# Bounds.
-# -------
-# Initial time must be 0, final time can be within [0, 5].
-problem.setTimeBounds(osim.MocoInitialBounds(0.0), osim.MocoFinalBounds(0.0, 5.0))
+control_goal = osim.MocoControlGoal("effort")
+problem.addGoal(control_goal)
 
-# Position must be within [-5, 5] throughout the motion.
-# Initial position must be 0, final position must be 0
-# problem.setStateInfo(
+
+solver = study.initCasADiSolver()
+solver.set_num_mesh_intervals(15)
+solver.set_optim_convergence_tolerance(1e-4)
+solver.set_optim_constraint_tolerance(1e-4)
+
+if not os.path.isfile('predictSolution.sto'):
+    # Part 1f: Solve! Write the solution to file, and visualize.
+    predictSolution = study.solve()
+    predictSolution.write('./moco/results/testInvertedPendulum.sto')
+    study.visualize(predictSolution)
