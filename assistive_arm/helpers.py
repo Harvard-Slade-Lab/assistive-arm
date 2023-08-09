@@ -4,7 +4,7 @@ import opensim as osim
 def getMuscleDrivenModel():
 
     # Load the base model.
-    model = osim.Model('./moco/squatToStand_3dof9musc.osim')
+    model = osim.Model('./moco/models/squatToStand_3dof9musc.osim')
     model.finalizeConnections()
 
     # Replace the muscles in the model with muscles from DeGroote, Fregly,
@@ -46,7 +46,7 @@ def addCoordinateActuator(model, coordName, optForce):
 
 def getTorqueDrivenModel():
     # Load the base model.
-    model = osim.Model('./moco/squatToStand_3dof9musc.osim')
+    model = osim.Model('./moco/models/squatToStand_3dof9musc.osim')
 
     # Remove the muscles in the model.
     model.updForceSet().clearAndDestroy()
