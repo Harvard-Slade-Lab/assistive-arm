@@ -58,3 +58,29 @@ def getTorqueDrivenModel():
     addCoordinateActuator(model, 'ankle_angle_r', 150)
 
     return model
+
+def add_assistive_force(
+    model: osim.Model,
+    name: str,
+    direction: osim.Vec3,
+    location: str = "torso",
+    magnitude: int = 100,
+) -> None:
+    """Add an assistive force to the model.
+
+    Args:
+        model (osim.Model): model to add assistive force to
+        name (str): name of assistive force
+        direction (osim.Vec3): direction of assistive force
+        location (str, optional): where the force will act. Defaults to "torso".
+        magnitude (int, optional): How strong the force is. Defaults to 100.
+    """
+    assistActuator = osim.PointActuator(location)
+    assistActuator.setName(name)
+    assistActuator.set_force_is_global(True)
+    assistActuator.set_direction(direction)
+    assistActuator.setMinControl(-1)
+    assistActuator.setMaxControl(1)
+    assistActuator.setOptimalForce(magnitude)
+
+    model.addForce(assistActuator)
