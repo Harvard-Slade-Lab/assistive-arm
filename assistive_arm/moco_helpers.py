@@ -1,10 +1,11 @@
 import numpy as np
 import opensim as osim
 
-def getMuscleDrivenModel():
+from pathlib import Path
 
+def getMuscleDrivenModel(model_path: str):
     # Load the base model.
-    model = osim.Model('./moco/models/squatToStand_3dof9musc.osim')
+    model = osim.Model(model_path)
     model.finalizeConnections()
 
     # Replace the muscles in the model with muscles from DeGroote, Fregly,
@@ -44,9 +45,9 @@ def addCoordinateActuator(model, coordName, optForce):
     actu.setMaxControl(1)
     model.addComponent(actu)
 
-def getTorqueDrivenModel():
+def getTorqueDrivenModel(model_path: Path):
     # Load the base model.
-    model = osim.Model('./moco/models/squatToStand_3dof9musc.osim')
+    model = osim.Model(str(model_path))
 
     # Remove the muscles in the model.
     model.updForceSet().clearAndDestroy()
@@ -56,6 +57,9 @@ def getTorqueDrivenModel():
     addCoordinateActuator(model, 'hip_flexion_r', 150)
     addCoordinateActuator(model, 'knee_angle_r', 300)
     addCoordinateActuator(model, 'ankle_angle_r', 150)
+    
+    model.finalizeConnections()
+
 
     return model
 
@@ -75,7 +79,7 @@ def add_assistive_force(
         location (str, optional): where the force will act. Defaults to "torso".
         magnitude (int, optional): How strong the force is. Defaults to 100.
     """
-    assistActuator = osim.PointActuator(location)
+    assistActuator = osim.PointActuator("torso")
     assistActuator.setName(name)
     assistActuator.set_force_is_global(True)
     assistActuator.set_direction(direction)

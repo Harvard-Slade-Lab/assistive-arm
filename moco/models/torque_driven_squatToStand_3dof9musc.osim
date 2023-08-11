@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <OpenSimDocument Version="40000">
-	<Model name="squatToStand">
+	<Model name="torque_driven_squatToStand_3dof9musc">
 		<defaults>
 			<ControlLinear name="default">
 				<is_model_control>true</is_model_control>
@@ -1837,7 +1837,7 @@
 					<!--Interpret direction in Ground frame if true; otherwise, body frame.-->
 					<force_is_global>true</force_is_global>
 					<!--The maximum force produced by this actuator when fully activated.-->
-					<optimal_force>250</optimal_force>
+					<optimal_force>100</optimal_force>
 				</PointActuator>
 				<PointActuator name="assistive_force_x">
 					<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
@@ -1851,7 +1851,7 @@
 					<!--Interpret direction in Ground frame if true; otherwise, body frame.-->
 					<force_is_global>true</force_is_global>
 					<!--The maximum force produced by this actuator when fully activated.-->
-					<optimal_force>250</optimal_force>
+					<optimal_force>100</optimal_force>
 				</PointActuator>
 			</objects>
 		</ForceSet>
