@@ -63,6 +63,28 @@ def getTorqueDrivenModel(model_path: Path):
 
     return model
 
+def get_model(model_type: str, enable_assist: bool, output_model: bool=True) -> osim.Model:
+    model_path = Path("./moco/models/base/LaiUhlrich2022_scaled.osim")
+
+    if model_type == "muscle":
+        model = getMuscleDrivenModel(model_path=str(model_path))
+    else:
+        model = getTorqueDrivenModel(model_path=str(model_path))
+    model_name = f"{model_type}_driven_{model_path.stem}"
+    model.setName(model_name)
+
+    # Add assistive actuators
+    if enable_assist:
+        add_assistive_force(model, "assistive_force_y", osim.Vec3(0, 1, 0), 250)
+        add_assistive_force(model, "assistive_force_x", osim.Vec3(1, 0, 0), 250)
+
+    model.initSystem()
+    
+    if output_model:
+        model.printToXML(f"./moco/models/{model_name}.osim")
+
+    return model
+
 def add_assistive_force(
     model: osim.Model,
     name: str,
