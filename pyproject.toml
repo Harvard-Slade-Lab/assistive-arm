@@ -19,6 +19,7 @@ sympy = "^1.12"
 qtm-rt = "^3.0.1"
 pyzmq = "^25.1.0"
 gpiozero = "^1.6.2"
+pandas = "^2.1.0"
 
 [build-system]
 requires = ["poetry-core"]
