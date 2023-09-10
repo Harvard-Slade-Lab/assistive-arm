@@ -4,6 +4,24 @@ import pandas as pd
 
 from pathlib import Path
 
+def export_filtered_force(force_data: pd.DataFrame, filename: Path) -> None:
+    force_data.to_csv(filename, sep="\t", index=False)
+    # Add header containing version, nRows, nColumns, inDegrees
+    with open(filename, 'r') as f:
+        contents = f.readlines()
+
+    header = [
+        f"{filename.stem}\n",
+        "version=1\n", 
+        f"nRows={force_data.shape[0]}\n", 
+        f"nColumns={force_data.shape[1]}\n", 
+        "inDegrees=no\n",
+        "endheader\n"
+        ]
+
+    with open(filename, 'w') as f:
+        f.writelines(header + contents)
+
 
 def read_headers(file_path: Path, rows: int) -> list:
     """Read the first rows of a csv file and return them as a list.
@@ -60,9 +78,13 @@ def prepare_mocap_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def prepare_mocap_force_data(df: pd.DataFrame) -> pd.DataFrame:
-    df.reset_index(names="timestamp", inplace=True)
-    df.drop(columns=["CoPz", "nan"], inplace=True)
-    df["timestamp"] = df["timestamp"].apply(lambda x: x / 600)
+def prepare_mocap_force_data(df_right: pd.DataFrame, df_left: pd.DataFrame) -> pd.DataFrame:
+    df_right.drop(columns=["nan"], inplace=True)
+    df_left.drop(columns=["nan"], inplace=True)
 
-    return df
+    # Divide frame by sampling rate
+    df_merged = pd.concat([df_right, df_left], axis=1)
+    df_merged.reset_index(names="time", inplace=True)
+    df_merged["time"] = df_merged["time"].apply(lambda x: x / 600)
+
+    return df_merged

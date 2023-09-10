@@ -5,50 +5,43 @@ import opensim as osim
 from datetime import datetime
 from pathlib import Path
 
-from assistive_arm.moco_helpers import get_model
+from assistive_arm.moco_helpers import get_model, set_marker_tracking_weights, get_tracking_problem
 
 
-
-def main(): 
+def main():
     enable_assist = True
 
-    model_type = "muscle"
-    model = get_model(model_type=model_type, enable_assist=enable_assist)
+    base_model_path = Path("./moco/models/base/LaiUhlrich2022_scaled.osim")
+    marker_data = "./moco/marker_data/sit_stand_2_w_grf.trc"
 
-    # Create a MocoStudy.
-    study = osim.MocoStudy()
-    study.setName("testForceHuman")
+    model = get_model(scaled_model_path=base_model_path, enable_assist=enable_assist, ground_forces=False)
+    model.initSystem()
+    
+    # Use MocoTrack to do the tracking
 
-    # Define the optimal control problem.
+    tracking_problem = get_tracking_problem(
+        model=model, markers_path=marker_data, t_0=1.4, t_f=3
+    )
+    study = tracking_problem.initialize()
     problem = study.updProblem()
-    problem.setModel(model)
+    # problem.setStateInfoPattern("/jointset/.*/speed", [], 0, 0)
+    # problem.setStateInfoPattern("/forceset/*/activation", [], 1, 1)
 
-    problem.setTimeBounds(0, 1)
-
-    problem.setStateInfoPattern("/jointset/.*/speed", [], 0, 0)
-
-    # Add a control cost
-    controlCost = osim.MocoControlGoal("reduce_effort", 1)
-    controlCost.setWeightForControlPattern("/forceset/assistive*", 0)
-    problem.addGoal(controlCost)
-
-    # Configure the solver.
-    solver = study.initCasADiSolver()
-    solver.set_num_mesh_intervals(25)
-    solver.set_optim_convergence_tolerance(1e-4)
-    solver.set_optim_constraint_tolerance(1e-4)
+    # Create a control cost
+    effort = osim.MocoControlGoal.safeDownCast(problem.updGoal("control_effort"))
+    # effort.setWeightForControl("/forceset/vasmed_r", 0.7)
+    # effort.setWeightForControl("/forceset/vasmed_l", 0.7)
+    if enable_assist:
+        effort.setWeightForControl("/forceset/assistive_force_y", 0)
+        effort.setWeightForControl("/forceset/assistive_force_x", 0)
 
     cur_time = datetime.now().strftime("%Y-%m-%d_%H-%M")
 
-    solution_name = (
-        f"{model_type}_solution_assistance_{str(enable_assist).lower()}_{cur_time}"
-    )
+    solution_name = f"solution_assistance_{str(enable_assist).lower()}_{cur_time}"
 
-
-    # Part 1f: Solve! Write the solution to file, and visualize.
-    predictSolution = study.solve()
-    predictSolution.write(f"./moco/control_solutions/{solution_name}.sto")
-    study.visualize(predictSolution)
+    solution = study.solve()
+    solution.write(f"./moco/control_solutions/{solution_name}.sto")
+    study.visualize(solution)
 
 
 if __name__ == "__main__":

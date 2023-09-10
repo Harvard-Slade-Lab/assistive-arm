@@ -3,87 +3,210 @@ import opensim as osim
 
 from pathlib import Path
 
-def getMuscleDrivenModel(model_path: str):
+
+def simplify_model(model: osim.Model) -> None:
+    # bodies = [
+    #     "humerus_r",
+    #     "humerus_l",
+    #     "ulna_r",
+    #     "ulna_l",
+    #     "radius_r",
+    #     "radius_l",
+    #     "hand_r",
+    #     "hand_l",
+    # ]
+
+    # body_set = model.updBodySet()
+
+    # for body in bodies:
+    #     body_set.remove(body_set.getIndex(body))
+
+    # Remove unnecessary joints
+    # joints = [
+    #     "acromial_l",
+    #     "radius_hand_l",
+    #     "radioulnar_l",
+    #     "elbow_l",
+    #     "acromial_r",
+    #     "radius_hand_r",
+    #     "radioulnar_r",
+    #     "elbow_r",
+    # ]
+    # joint_set = model.upd_JointSet()
+
+    # for joint in joints:
+    #     joint_set.remove(joint_set.getIndex(joint))
+
+    # Remove unnecessary actuators
+    actuators = [
+        "shoulder_flex_r",
+        "shoulder_add_r",
+        "shoulder_rot_r",
+        "elbow_flex_r",
+        "pro_sup_r",
+        "shoulder_flex_l",
+        "shoulder_add_l",
+        "shoulder_rot_l",
+        "elbow_flex_l",
+        "pro_sup_l",
+    ]
+
+    right_muscles = [
+        "addlong_r",
+        "addbrev_r",
+        "addmagDist_r",
+        "addmagIsch_r",
+        "addmagProx_r",
+        "addmagMid_r",
+        "fdl_r",
+        "ehl_r", # Consider deleting
+        "fhl_r", # Consider deleting
+        "gaslat_r", # Consider deleting
+        "glmax2_r",
+        "glmax3_r",
+        "glmed1_r",
+        "glmed2_r",
+        "glmed3_r",
+        "glmin1_r",
+        "glmin2_r",
+        "glmin3_r",
+        "perlong_r",
+        "edl_r",
+        "grac_r", # Consider deleting
+        "iliacus_r", # Consider deleting
+        "perbrev_r", # Consider deleting
+        "piri_r",
+        # "recfem_r", # Consider deleting
+        "sart_r",
+        "semimem_r",
+        "semiten_r",
+        "tfl_r",
+        "tibpost_r",
+        "vasint_r", # Consider deleting
+        "vaslat_r", # Consider deleting
+        # "vasmed_r", # Consider deleting
+    ]
+
+    left_muscles = [muscle[:-1] + "l" for muscle in right_muscles]
+
+    lumbar_muscles = [
+        "lumbar_bend",
+        "lumbar_ext",
+        "lumbar_rot",
+    ]
+
+    force_set = model.upd_ForceSet()
+
+    for i in actuators + right_muscles + left_muscles + lumbar_muscles:
+        force_set.remove(force_set.getIndex(i))
+
+def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
+    markerWeights = osim.MocoWeightSet()
+
+    markerWeights.cloneAndAppend(osim.MocoWeight("r.ASIS_study", 20))
+    markerWeights.cloneAndAppend(osim.MocoWeight("r.PSIS_study", 20))
+    markerWeights.cloneAndAppend(osim.MocoWeight("r_knee_study", 10))
+    markerWeights.cloneAndAppend(osim.MocoWeight("r_ankle_study", 10))
+    markerWeights.cloneAndAppend(osim.MocoWeight("r_calc_study", 10))
+    markerWeights.cloneAndAppend(osim.MocoWeight("r_5meta_study", 5))
+    markerWeights.cloneAndAppend(osim.MocoWeight("r_toe_study", 2))
+    
+    markerWeights.cloneAndAppend(osim.MocoWeight("l.ASIS_study", 20))
+    markerWeights.cloneAndAppend(osim.MocoWeight("l.PSIS_study", 20))
+    markerWeights.cloneAndAppend(osim.MocoWeight("l_knee_study", 10))
+    markerWeights.cloneAndAppend(osim.MocoWeight("l_ankle_study", 10))
+    markerWeights.cloneAndAppend(osim.MocoWeight("l_calc_study", 10))
+    markerWeights.cloneAndAppend(osim.MocoWeight("l_5meta_study", 5))
+    markerWeights.cloneAndAppend(osim.MocoWeight("l_toe_study", 2))
+
+
+    track.set_markers_weight_set(markerWeights)
+
+def getMuscleDrivenModel(model_path: Path, ground_forces: bool) -> osim.Model:
     # Load the base model.
-    model = osim.Model(model_path)
+    model = osim.Model(str(model_path))
+    simplify_model(model=model)
+
+    jointNames = osim.StdVectorString()
+    jointNames.append("acromial_r")
+    jointNames.append("elbow_r")
+    jointNames.append("radioulnar_r")
+    jointNames.append("radius_hand_r")
+    jointNames.append("acromial_l")
+    jointNames.append("elbow_l")
+    jointNames.append("radioulnar_l")
+    jointNames.append("radius_hand_l")
+
+    modelProcessor = osim.ModelProcessor(model)
+    modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
+    modelProcessor.append(osim.ModOpReplaceJointsWithWelds(jointNames))
+    modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
+    modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
+    modelProcessor.append(osim.ModOpScaleActiveFiberForceCurveWidthDGF(1.5))
+
+    if ground_forces:
+        modelProcessor.append(osim.ModOpAddExternalLoads("./moco/forces/grf_sit_stand.xml"))
+
+
+    model = modelProcessor.process()
     model.finalizeConnections()
 
-    # Replace the muscles in the model with muscles from DeGroote, Fregly,
-    # et al. 2016, "Evaluation of Direct Collocation Optimal Control Problem
-    # Formulations for Solving the Muscle Redundancy Problem". These muscles
-    # have the same properties as the original muscles but their characteristic
-    # curves are optimized for direct collocation (i.e. no discontinuities,
-    # twice differentiable, etc).
-    osim.DeGrooteFregly2016Muscle().replaceMuscles(model)
-
-    # Make problems easier to solve by strengthening the model and widening the
-    # active force-length curve.
-    for m in np.arange(model.getMuscles().getSize()):
-        musc = model.updMuscles().get(int(m))
-        musc.setMinControl(0.0)
-        musc.set_ignore_activation_dynamics(False)
-        musc.set_ignore_tendon_compliance(False)
-        musc.set_max_isometric_force(2.0 * musc.get_max_isometric_force())
-        dgf = osim.DeGrooteFregly2016Muscle.safeDownCast(musc)
-        dgf.set_active_force_width_scale(1.5)
-        dgf.set_tendon_compliance_dynamics_mode('implicit')
-        if str(musc.getName()) == 'soleus_r':
-            # Soleus has a very long tendon, so modeling its tendon as rigid
-            # causes the fiber to be unrealistically long and generate
-            # excessive passive fiber force.
-            dgf.set_ignore_passive_fiber_force(True)
-
     return model
+
 
 def addCoordinateActuator(model, coordName, optForce):
     coordSet = model.updCoordinateSet()
     actu = osim.CoordinateActuator()
-    actu.setName('tau_' + coordName)
+    actu.setName("tau_" + coordName)
     actu.setCoordinate(coordSet.get(coordName))
     actu.setOptimalForce(optForce)
     actu.setMinControl(-1)
     actu.setMaxControl(1)
     model.addComponent(actu)
 
-def getTorqueDrivenModel(model_path: Path):
-    # Load the base model.
-    model = osim.Model(str(model_path))
 
-    # Remove the muscles in the model.
-    model.updForceSet().clearAndDestroy()
-    model.initSystem()
+def get_model(
+    scaled_model_path: Path, enable_assist: bool, ground_forces: bool=False, output_model: bool = True
+) -> osim.Model:
+    """ Get a model with assistive forces.
 
-    # Add CoordinateActuators to the model degrees-of-freedom.
-    addCoordinateActuator(model, 'hip_flexion_r', 150)
-    addCoordinateActuator(model, 'knee_angle_r', 300)
-    addCoordinateActuator(model, 'ankle_angle_r', 150)
-    
-    model.finalizeConnections()
+    Args:
+        scaled_model_path (Path): path to scaled model
+        enable_assist (bool): enable assistive forces
+        output_model (bool, optional): whether to output the model. Defaults to True.
+    Returns:
+        osim.Model: model with assistive forces
+    """
+    model = getMuscleDrivenModel(model_path=str(scaled_model_path), ground_forces=ground_forces)
+    model.setName(scaled_model_path.stem)
 
-
-    return model
-
-def get_model(model_type: str, enable_assist: bool, output_model: bool=True) -> osim.Model:
-    model_path = Path("./moco/models/base/LaiUhlrich2022_scaled.osim")
-
-    if model_type == "muscle":
-        model = getMuscleDrivenModel(model_path=str(model_path))
-    else:
-        model = getTorqueDrivenModel(model_path=str(model_path))
-    model_name = f"{model_type}_driven_{model_path.stem}"
-    model.setName(model_name)
-
-    # Add assistive actuators
+    # Add assistive force
     if enable_assist:
         add_assistive_force(model, "assistive_force_y", osim.Vec3(0, 1, 0), 250)
         add_assistive_force(model, "assistive_force_x", osim.Vec3(1, 0, 0), 250)
 
-    model.initSystem()
-    
     if output_model:
-        model.printToXML(f"./moco/models/{model_name}.osim")
+        model.printToXML(f"./moco/models/{scaled_model_path.stem}.osim")
 
     return model
+
+def get_tracking_problem(model: osim.Model, markers_path: str, t_0: float, t_f: float, mesh_interval: float=0.08) -> osim.MocoStudy:
+    # Create a MocoTrack problem
+    tracking = osim.MocoTrack()
+    tracking.setModel(osim.ModelProcessor(model))
+    tracking.setName("tracking_problem")
+    tracking.setMarkersReferenceFromTRC(markers_path)
+    tracking.set_states_global_tracking_weight(10)
+    tracking.set_allow_unused_references(True)
+    tracking.set_track_reference_position_derivatives(True)
+    tracking.set_initial_time(t_0)
+    tracking.set_final_time(t_f)
+    tracking.set_mesh_interval(mesh_interval)
+    
+
+    set_marker_tracking_weights(track=tracking)
+
+    return tracking
 
 def add_assistive_force(
     model: osim.Model,
