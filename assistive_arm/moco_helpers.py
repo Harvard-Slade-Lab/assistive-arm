@@ -59,9 +59,9 @@ def simplify_model(model: osim.Model) -> None:
         "addmagProx_r",
         "addmagMid_r",
         "fdl_r",
-        "ehl_r", # Consider deleting
-        "fhl_r", # Consider deleting
-        "gaslat_r", # Consider deleting
+        "ehl_r",  # Consider deleting
+        "fhl_r",  # Consider deleting
+        "gaslat_r",  # Consider deleting
         "glmax2_r",
         "glmax3_r",
         "glmed1_r",
@@ -72,9 +72,9 @@ def simplify_model(model: osim.Model) -> None:
         "glmin3_r",
         "perlong_r",
         "edl_r",
-        "grac_r", # Consider deleting
-        "iliacus_r", # Consider deleting
-        "perbrev_r", # Consider deleting
+        "grac_r",  # Consider deleting
+        "iliacus_r",  # Consider deleting
+        "perbrev_r",  # Consider deleting
         "piri_r",
         # "recfem_r", # Consider deleting
         "sart_r",
@@ -82,8 +82,8 @@ def simplify_model(model: osim.Model) -> None:
         "semiten_r",
         "tfl_r",
         "tibpost_r",
-        "vasint_r", # Consider deleting
-        "vaslat_r", # Consider deleting
+        "vasint_r",  # Consider deleting
+        "vaslat_r",  # Consider deleting
         # "vasmed_r", # Consider deleting
     ]
 
@@ -97,8 +97,9 @@ def simplify_model(model: osim.Model) -> None:
 
     force_set = model.upd_ForceSet()
 
-    for i in actuators + right_muscles + left_muscles + lumbar_muscles:
+    for i in actuators:# + right_muscles + left_muscles + lumbar_muscles:
         force_set.remove(force_set.getIndex(i))
+
 
 def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
     markerWeights = osim.MocoWeightSet()
@@ -110,7 +111,7 @@ def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
     markerWeights.cloneAndAppend(osim.MocoWeight("r_calc_study", 10))
     markerWeights.cloneAndAppend(osim.MocoWeight("r_5meta_study", 5))
     markerWeights.cloneAndAppend(osim.MocoWeight("r_toe_study", 2))
-    
+
     markerWeights.cloneAndAppend(osim.MocoWeight("l.ASIS_study", 20))
     markerWeights.cloneAndAppend(osim.MocoWeight("l.PSIS_study", 20))
     markerWeights.cloneAndAppend(osim.MocoWeight("l_knee_study", 10))
@@ -119,34 +120,41 @@ def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
     markerWeights.cloneAndAppend(osim.MocoWeight("l_5meta_study", 5))
     markerWeights.cloneAndAppend(osim.MocoWeight("l_toe_study", 2))
 
-
     track.set_markers_weight_set(markerWeights)
 
-def getMuscleDrivenModel(model_path: Path, ground_forces: bool) -> osim.Model:
-    # Load the base model.
-    model = osim.Model(str(model_path))
-    simplify_model(model=model)
 
-    jointNames = osim.StdVectorString()
-    jointNames.append("acromial_r")
-    jointNames.append("elbow_r")
-    jointNames.append("radioulnar_r")
-    jointNames.append("radius_hand_r")
-    jointNames.append("acromial_l")
-    jointNames.append("elbow_l")
-    jointNames.append("radioulnar_l")
-    jointNames.append("radius_hand_l")
+def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: bool) -> osim.Model:
+    # Load the base model.
+    if subject_name == "opencap":
+        model = osim.Model(str(model_path))
+    else:
+        model = osim.Model("./simplified_model.osim")
+    
+    simplify_model(model=model)
 
     modelProcessor = osim.ModelProcessor(model)
     modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
-    modelProcessor.append(osim.ModOpReplaceJointsWithWelds(jointNames))
     modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
     modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
     modelProcessor.append(osim.ModOpScaleActiveFiberForceCurveWidthDGF(1.5))
 
-    if ground_forces:
-        modelProcessor.append(osim.ModOpAddExternalLoads("./moco/forces/grf_sit_stand.xml"))
+    if subject_name != "simple":
+        jointNames = osim.StdVectorString()
+        jointNames.append("acromial_r")
+        jointNames.append("elbow_r")
+        jointNames.append("radioulnar_r")
+        jointNames.append("radius_hand_r")
+        jointNames.append("acromial_l")
+        jointNames.append("elbow_l")
+        jointNames.append("radioulnar_l")
+        jointNames.append("radius_hand_l")
+        
+        modelProcessor.append(osim.ModOpReplaceJointsWithWelds(jointNames))
 
+    if ground_forces:
+        modelProcessor.append(
+            osim.ModOpAddExternalLoads("./moco/forces/grf_sit_stand.xml")
+        )
 
     model = modelProcessor.process()
     model.finalizeConnections()
@@ -166,9 +174,13 @@ def addCoordinateActuator(model, coordName, optForce):
 
 
 def get_model(
-    scaled_model_path: Path, enable_assist: bool, ground_forces: bool=False, output_model: bool = True
+    subject_name: str,
+    scaled_model_path: Path,
+    enable_assist: bool,
+    ground_forces: bool = False,
+    output_model: bool = True,
 ) -> osim.Model:
-    """ Get a model with assistive forces.
+    """Get a model with assistive forces.
 
     Args:
         scaled_model_path (Path): path to scaled model
@@ -177,36 +189,54 @@ def get_model(
     Returns:
         osim.Model: model with assistive forces
     """
-    model = getMuscleDrivenModel(model_path=str(scaled_model_path), ground_forces=ground_forces)
-    model.setName(scaled_model_path.stem)
+    model = getMuscleDrivenModel(
+        subject_name=subject_name,
+        model_path=str(scaled_model_path),
+        ground_forces=ground_forces,
+    )
+    model_name = f"{subject_name}_{scaled_model_path.stem}"
+    model.setName(model_name)
 
     # Add assistive force
     if enable_assist:
-        add_assistive_force(model, "assistive_force_y", osim.Vec3(0, 1, 0), 250)
-        add_assistive_force(model, "assistive_force_x", osim.Vec3(1, 0, 0), 250)
+        add_assistive_force(model, "assistive_force_y", osim.Vec3(0, 1, 0), 300)
+        add_assistive_force(model, "assistive_force_x", osim.Vec3(1, 0, 0), 100)
+        add_assistive_force(model, "assistive_force_z", osim.Vec3(0, 0, 1), 50)
 
     if output_model:
-        model.printToXML(f"./moco/models/{scaled_model_path.stem}.osim")
+        model.printToXML(f"./moco/models/{model_name}.osim")
 
     return model
 
-def get_tracking_problem(model: osim.Model, markers_path: str, t_0: float, t_f: float, mesh_interval: float=0.08) -> osim.MocoStudy:
+
+def get_tracking_problem(
+    model: osim.Model,
+    markers_path: str,
+    t_0: float,
+    t_f: float,
+    mesh_interval: float = 0.08,
+) -> osim.MocoStudy:
     # Create a MocoTrack problem
     tracking = osim.MocoTrack()
     tracking.setModel(osim.ModelProcessor(model))
     tracking.setName("tracking_problem")
-    tracking.setMarkersReferenceFromTRC(markers_path)
-    tracking.set_states_global_tracking_weight(10)
+
+    if model.getName().startswith("opencap"):
+        tracking.setMarkersReferenceFromTRC(markers_path)
+    else:
+        tracking.setMarkersReferenceFromTRC(markers_path)
+        # tracking.setStatesReference(osim.TableProcessor("./filtered.mot"))
+    # tracking.set_states_global_tracking_weight(10)
     tracking.set_allow_unused_references(True)
     tracking.set_track_reference_position_derivatives(True)
     tracking.set_initial_time(t_0)
     tracking.set_final_time(t_f)
     tracking.set_mesh_interval(mesh_interval)
-    
 
-    set_marker_tracking_weights(track=tracking)
+    # set_marker_tracking_weights(track=tracking)
 
     return tracking
+
 
 def add_assistive_force(
     model: osim.Model,
