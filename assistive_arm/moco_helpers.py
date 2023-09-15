@@ -4,7 +4,7 @@ import opensim as osim
 from pathlib import Path
 
 
-def simplify_model(model: osim.Model) -> None:
+def simplify_model(name: str, model: osim.Model) -> None:
     # bodies = [
     #     "humerus_r",
     #     "humerus_l",
@@ -97,7 +97,15 @@ def simplify_model(model: osim.Model) -> None:
 
     force_set = model.upd_ForceSet()
 
-    for i in actuators:# + right_muscles + left_muscles + lumbar_muscles:
+
+    if "simple" in name:
+        print("Removing most muscles")
+        muscles_to_remove = right_muscles + left_muscles + lumbar_muscles
+    else:
+        print("Only removing actuators")
+        muscles_to_remove = []
+
+    for i in actuators + muscles_to_remove:
         force_set.remove(force_set.getIndex(i))
 
 
@@ -125,20 +133,25 @@ def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
 
 def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: bool) -> osim.Model:
     # Load the base model.
-    if subject_name == "opencap":
+    if "opencap" in subject_name:
+        print("Reading opencap model...")
         model = osim.Model(str(model_path))
     else:
+        print("Reading simplified model...")
         model = osim.Model("./simplified_model.osim")
     
-    simplify_model(model=model)
+    simplify_model(name=subject_name, model=model)
 
     modelProcessor = osim.ModelProcessor(model)
     modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
     modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
     modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
     modelProcessor.append(osim.ModOpScaleActiveFiberForceCurveWidthDGF(1.5))
+    modelProcessor.append(osim.ModOpAddReserves(700))
 
-    if subject_name != "simple":
+
+    if "simple" not in subject_name:
+
         jointNames = osim.StdVectorString()
         jointNames.append("acromial_r")
         jointNames.append("elbow_r")
@@ -162,17 +175,6 @@ def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: boo
     return model
 
 
-def addCoordinateActuator(model, coordName, optForce):
-    coordSet = model.updCoordinateSet()
-    actu = osim.CoordinateActuator()
-    actu.setName("tau_" + coordName)
-    actu.setCoordinate(coordSet.get(coordName))
-    actu.setOptimalForce(optForce)
-    actu.setMinControl(-1)
-    actu.setMaxControl(1)
-    model.addComponent(actu)
-
-
 def get_model(
     subject_name: str,
     scaled_model_path: Path,
@@ -194,14 +196,14 @@ def get_model(
         model_path=str(scaled_model_path),
         ground_forces=ground_forces,
     )
-    model_name = f"{subject_name}_{scaled_model_path.stem}"
+    model_name = f"{subject_name}_{scaled_model_path.stem}" 
     model.setName(model_name)
 
     # Add assistive force
     if enable_assist:
-        add_assistive_force(model, "assistive_force_y", osim.Vec3(0, 1, 0), 300)
-        add_assistive_force(model, "assistive_force_x", osim.Vec3(1, 0, 0), 100)
-        add_assistive_force(model, "assistive_force_z", osim.Vec3(0, 0, 1), 50)
+        add_assistive_force(coordName="pelvis_ty", model=model, name="assistive_force_y", direction=osim.Vec3(0, 1, 0), magnitude=300)
+        add_assistive_force(coordName="pelvis_tx", model=model, name="assistive_force_x", direction=osim.Vec3(1, 0, 0), magnitude=200)
+        add_assistive_force(coordName="pelvis_tz", model=model, name="assistive_force_z", direction=osim.Vec3(0, 0, 1), magnitude=50)
 
     if output_model:
         model.printToXML(f"./moco/models/{model_name}.osim")
@@ -229,6 +231,7 @@ def get_tracking_problem(
     # tracking.set_states_global_tracking_weight(10)
     tracking.set_allow_unused_references(True)
     tracking.set_track_reference_position_derivatives(True)
+    tracking.set_markers_global_tracking_weight(10)
     tracking.set_initial_time(t_0)
     tracking.set_final_time(t_f)
     tracking.set_mesh_interval(mesh_interval)
@@ -239,6 +242,7 @@ def get_tracking_problem(
 
 
 def add_assistive_force(
+    coordName: str,
     model: osim.Model,
     name: str,
     direction: osim.Vec3,
@@ -254,12 +258,22 @@ def add_assistive_force(
         location (str, optional): where the force will act. Defaults to "torso".
         magnitude (int, optional): How strong the force is. Defaults to 100.
     """
-    assistActuator = osim.PointActuator("torso")
-    assistActuator.setName(name)
-    assistActuator.set_force_is_global(True)
-    assistActuator.set_direction(direction)
-    assistActuator.setMinControl(-1)
-    assistActuator.setMaxControl(1)
-    assistActuator.setOptimalForce(magnitude)
+    coordSet = model.updCoordinateSet()
 
-    model.addForce(assistActuator)
+    actu = osim.CoordinateActuator()
+    actu.setName(name)
+    actu.setCoordinate(coordSet.get(coordName))
+    actu.setOptimalForce(magnitude)
+    actu.setMinControl(-1)
+    actu.setMaxControl(1)
+    model.addComponent(actu)
+
+    # assistActuator = osim.PointActuator("torso")
+    # assistActuator.setName(name)
+    # assistActuator.set_force_is_global(True)
+    # assistActuator.set_direction(direction)
+    # assistActuator.setMinControl(-1)
+    # assistActuator.setMaxControl(1)
+    # assistActuator.setOptimalForce(magnitude)
+
+    # model.addForce(assistActuator)

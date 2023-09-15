@@ -110,7 +110,7 @@ def xcorr_and_shift(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, int]:
 
     # Compute cross-correlation and lag
     correlation = np.correlate(x, y, 'full')
-    lag = round((np.argmax(correlation) - len(x) + 1)/4)
+    lag = round((np.argmax(correlation) - len(x) + 1)/4) - 19 # TODO Hard-coded shifting
     # Shift the 'y' signal based on the calculated lag
     # y_shifted = np.roll(y, -lag)
 
@@ -119,7 +119,7 @@ def xcorr_and_shift(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, int]:
 def sync_mocap_with_opencap(marker_data: pd.DataFrame, force_data: pd.DataFrame, opencap_data: pd.DataFrame) -> pd.DataFrame:
     # Cut the mocap data such that it perfectly overlaps with opencap
 
-    _, lag = xcorr_and_shift(marker_data["Knee"].X, opencap_data["LKnee"].X)
+    _, lag = xcorr_and_shift(marker_data.Knee.X, opencap_data.LKnee.X)
 
     # Shift the data by lag
     marker_data = marker_data.iloc[-lag:-lag + opencap_data.shape[0]].reset_index(drop=True)
