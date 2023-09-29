@@ -133,25 +133,14 @@ def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
 
 def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: bool) -> osim.Model:
     # Load the base model.
-    if "opencap" in subject_name:
-        print("Reading opencap model...")
-        model = osim.Model(str(model_path))
-    else:
-        print("Reading simplified model...")
-        model = osim.Model("./simplified_model.osim")
+    model = osim.Model(str(model_path))
     
     simplify_model(name=subject_name, model=model)
 
     modelProcessor = osim.ModelProcessor(model)
-    modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
-    modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
-    modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
-    modelProcessor.append(osim.ModOpScaleActiveFiberForceCurveWidthDGF(1.5))
-    modelProcessor.append(osim.ModOpAddReserves(700))
 
 
     if "simple" not in subject_name:
-
         jointNames = osim.StdVectorString()
         jointNames.append("acromial_r")
         jointNames.append("elbow_r")
@@ -164,14 +153,20 @@ def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: boo
         
         modelProcessor.append(osim.ModOpReplaceJointsWithWelds(jointNames))
 
+    modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
+    modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
+    modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
+    modelProcessor.append(osim.ModOpScaleActiveFiberForceCurveWidthDGF(1.5))
+    # modelProcessor.append(osim.ModOpAddReserves(350))
+
+    
     if ground_forces:
         modelProcessor.append(
             osim.ModOpAddExternalLoads("./moco/forces/grf_sit_stand.xml")
         )
 
     model = modelProcessor.process()
-    model.finalizeConnections()
-
+    
     return model
 
 
@@ -180,7 +175,6 @@ def get_model(
     scaled_model_path: Path,
     enable_assist: bool,
     ground_forces: bool = False,
-    output_model: bool = True,
 ) -> osim.Model:
     """Get a model with assistive forces.
 
@@ -201,12 +195,98 @@ def get_model(
 
     # Add assistive force
     if enable_assist:
-        add_assistive_force(coordName="pelvis_ty", model=model, name="assistive_force_y", direction=osim.Vec3(0, 1, 0), magnitude=300)
-        add_assistive_force(coordName="pelvis_tx", model=model, name="assistive_force_x", direction=osim.Vec3(1, 0, 0), magnitude=200)
-        add_assistive_force(coordName="pelvis_tz", model=model, name="assistive_force_z", direction=osim.Vec3(0, 0, 1), magnitude=50)
+        add_assistive_force(coordName="pelvis_tx", model=model, name="assistive_force_x", direction=osim.Vec3(1, 0, 0), magnitude=500)
+        add_assistive_force(coordName="pelvis_ty", model=model, name="assistive_force_y", direction=osim.Vec3(0, 1, 0), magnitude=500)
 
-    if output_model:
-        model.printToXML(f"./moco/models/{model_name}.osim")
+    coordSet = model.updCoordinateSet()
+
+
+    actu = osim.CoordinateActuator()
+    actu.setName("reserve_pelvis_tilt")
+    actu.setCoordinate(coordSet.get("pelvis_tilt"))
+    actu.setOptimalForce(700)
+    actu.setMinControl(-np.inf)
+    actu.setMaxControl(np.inf)
+    model.addComponent(actu)
+
+    actu = osim.CoordinateActuator()
+    actu.setName("reserve_pelvis_rotation")
+    actu.setCoordinate(coordSet.get("pelvis_rotation"))
+    actu.setOptimalForce(700)
+    actu.setMinControl(-np.inf)
+    actu.setMaxControl(np.inf)
+    model.addComponent(actu)
+
+    actu = osim.CoordinateActuator()
+    actu.setName("reserve_pelvis_list")
+    actu.setCoordinate(coordSet.get("pelvis_list"))
+    actu.setOptimalForce(700)
+    actu.setMinControl(-np.inf)
+    actu.setMaxControl(np.inf)
+    model.addComponent(actu)
+
+    actu = osim.CoordinateActuator()
+    actu.setName("reserve_pelvis_tx")
+    actu.setCoordinate(coordSet.get("pelvis_tx"))
+    actu.setOptimalForce(700)
+    actu.setMinControl(-np.inf)
+    actu.setMaxControl(np.inf)
+    model.addComponent(actu)
+    
+    actu = osim.CoordinateActuator()
+    actu.setName("reserve_pelvis_ty")
+    actu.setCoordinate(coordSet.get("pelvis_ty"))
+    actu.setOptimalForce(700)
+    actu.setMinControl(-np.inf)
+    actu.setMaxControl(np.inf)
+    model.addComponent(actu)
+    
+    actu = osim.CoordinateActuator()
+    actu.setName("reserve_pelvis_tz")
+    actu.setCoordinate(coordSet.get("pelvis_tz"))
+    actu.setOptimalForce(700)
+    actu.setMinControl(-np.inf)
+    actu.setMaxControl(np.inf)
+    model.addComponent(actu)
+
+    # time = np.linspace(1.8, 3.2, 840, endpoint=True)
+    # forces = np.ones(840)*565
+    # forces[316:] = 0
+
+    # force_function = osim.PiecewiseConstantFunction()
+    # force_function.setName("sitting_force")
+
+    # for timestep, force in zip(time, forces):
+    #     force_function.addPoint(timestep, force)
+
+    # body_to_be_affected = model.getBodySet().get("pelvis")
+    # prescribedForce = osim.PrescribedForce("sitting_force", body_to_be_affected)
+    # prescribedForce.setForceFunctions(osim.Constant(0), force_function, osim.Constant(0))
+    # prescribedForce.set_appliesForce(True)
+    # prescribedForce.set_forceIsGlobal(True)
+
+    # model.addForce(prescribedForce)
+
+    model.finalizeConnections()
+
+
+    # actu = osim.CoordinateActuator()
+    # actu.setName("reserve_ankle_l")
+    # actu.setCoordinate(coordSet.get("ankle_knee_l"))
+    # actu.setOptimalForce(700)
+    # actu.setMinControl(-1)
+    # actu.setMaxControl(1)
+    # model.addComponent(actu)
+    
+    # actu = osim.CoordinateActuator()
+    # actu.setName("reserve_knee_r")
+    # actu.setCoordinate(coordSet.get("ankle_angle_r"))
+    # actu.setOptimalForce(700)
+    # actu.setMinControl(-1)
+    # actu.setMaxControl(1)
+    # model.addComponent(actu)
+
+    model.printToXML(f"./moco/models/{model_name}.osim")
 
     return model
 
@@ -223,20 +303,16 @@ def get_tracking_problem(
     tracking.setModel(osim.ModelProcessor(model))
     tracking.setName("tracking_problem")
 
-    if model.getName().startswith("opencap"):
-        tracking.setMarkersReferenceFromTRC(markers_path)
-    else:
-        tracking.setMarkersReferenceFromTRC(markers_path)
-        # tracking.setStatesReference(osim.TableProcessor("./filtered.mot"))
-    # tracking.set_states_global_tracking_weight(10)
+    tracking.setMarkersReferenceFromTRC(markers_path)
     tracking.set_allow_unused_references(True)
     tracking.set_track_reference_position_derivatives(True)
     tracking.set_markers_global_tracking_weight(10)
+    
     tracking.set_initial_time(t_0)
     tracking.set_final_time(t_f)
     tracking.set_mesh_interval(mesh_interval)
 
-    # set_marker_tracking_weights(track=tracking)
+    set_marker_tracking_weights(track=tracking)
 
     return tracking
 
@@ -258,22 +334,22 @@ def add_assistive_force(
         location (str, optional): where the force will act. Defaults to "torso".
         magnitude (int, optional): How strong the force is. Defaults to 100.
     """
-    coordSet = model.updCoordinateSet()
+    # coordSet = model.updCoordinateSet()
 
-    actu = osim.CoordinateActuator()
-    actu.setName(name)
-    actu.setCoordinate(coordSet.get(coordName))
-    actu.setOptimalForce(magnitude)
-    actu.setMinControl(-1)
-    actu.setMaxControl(1)
-    model.addComponent(actu)
+    # actu = osim.CoordinateActuator()
+    # actu.setName(name)
+    # actu.setCoordinate(coordSet.get(coordName))
+    # actu.setOptimalForce(magnitude)
+    # actu.setMinControl(-1)
+    # actu.setMaxControl(1)
+    # model.addComponent(actu)
 
-    # assistActuator = osim.PointActuator("torso")
-    # assistActuator.setName(name)
-    # assistActuator.set_force_is_global(True)
-    # assistActuator.set_direction(direction)
-    # assistActuator.setMinControl(-1)
-    # assistActuator.setMaxControl(1)
-    # assistActuator.setOptimalForce(magnitude)
+    assistActuator = osim.PointActuator("pelvis")
+    assistActuator.setName(name)
+    assistActuator.set_force_is_global(True)
+    assistActuator.set_direction(direction)
+    assistActuator.setMinControl(-1)
+    assistActuator.setMaxControl(1)
+    assistActuator.setOptimalForce(magnitude)
 
-    # model.addForce(assistActuator)
+    model.addForce(assistActuator)
