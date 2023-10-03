@@ -69,6 +69,15 @@ def prepare_opencap_data(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def prepare_mocap_data(df: pd.DataFrame, marker_names: List[str]) -> pd.DataFrame:
+    """ Prepare dataframe containing mocap data for further processing.
+
+    Args:
+        df (pd.DataFrame): dataframe
+        marker_names (List[str]): marker names
+
+    Returns:
+        pd.DataFrame: dataframe
+    """
     frequency = 60 #Hz
 
     new_cols = ["Time"]
@@ -77,8 +86,7 @@ def prepare_mocap_data(df: pd.DataFrame, marker_names: List[str]) -> pd.DataFram
         new_cols.extend(3 * [marker])
 
     coord = ["X", "Y", "Z"] * (len(df.columns) // 3)
-    coord.insert(0, "time")
-
+    coord.insert(0, "t")
     df.reset_index(inplace=True)
     df.columns = pd.MultiIndex.from_tuples(zip(new_cols, coord))
 
@@ -90,74 +98,86 @@ def prepare_mocap_data(df: pd.DataFrame, marker_names: List[str]) -> pd.DataFram
 
     return df
 
-def xcorr_and_shift(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, int]:
-    """ Cross-correlate two signals and return the lag
 
-    Args:
-        x (np.ndarray): first signal
-        y (np.ndarray): second signal
+def transform_force_coordinates(force_trial: pd.DataFrame, new_origin: pd.Series):
+    # OpenCap origin in Mocap coordinates, rotated 90 degrees around the x-axis
+    T_W_OC = np.array([[1, 0, 0, new_origin.X],
+                       [0, 0, -1, new_origin.Y], 
+                       [0, 1, 0, 0], # We ignore the Z coordinate because we only care the about the translation on the XY plane
+                       [0, 0, 0, 1]])
+    
+    T_OC_W = np.eye(4)
+    T_OC_W[:3, :3] = T_W_OC[:3, :3].T
+    T_OC_W[:3, 3] = -T_OC_W[:3, :3] @ T_W_OC[:3, 3]
 
-    Returns:
-        Tuple[np.ndarray, int]: tuple containing the cross-correlation and the lag
-    """
-    # Pad the shorter signal with NaN
-    size_diff = len(x) - len(y)
+    # Convert force plate coordinates to MoCap coordinates
+    for side in ["r", "l"]:
+        cop_cols = [f"ground_force_{side}_px", f"ground_force_{side}_py", f"ground_force_{side}_pz"]
+        df_xyz = force_trial.loc[:, cop_cols]
+        df_xyz["W"] = 1
 
-    if size_diff > 0:
-        y = np.pad(y, (0, size_diff), mode='constant', constant_values=np.nan)
-    elif size_diff < 0:
-        x = np.pad(x, (0, -size_diff), mode='constant', constant_values=np.nan)
+        force_cols = [f"ground_force_{side}_vx", f"ground_force_{side}_vy", f"ground_force_{side}_vz"]
+        df_vxyz = force_trial.loc[:, force_cols]
+        df_vxyz["W"] = 1
 
-    # Compute cross-correlation and lag
-    correlation = np.correlate(x, y, 'full')
-    lag = round((np.argmax(correlation) - len(x) + 1)/4) - 19 # TODO Hard-coded shifting
-    # Shift the 'y' signal based on the calculated lag
-    # y_shifted = np.roll(y, -lag)
+        # Transform force vector
+        transformed_vxyz = (T_OC_W @ df_vxyz.T).T
+        transformed_vxyz.drop(transformed_vxyz.columns[-1], axis=1, inplace=True)
+        transformed_vxyz.columns = force_cols
+        
+        transformed_xyz = (T_OC_W @ df_xyz.T).T
+        transformed_xyz.drop(transformed_xyz.columns[-1], axis=1, inplace=True)
+        transformed_xyz.columns = cop_cols
 
-    return correlation, lag
+        force_trial.loc[:, cop_cols] = transformed_xyz
+        force_trial.loc[:, force_cols] = transformed_vxyz
+
+        # Flip y-axis
+        force_trial.loc[:, f"ground_force_{side}_vy"] *= -1
+
+    return force_trial
+
 
 def sync_mocap_with_opencap(marker_data: pd.DataFrame, force_data: pd.DataFrame, opencap_data: pd.DataFrame) -> pd.DataFrame:
     # Cut the mocap data such that it perfectly overlaps with opencap
+    mocap_min = marker_data.Knee.X.argmin()
+    opencap_min = opencap_data.LKnee.X.argmin()
 
-    _, lag = xcorr_and_shift(marker_data.Knee.X, opencap_data.LKnee.X)
+    lag = opencap_min - mocap_min
 
     # Shift the data by lag
     marker_data = marker_data.iloc[-lag:-lag + opencap_data.shape[0]].reset_index(drop=True)
     force_data = force_data.iloc[-lag*10:-lag*10 + opencap_data.shape[0]*10].reset_index(drop=True)
     
     force_data["time"] = force_data["time"] - force_data["time"][0]
-    marker_data["Time"] = marker_data["Time"] - marker_data["Time"].time[0]
-    
+    marker_data["Time"] = marker_data["Time"] - marker_data["Time"].t[0]
+
     opencap_data = opencap_data.reset_index(drop=True)
 
     return marker_data, force_data, opencap_data
 
 
-def prepare_mocap_force_data(
-    df_right: pd.DataFrame,
-    df_left: pd.DataFrame,
+def prepare_mocap_force_df(
+    force_plate_data: dict,
     forces_in_world: bool=True,
-    right_coordinates: List[str]=None,
-    left_coordinates: List[str]=None,
 ) -> pd.DataFrame:
-    
-    df_right.drop(columns=["nan"], inplace=True)
-    df_left.drop(columns=["nan"], inplace=True)
 
-    if not forces_in_world:
-        # Represent center of pressure in world coordinates
-        for df, edge_coordinates, side in zip([df_right, df_left], [right_coordinates, left_coordinates], ['r', 'l']):
-            coords = [float(coord[1]) for coord in edge_coordinates]
+    # Represent center of pressure in world coordinates
+    for side in force_plate_data.keys():
+        force_plate_data[side]["data"].drop(columns=["nan"], inplace=True)
+        if not forces_in_world:
+            coords = [float(coord[1]) for coord in force_plate_data[side]["headers"]]
             plate_origin_x = np.mean(coords[0::3])
             plate_origin_y = np.mean(coords[1::3])
             plate_origin_z = np.mean(coords[2::3])
-            
-            df[f"ground_force_{side}_px"] = plate_origin_x + df[f"ground_force_{side}_px"]
-            df[f"ground_force_{side}_py"] = plate_origin_y + df[f"ground_force_{side}_py"]
-            df[f"ground_force_{side}_pz"] = plate_origin_z + df[f"ground_force_{side}_pz"]
+
+            force_plate_data[side]["data"][f"ground_force_{side}_px"] = plate_origin_x + force_plate_data[side]["data"][f"ground_force_{side}_px"]
+            force_plate_data[side]["data"][f"ground_force_{side}_py"] = plate_origin_y + force_plate_data[side]["data"][f"ground_force_{side}_py"]
+            force_plate_data[side]["data"][f"ground_force_{side}_pz"] = plate_origin_z + force_plate_data[side]["data"][f"ground_force_{side}_pz"]
+
 
     # Divide frame by sampling rate
-    df_merged = pd.concat([df_right, df_left], axis=1)
+    df_merged = pd.concat([force_plate_data["r"]["data"], force_plate_data["l"]["data"]], axis=1)
     df_merged.reset_index(names="time", inplace=True)
     df_merged["time"] = df_merged["time"].apply(lambda x: x / 600)
 

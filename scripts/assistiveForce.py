@@ -9,18 +9,27 @@ from assistive_arm.moco_helpers import (
     get_model,
     get_tracking_problem,
 )
+from assistive_arm.utils.file_modification import modify_force_xml
 
 
 def main():
     enable_assist = False
-    subject_name = "opencap_simple"  # opencap_simple / opencap_full
 
-    base_model_path = Path("./moco/models/base/LaiUhlrich2022_scaled.osim")
-    marker_data = "./moco/marker_data/sit_stand_2.trc"
+    subject = "subject_1"
+    subject_data = Path("/Users/xabieririzar/Desktop/Life/Studium/TUM/M.Sc Robotics/Masterarbeit Harvard/Thesis/Subject testing/Subject data/") / subject
+
+    model_name = f"{subject}_simple"  # simple / full
+    model_path = subject_data / "model" / "LaiUhlrich2022_scaled.osim"
+
+    trial = subject_data / "trial_2"
+
+    modify_force_xml('./moco/forces/grf_sit_stand.xml', str(trial / "grf_filtered.mot"))
+
 
     model = get_model(
-        subject_name=subject_name,
-        scaled_model_path=base_model_path,
+        subject_name=model_name,
+        model_path=model_path,
+        target_path=trial,
         enable_assist=enable_assist,
         ground_forces=True,
     )
@@ -28,7 +37,7 @@ def main():
 
 
     tracking_problem = get_tracking_problem(
-        model=model, markers_path=marker_data, t_0=1.8, t_f=3.2, mesh_interval=0.05
+        model=model, markers_path=str(trial / "opencap_tracker.trc"), t_0=1.8, t_f=3.2, mesh_interval=0.05
     )
     study = tracking_problem.initialize()
 
@@ -37,13 +46,8 @@ def main():
 
     effort_goal = osim.MocoControlGoal.safeDownCast(problem.updGoal("control_effort"))
 
-    # Increase weight of pelvis coordinate
-    forceSet = model.getForceSet()  
-    for i in range(forceSet.getSize()):
-        forcePath = forceSet.get(i).getAbsolutePathString()
-        if 'pelvis' in str(forcePath):
-            print("Adjusting residual force weight")
-            effort_goal.setWeightForControl(forcePath, 10)
+    # Increase weight of pelvis coordinate, 
+    # TODO Should  be packed in a function
     
     pelvis_weight = 15
 
@@ -53,6 +57,13 @@ def main():
     effort_goal.setWeightForControl("/reserve_pelvis_tx", pelvis_weight)
     effort_goal.setWeightForControl("/reserve_pelvis_ty", pelvis_weight)
     effort_goal.setWeightForControl("/reserve_pelvis_tz", pelvis_weight)
+
+    forceSet = model.getForceSet()  
+    for i in range(forceSet.getSize()):
+        forcePath = forceSet.get(i).getAbsolutePathString()
+        if 'pelvis' in str(forcePath):
+            print("Adjusting residual force weight")
+            effort_goal.setWeightForControl(forcePath, pelvis_weight)
 
     # Set weights for muscles
     effort_goal.setWeightForControl("/forceset/recfem_r", 5)
@@ -70,7 +81,7 @@ def main():
         effort_goal.setWeightForControl("/forceset/assistive_force_x", 0)
 
     cur_time = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    solution_name = f"{subject_name}_assistance_{str(enable_assist).lower()}_{cur_time}"
+    solution_name = f"{subject}_{trial.stem}_{model_name}_assistance_{str(enable_assist).lower()}_{cur_time}"
 
     solution = study.solve()
     solution.write(f"./moco/control_solutions/{solution_name}.sto")

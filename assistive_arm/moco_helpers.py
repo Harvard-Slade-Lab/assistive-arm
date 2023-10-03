@@ -4,38 +4,8 @@ import opensim as osim
 from pathlib import Path
 
 
-def simplify_model(name: str, model: osim.Model) -> None:
-    # bodies = [
-    #     "humerus_r",
-    #     "humerus_l",
-    #     "ulna_r",
-    #     "ulna_l",
-    #     "radius_r",
-    #     "radius_l",
-    #     "hand_r",
-    #     "hand_l",
-    # ]
-
-    # body_set = model.updBodySet()
-
-    # for body in bodies:
-    #     body_set.remove(body_set.getIndex(body))
-
-    # Remove unnecessary joints
-    # joints = [
-    #     "acromial_l",
-    #     "radius_hand_l",
-    #     "radioulnar_l",
-    #     "elbow_l",
-    #     "acromial_r",
-    #     "radius_hand_r",
-    #     "radioulnar_r",
-    #     "elbow_r",
-    # ]
-    # joint_set = model.upd_JointSet()
-
-    # for joint in joints:
-    #     joint_set.remove(joint_set.getIndex(joint))
+def simplify_model(model_name: str, model: osim.Model) -> None:
+    muscles_to_remove = []
 
     # Remove unnecessary actuators
     actuators = [
@@ -76,7 +46,6 @@ def simplify_model(name: str, model: osim.Model) -> None:
         "iliacus_r",  # Consider deleting
         "perbrev_r",  # Consider deleting
         "piri_r",
-        # "recfem_r", # Consider deleting
         "sart_r",
         "semimem_r",
         "semiten_r",
@@ -84,7 +53,6 @@ def simplify_model(name: str, model: osim.Model) -> None:
         "tibpost_r",
         "vasint_r",  # Consider deleting
         "vaslat_r",  # Consider deleting
-        # "vasmed_r", # Consider deleting
     ]
 
     left_muscles = [muscle[:-1] + "l" for muscle in right_muscles]
@@ -98,12 +66,8 @@ def simplify_model(name: str, model: osim.Model) -> None:
     force_set = model.upd_ForceSet()
 
 
-    if "simple" in name:
-        print("Removing most muscles")
+    if "simple" in model_name:
         muscles_to_remove = right_muscles + left_muscles + lumbar_muscles
-    else:
-        print("Only removing actuators")
-        muscles_to_remove = []
 
     for i in actuators + muscles_to_remove:
         force_set.remove(force_set.getIndex(i))
@@ -135,7 +99,7 @@ def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: boo
     # Load the base model.
     model = osim.Model(str(model_path))
     
-    simplify_model(name=subject_name, model=model)
+    simplify_model(model_name=subject_name, model=model)
 
     modelProcessor = osim.ModelProcessor(model)
 
@@ -166,13 +130,14 @@ def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: boo
         )
 
     model = modelProcessor.process()
-    
+
     return model
 
 
 def get_model(
     subject_name: str,
-    scaled_model_path: Path,
+    model_path: Path,
+    target_path: Path,
     enable_assist: bool,
     ground_forces: bool = False,
 ) -> osim.Model:
@@ -187,10 +152,10 @@ def get_model(
     """
     model = getMuscleDrivenModel(
         subject_name=subject_name,
-        model_path=str(scaled_model_path),
+        model_path=str(model_path),
         ground_forces=ground_forces,
     )
-    model_name = f"{subject_name}_{scaled_model_path.stem}" 
+    model_name = f"{subject_name}_{model_path.stem}" 
     model.setName(model_name)
 
     # Add assistive force
@@ -266,27 +231,10 @@ def get_model(
     # prescribedForce.set_forceIsGlobal(True)
 
     # model.addForce(prescribedForce)
-
     model.finalizeConnections()
 
-
-    # actu = osim.CoordinateActuator()
-    # actu.setName("reserve_ankle_l")
-    # actu.setCoordinate(coordSet.get("ankle_knee_l"))
-    # actu.setOptimalForce(700)
-    # actu.setMinControl(-1)
-    # actu.setMaxControl(1)
-    # model.addComponent(actu)
-    
-    # actu = osim.CoordinateActuator()
-    # actu.setName("reserve_knee_r")
-    # actu.setCoordinate(coordSet.get("ankle_angle_r"))
-    # actu.setOptimalForce(700)
-    # actu.setMinControl(-1)
-    # actu.setMaxControl(1)
-    # model.addComponent(actu)
-
     model.printToXML(f"./moco/models/{model_name}.osim")
+    model.printToXML(str(target_path / f"{model_name}.osim"))
 
     return model
 
