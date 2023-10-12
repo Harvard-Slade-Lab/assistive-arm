@@ -95,7 +95,7 @@ def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
     track.set_markers_weight_set(markerWeights)
 
 
-def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: bool) -> osim.Model:
+def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: bool, config: dict=None) -> osim.Model:
     # Load the base model.
     model = osim.Model(str(model_path))
     
@@ -117,12 +117,16 @@ def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: boo
         
         modelProcessor.append(osim.ModOpReplaceJointsWithWelds(jointNames))
 
+    reserve_actuator_force = None
+
     modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
     modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
     modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
     modelProcessor.append(osim.ModOpScaleActiveFiberForceCurveWidthDGF(1.5))
-    # modelProcessor.append(osim.ModOpAddReserves(350))
-
+    
+    if reserve_actuator_force:
+        modelProcessor.append(osim.ModOpAddReserves(reserve_actuator_force))
+        config["reserve_actuator_force"] = reserve_actuator_force
     
     if ground_forces:
         modelProcessor.append(
@@ -140,6 +144,7 @@ def get_model(
     target_path: Path,
     enable_assist: bool,
     ground_forces: bool = False,
+    config: dict = None,
 ) -> osim.Model:
     """Get a model with assistive forces.
 
@@ -150,18 +155,26 @@ def get_model(
     Returns:
         osim.Model: model with assistive forces
     """
+    config["target_path"] = str(target_path)
+    config["enable_assist"] = enable_assist
+    config["ground_forces"] = ground_forces
+
+
     model = getMuscleDrivenModel(
         subject_name=subject_name,
         model_path=str(model_path),
         ground_forces=ground_forces,
+        config=config
     )
     model_name = f"{subject_name}_{model_path.stem}" 
     model.setName(model_name)
 
     # Add assistive force
     if enable_assist:
-        add_assistive_force(coordName="pelvis_tx", model=model, name="assistive_force_x", direction=osim.Vec3(1, 0, 0), magnitude=500)
-        add_assistive_force(coordName="pelvis_ty", model=model, name="assistive_force_y", direction=osim.Vec3(0, 1, 0), magnitude=500)
+        force_magnitude = 500
+        add_assistive_force(coordName="pelvis_tx", model=model, name="assistive_force_x", direction=osim.Vec3(1, 0, 0), magnitude=force_magnitude)
+        add_assistive_force(coordName="pelvis_ty", model=model, name="assistive_force_y", direction=osim.Vec3(0, 1, 0), magnitude=force_magnitude)
+        config["assistive_force_magnitude"] = force_magnitude
 
     coordSet = model.updCoordinateSet()
 
@@ -214,27 +227,12 @@ def get_model(
     actu.setMaxControl(np.inf)
     model.addComponent(actu)
 
-    # time = np.linspace(1.8, 3.2, 840, endpoint=True)
-    # forces = np.ones(840)*565
-    # forces[316:] = 0
-
-    # force_function = osim.PiecewiseConstantFunction()
-    # force_function.setName("sitting_force")
-
-    # for timestep, force in zip(time, forces):
-    #     force_function.addPoint(timestep, force)
-
-    # body_to_be_affected = model.getBodySet().get("pelvis")
-    # prescribedForce = osim.PrescribedForce("sitting_force", body_to_be_affected)
-    # prescribedForce.setForceFunctions(osim.Constant(0), force_function, osim.Constant(0))
-    # prescribedForce.set_appliesForce(True)
-    # prescribedForce.set_forceIsGlobal(True)
-
-    # model.addForce(prescribedForce)
     model.finalizeConnections()
 
     model.printToXML(f"./moco/models/{model_name}.osim")
     model.printToXML(str(target_path / f"{model_name}.osim"))
+
+    config["xml_path"] = f"./moco/models/{model_name}.osim"
 
     return model
 

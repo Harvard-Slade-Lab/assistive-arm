@@ -46,7 +46,7 @@ def read_headers(file_path: Path, rows: int) -> list:
     return header_lines
 
 
-def prepare_opencap_data(df: pd.DataFrame) -> pd.DataFrame:
+def prepare_opencap_markers(df: pd.DataFrame) -> pd.DataFrame:
     df.drop(columns=["Frame#", "Unnamed: 191"], axis=1, inplace=True)
     df = df.astype(np.float64)
 
@@ -70,6 +70,7 @@ def prepare_opencap_data(df: pd.DataFrame) -> pd.DataFrame:
 
 def prepare_mocap_data(df: pd.DataFrame, marker_names: List[str]) -> pd.DataFrame:
     """ Prepare dataframe containing mocap data for further processing.
+    Rotate 90 degrees around x-axis to align with opencap coordinate system
 
     Args:
         df (pd.DataFrame): dataframe
@@ -79,7 +80,6 @@ def prepare_mocap_data(df: pd.DataFrame, marker_names: List[str]) -> pd.DataFram
         pd.DataFrame: dataframe
     """
     frequency = 60 #Hz
-
     new_cols = ["Time"]
 
     for marker in marker_names:
@@ -90,7 +90,16 @@ def prepare_mocap_data(df: pd.DataFrame, marker_names: List[str]) -> pd.DataFram
     df.reset_index(inplace=True)
     df.columns = pd.MultiIndex.from_tuples(zip(new_cols, coord))
 
-    df["Time"] = df["Time"] / frequency
+    # Rotate around X by 90 degrees
+    df["Time"] /= frequency
+
+    rotate_x_90 = np.array([
+        [1, 0, 0],
+        [0, 0, -1],
+        [0, 1, 0]])
+    
+    df.iloc[:, 1:4] = df.iloc[:, 1:4] @ rotate_x_90
+    df.iloc[:, 4:] = df.iloc[:, 4:] @ rotate_x_90
 
     # Mocap data is in mm, convert to m
     for marker in marker_names:
@@ -99,10 +108,11 @@ def prepare_mocap_data(df: pd.DataFrame, marker_names: List[str]) -> pd.DataFram
     return df
 
 
-def transform_force_coordinates(force_trial: pd.DataFrame, new_origin: pd.Series):
-    # OpenCap origin in Mocap coordinates, rotated 90 degrees around the x-axis
+def transform_force_coordinates(force_trial: pd.DataFrame, new_origin: pd.Series, plates: dict):
+    # OpenCap origin in Mocap coordinates
+    # Rotate 90 degrees around the x-axis, and translate by Origin (already in OpenCap frame)
     T_W_OC = np.array([[1, 0, 0, new_origin.X],
-                       [0, 0, -1, new_origin.Y], 
+                       [0, 0, -1, -new_origin.Z], 
                        [0, 1, 0, 0], # We ignore the Z coordinate because we only care the about the translation on the XY plane
                        [0, 0, 0, 1]])
     
@@ -110,14 +120,16 @@ def transform_force_coordinates(force_trial: pd.DataFrame, new_origin: pd.Series
     T_OC_W[:3, :3] = T_W_OC[:3, :3].T
     T_OC_W[:3, 3] = -T_OC_W[:3, :3] @ T_W_OC[:3, 3]
 
+    force_trial_tf = force_trial.copy(deep=True)
+
     # Convert force plate coordinates to MoCap coordinates
-    for side in ["r", "l"]:
+    for side in plates.keys():
         cop_cols = [f"ground_force_{side}_px", f"ground_force_{side}_py", f"ground_force_{side}_pz"]
-        df_xyz = force_trial.loc[:, cop_cols]
-        df_xyz["W"] = 1
+        df_pxyz = force_trial_tf.loc[:, cop_cols]
+        df_pxyz["W"] = 1
 
         force_cols = [f"ground_force_{side}_vx", f"ground_force_{side}_vy", f"ground_force_{side}_vz"]
-        df_vxyz = force_trial.loc[:, force_cols]
+        df_vxyz = force_trial_tf.loc[:, force_cols]
         df_vxyz["W"] = 1
 
         # Transform force vector
@@ -125,36 +137,48 @@ def transform_force_coordinates(force_trial: pd.DataFrame, new_origin: pd.Series
         transformed_vxyz.drop(transformed_vxyz.columns[-1], axis=1, inplace=True)
         transformed_vxyz.columns = force_cols
         
-        transformed_xyz = (T_OC_W @ df_xyz.T).T
+        transformed_xyz = (T_OC_W @ df_pxyz.T).T
         transformed_xyz.drop(transformed_xyz.columns[-1], axis=1, inplace=True)
         transformed_xyz.columns = cop_cols
 
-        force_trial.loc[:, cop_cols] = transformed_xyz
-        force_trial.loc[:, force_cols] = transformed_vxyz
+        force_trial_tf.loc[:, cop_cols] = transformed_xyz
+        force_trial_tf.loc[:, force_cols] = transformed_vxyz
 
         # Flip y-axis
-        force_trial.loc[:, f"ground_force_{side}_vy"] *= -1
+        force_trial_tf.loc[:, f"ground_force_{side}_vy"] *= -1
 
-    return force_trial
+    return force_trial_tf
 
 
-def sync_mocap_with_opencap(marker_data: pd.DataFrame, force_data: pd.DataFrame, opencap_data: pd.DataFrame) -> pd.DataFrame:
+def sync_mocap_with_opencap(mocap_data: pd.DataFrame, force_data: pd.DataFrame, opencap_data: pd.DataFrame) -> pd.DataFrame:
     # Cut the mocap data such that it perfectly overlaps with opencap
-    mocap_min = marker_data.Knee.X.argmin()
-    opencap_min = opencap_data.LKnee.X.argmin()
 
-    lag = opencap_min - mocap_min
+    # using zero-crossings
+    # gradient_opencap = opencap_data.LKnee.Y.diff().rolling(window=14).mean()
+    # opencap_min = np.where(np.diff(np.sign(gradient_opencap + 0.001)) > 0)[0][0]
+    
+    # gradient_mocap = mocap_data.Knee.Y.diff().rolling(window=14).mean()
+    # mocap_min = np.where(np.diff(np.sign(gradient_mocap + 0.001)) > 0)[0][0]
+    
+    # Using argmax
+    mocap_min = mocap_data.Knee.Y.argmax()
+    opencap_min = opencap_data.LKnee.Y.argmax()
+
+    lag = int(opencap_min - mocap_min)
+    print("Lag: ", lag)
 
     # Shift the data by lag
-    marker_data = marker_data.iloc[-lag:-lag + opencap_data.shape[0]].reset_index(drop=True)
+    mocap_data_synced = mocap_data.copy(deep=True)
+    mocap_data_synced = mocap_data_synced.iloc[-lag:-lag + opencap_data.shape[0]].reset_index(drop=True)
     force_data = force_data.iloc[-lag*10:-lag*10 + opencap_data.shape[0]*10].reset_index(drop=True)
     
     force_data["time"] = force_data["time"] - force_data["time"][0]
-    marker_data["Time"] = marker_data["Time"] - marker_data["Time"].t[0]
+    mocap_data_synced["Time"] = mocap_data_synced["Time"] - mocap_data_synced["Time"].t[0]
 
-    opencap_data = opencap_data.reset_index(drop=True)
+    opencap_synced = opencap_data.copy(deep=True)
+    opencap_synced.reset_index(drop=True, inplace=True)
 
-    return marker_data, force_data, opencap_data
+    return mocap_data_synced, force_data, opencap_synced, lag
 
 
 def prepare_mocap_force_df(
@@ -177,12 +201,17 @@ def prepare_mocap_force_df(
 
 
     # Divide frame by sampling rate
-    df_merged = pd.concat([force_plate_data["r"]["data"], force_plate_data["l"]["data"]], axis=1)
+    
+    if "chair" in force_plate_data.keys():
+        df_merged = pd.concat([force_plate_data["r"]["data"], force_plate_data["l"]["data"], force_plate_data["chair"]["data"]], axis=1)
+    else:
+        df_merged = pd.concat([force_plate_data["r"]["data"], force_plate_data["l"]["data"]], axis=1)
+
     df_merged.reset_index(names="time", inplace=True)
     df_merged["time"] = df_merged["time"].apply(lambda x: x / 600)
 
     # Convert from mm to m
-    for side in ["r", "l"]:
+    for side in force_plate_data.keys():
         df_merged[f"ground_force_{side}_pz"] = 0
         df_merged[f"ground_force_{side}_px"] = df_merged[f"ground_force_{side}_px"] / 1000
         df_merged[f"ground_force_{side}_py"] = df_merged[f"ground_force_{side}_py"] / 1000

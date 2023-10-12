@@ -30,7 +30,7 @@
 				<!--Identifier (string) to locate the torque to be applied in the data source.-->
 				<torque_identifier>ground_torque_l_</torque_identifier>
 			</ExternalForce>
-			<ExternalForce name="pelvis_force_v">
+			<ExternalForce name="Chair_GRF">
 				<!--Name of the body the force is applied to.-->
 				<applied_to_body>pelvis</applied_to_body>
 				<!--Name of the body the force is expressed in (default is ground).-->
@@ -38,15 +38,14 @@
 				<!--Name of the body the point is expressed in (default is ground).-->
 				<point_expressed_in_body>pelvis</point_expressed_in_body>
 				<!--Identifier (string) to locate the force to be applied in the data source.-->
-				<force_identifier>pelvis_force_v</force_identifier>
+				<force_identifier>ground_force_chair_v</force_identifier>
 				<!--Identifier (string) to locate the point to be applied in the data source.-->
-				<point_identifier>pelvis_force_p</point_identifier>
-				<torque_identifier>pelvis_torque_</torque_identifier>
-
+				<point_identifier>ground_force_chair_p</point_identifier>
+				<torque_identifier>ground_torque_chair_</torque_identifier>
 			</ExternalForce>
 		</objects>
 		<groups/>
 		<!--Storage file (.sto) containing (3) components of force and/or torque and point of application.Note: this file overrides the data source specified by the individual external forces if specified.-->
-		<datafile>/Users/xabieririzar/Desktop/Life/Studium/TUM/M.Sc Robotics/Masterarbeit Harvard/Thesis/Subject testing/Subject data/subject_1/trial_2/grf_filtered.mot</datafile>
+		<datafile>/Users/xabieririzar/Desktop/Life/Studium/TUM/M.Sc Robotics/Masterarbeit Harvard/Thesis/Subject testing/Subject data/subject_4/trial_4/grf_filtered.mot</datafile>
 	</ExternalLoads>
 </OpenSimDocument>

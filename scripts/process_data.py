@@ -8,7 +8,7 @@ import typer
 import matplotlib.pyplot as plt
 from assistive_arm.utils.data_preprocessing import (
     read_headers,
-    prepare_opencap_data,
+    prepare_opencap_markers,
     prepare_mocap_data,
     prepare_mocap_force_data,
 )
