@@ -9,7 +9,7 @@ import zmq
 from datetime import datetime
 from collections import namedtuple
 
-from assistive_arm.utils import print_elapsed_time
+from assistive_arm.utils.logging import print_elapsed_time
 
 forces = namedtuple(
     "forces",

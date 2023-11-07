@@ -4,7 +4,7 @@ import asyncio
 import qtm_rt
 import timeit
 
-from assistive_arm.utils import print_elapsed_time
+from assistive_arm.utils.logging import print_elapsed_time
 
 
 @print_elapsed_time()
