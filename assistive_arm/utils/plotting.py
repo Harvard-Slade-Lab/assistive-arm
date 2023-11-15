@@ -28,8 +28,10 @@ def plot_knee_coordinates(opencap_markers: pd.DataFrame, mocap_markers: pd.DataF
 
     fig.savefig(output_path, dpi=300)
 
-def plot_mocap_forces(opencap_markers: pd.DataFrame, mocap_markers: pd.DataFrame, mocap_forces: pd.DataFrame, force_plates: dict, output_path: Path=None):
+def plot_mocap_forces(opencap_markers: pd.DataFrame, mocap_markers: pd.DataFrame, mocap_forces: pd.DataFrame, force_plates: dict, motion_beginning: int=None, output_path: Path=None):
     fig, axs = plt.subplots(4, 1, sharex=True, figsize=(10, 10))
+
+    
     # Add 339 NaN values to the left knee values
     # Top subplot with the mocap left knee and opencap left knee
     axs[0].plot(mocap_markers.Time.t, mocap_markers.Knee.Y, label="mocap left knee")
@@ -40,9 +42,17 @@ def plot_mocap_forces(opencap_markers: pd.DataFrame, mocap_markers: pd.DataFrame
     axs[0].legend()
     axs[0].grid(True)
 
+    if motion_beginning:
+        ind_begin = mocap_forces.time.iloc[motion_beginning]
+        axs[0].axvline(x=ind_begin, color='grey', linestyle='--')
+
     for i, coord in enumerate(["x", "y", "z"]):
         axs[i+1].plot(mocap_forces.time, mocap_forces[f"ground_force_l_v{coord}"], label="mocap left force")
         axs[i+1].plot(mocap_forces.time, mocap_forces[f"ground_force_r_v{coord}"], label="mocap right force")
+        if motion_beginning:
+            ind_begin = mocap_forces.time.iloc[motion_beginning]
+            axs[0].axvline(x=ind_begin, color='grey', linestyle='--')
+            axs[i+1].axvline(x=ind_begin, color='grey', linestyle='--')
         if "chair" in force_plates.keys():
             axs[i+1].plot(mocap_forces.time, mocap_forces[f"ground_force_chair_v{coord}"], label="mocap chair force")
         axs[i+1].set_title(coord)
@@ -75,7 +85,7 @@ def plot_res_assist_forces(time: pd.Series, dataframes: List[pd.DataFrame], conf
     coords = ['x', 'y']
     
     assist_true = dataframes["assist_true"]
-    assist_false = dataframes["assist_false"]
+    # assist_false = dataframes["assist_false"]
     grf = dataframes["ground_forces"]
 
     fig, axs = plt.subplots(len(coords), figsize=figsize, sharex=True)
@@ -86,7 +96,7 @@ def plot_res_assist_forces(time: pd.Series, dataframes: List[pd.DataFrame], conf
         axs[i].plot()
 
         # Pelvis T_coord
-        axs[i].plot(time, assist_false[f'/forceset/reserve_jointset_ground_pelvis_pelvis_t{coord}']*config["reserve_actuator_force"], label=f'Residual {coord.upper()} (unassisted)')
+        # axs[i].plot(time, assist_false[f'/forceset/reserve_jointset_ground_pelvis_pelvis_t{coord}']*config["reserve_actuator_force"], label=f'Residual {coord.upper()} (unassisted)')
         # axs[i].plot(time, assist_true[f'/forceset/reserve_jointset_ground_pelvis_pelvis_t{coord}']*config["reserve_actuator_force"], label=f'Residual {coord.upper()} (assisted)')
         axs[i].plot(time, assist_true[f"/forceset/assistive_force_{coord}"]*config["assistive_force_magnitude"], label=f"Assistive Force {coord.upper()}")
         axs[i].plot(grf.time, grf[f'ground_force_l_v{coord}'], label=f'Ground Force {coord.upper()}')

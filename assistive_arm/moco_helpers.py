@@ -65,7 +65,6 @@ def simplify_model(model_name: str, model: osim.Model) -> None:
 
     force_set = model.upd_ForceSet()
 
-
     if "simple" in model_name:
         muscles_to_remove = right_muscles + left_muscles + lumbar_muscles
 
@@ -95,14 +94,19 @@ def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
     track.set_markers_weight_set(markerWeights)
 
 
-def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: bool, config: dict=None) -> osim.Model:
+def getMuscleDrivenModel(
+    subject_name: str,
+    model_path: Path,
+    ground_forces: bool,
+    minimal_actuators: bool,
+    config: dict = None,
+) -> osim.Model:
     # Load the base model.
     model = osim.Model(str(model_path))
-    
+
     simplify_model(model_name=subject_name, model=model)
 
     modelProcessor = osim.ModelProcessor(model)
-
 
     if "simple" not in subject_name:
         jointNames = osim.StdVectorString()
@@ -114,20 +118,17 @@ def getMuscleDrivenModel(subject_name: str, model_path: Path, ground_forces: boo
         jointNames.append("elbow_l")
         jointNames.append("radioulnar_l")
         jointNames.append("radius_hand_l")
-        
-        modelProcessor.append(osim.ModOpReplaceJointsWithWelds(jointNames))
 
-    reserve_actuator_force = None
+        modelProcessor.append(osim.ModOpReplaceJointsWithWelds(jointNames))
 
     modelProcessor.append(osim.ModOpIgnoreTendonCompliance())
     modelProcessor.append(osim.ModOpReplaceMusclesWithDeGrooteFregly2016())
     modelProcessor.append(osim.ModOpIgnorePassiveFiberForcesDGF())
     modelProcessor.append(osim.ModOpScaleActiveFiberForceCurveWidthDGF(1.5))
-    
-    if reserve_actuator_force:
-        modelProcessor.append(osim.ModOpAddReserves(reserve_actuator_force))
-        config["reserve_actuator_force"] = reserve_actuator_force
-    
+
+    if not minimal_actuators:
+        modelProcessor.append(osim.ModOpAddReserves(config["actuator_magnitude"]))
+
     if ground_forces:
         modelProcessor.append(
             osim.ModOpAddExternalLoads("./moco/forces/grf_sit_stand.xml")
@@ -142,8 +143,9 @@ def get_model(
     subject_name: str,
     model_path: Path,
     target_path: Path,
-    enable_assist: bool,
+    assistive_force: int = None,
     ground_forces: bool = False,
+    minimal_actuators: bool = False,
     config: dict = None,
 ) -> osim.Model:
     """Get a model with assistive forces.
@@ -155,77 +157,56 @@ def get_model(
     Returns:
         osim.Model: model with assistive forces
     """
-    config["target_path"] = str(target_path)
-    config["enable_assist"] = enable_assist
-    config["ground_forces"] = ground_forces
 
+    config["actuator_magnitude"] = 700
+    config["target_path"] = str(target_path)
+    config["assistive_force"] = assistive_force
+    config["ground_forces"] = ground_forces
+    config["minimal_actuators"] = minimal_actuators
+    if minimal_actuators:
+        config["minimal_actuator_names"] = ["tilt", "rotation", "list", "tx", "ty", "tz"]
 
     model = getMuscleDrivenModel(
         subject_name=subject_name,
         model_path=str(model_path),
         ground_forces=ground_forces,
-        config=config
+        minimal_actuators=minimal_actuators,
+        config=config,
     )
-    model_name = f"{subject_name}_{model_path.stem}" 
+    model_name = f"{subject_name}_{model_path.stem}"
     model.setName(model_name)
 
     # Add assistive force
-    if enable_assist:
-        force_magnitude = 500
-        add_assistive_force(coordName="pelvis_tx", model=model, name="assistive_force_x", direction=osim.Vec3(1, 0, 0), magnitude=force_magnitude)
-        add_assistive_force(coordName="pelvis_ty", model=model, name="assistive_force_y", direction=osim.Vec3(0, 1, 0), magnitude=force_magnitude)
-        config["assistive_force_magnitude"] = force_magnitude
+    if assistive_force:
+        add_assistive_force(
+            coordName="pelvis_tx",
+            model=model,
+            name="assistive_force_x",
+            direction=osim.Vec3(1, 0, 0),
+            magnitude=assistive_force,
+        )
+        add_assistive_force(
+            coordName="pelvis_ty",
+            model=model,
+            name="assistive_force_y",
+            direction=osim.Vec3(0, 1, 0),
+            magnitude=assistive_force,
+        )
+        config["assistive_force"] = assistive_force
 
     coordSet = model.updCoordinateSet()
 
 
-    actu = osim.CoordinateActuator()
-    actu.setName("reserve_pelvis_tilt")
-    actu.setCoordinate(coordSet.get("pelvis_tilt"))
-    actu.setOptimalForce(700)
-    actu.setMinControl(-np.inf)
-    actu.setMaxControl(np.inf)
-    model.addComponent(actu)
 
-    actu = osim.CoordinateActuator()
-    actu.setName("reserve_pelvis_rotation")
-    actu.setCoordinate(coordSet.get("pelvis_rotation"))
-    actu.setOptimalForce(700)
-    actu.setMinControl(-np.inf)
-    actu.setMaxControl(np.inf)
-    model.addComponent(actu)
-
-    actu = osim.CoordinateActuator()
-    actu.setName("reserve_pelvis_list")
-    actu.setCoordinate(coordSet.get("pelvis_list"))
-    actu.setOptimalForce(700)
-    actu.setMinControl(-np.inf)
-    actu.setMaxControl(np.inf)
-    model.addComponent(actu)
-
-    actu = osim.CoordinateActuator()
-    actu.setName("reserve_pelvis_tx")
-    actu.setCoordinate(coordSet.get("pelvis_tx"))
-    actu.setOptimalForce(700)
-    actu.setMinControl(-np.inf)
-    actu.setMaxControl(np.inf)
-    model.addComponent(actu)
-    
-    actu = osim.CoordinateActuator()
-    actu.setName("reserve_pelvis_ty")
-    actu.setCoordinate(coordSet.get("pelvis_ty"))
-    actu.setOptimalForce(700)
-    actu.setMinControl(-np.inf)
-    actu.setMaxControl(np.inf)
-    model.addComponent(actu)
-    
-    actu = osim.CoordinateActuator()
-    actu.setName("reserve_pelvis_tz")
-    actu.setCoordinate(coordSet.get("pelvis_tz"))
-    actu.setOptimalForce(700)
-    actu.setMinControl(-np.inf)
-    actu.setMaxControl(np.inf)
-    model.addComponent(actu)
+    if minimal_actuators:
+        for actuator in config["minimal_actuator_names"]:
+            actu = osim.CoordinateActuator()
+            actu.setName(f"reserve_pelvis_{actuator}")
+            actu.setCoordinate(coordSet.get(f"pelvis_{actuator}"))
+            actu.setOptimalForce(config["actuator_magnitude"])
+            actu.setMinControl(-np.inf)
+            actu.setMaxControl(np.inf)
+            model.addComponent(actu)
 
     model.finalizeConnections()
 
@@ -253,7 +234,7 @@ def get_tracking_problem(
     tracking.set_allow_unused_references(True)
     tracking.set_track_reference_position_derivatives(True)
     tracking.set_markers_global_tracking_weight(10)
-    
+
     tracking.set_initial_time(t_0)
     tracking.set_final_time(t_f)
     tracking.set_mesh_interval(mesh_interval)
@@ -261,6 +242,41 @@ def get_tracking_problem(
     set_marker_tracking_weights(track=tracking)
 
     return tracking
+
+
+def set_moco_problem_weights(
+    model: osim.Model, moco_study: osim.MocoStudy, config: dict
+):
+    problem = moco_study.updProblem()
+    problem.addGoal(osim.MocoInitialActivationGoal("activation"))
+
+    effort_goal = osim.MocoControlGoal.safeDownCast(problem.updGoal("control_effort"))
+
+    # Only 6 reserve actuators
+    if config["minimal_actuators"]:
+        for actu_name in config["minimal_actuator_names"]:
+            effort_goal.setWeightForControl(f"/reserve_pelvis_{actu_name}", config["reserve_pelvis_weight"])
+    # For the case where we have a full set of reserve actuators
+    else:
+        forceSet = model.getForceSet()
+        for i in range(forceSet.getSize()):
+            forcePath = forceSet.get(i).getAbsolutePathString()
+            if "pelvis" in str(forcePath):
+                effort_goal.setWeightForControl(
+                    forcePath, config["reserve_pelvis_weight"]
+                )
+    effort_goal.setWeightForControl("/forceset/recfem_r", 1)
+    effort_goal.setWeightForControl("/forceset/vasmed_r", 1)
+    effort_goal.setWeightForControl("/forceset/recfem_l", 1)
+    effort_goal.setWeightForControl("/forceset/vasmed_l", 1)
+    effort_goal.setWeightForControl("/forceset/soleus_r", 1)
+    effort_goal.setWeightForControl("/forceset/soleus_l", 1)
+    effort_goal.setWeightForControl("/forceset/tibant_r", 1)
+    effort_goal.setWeightForControl("/forceset/tibant_l", 1)
+
+    if config["assistive_force"]:
+        effort_goal.setWeightForControl("/forceset/assistive_force_y", 0)
+        effort_goal.setWeightForControl("/forceset/assistive_force_x", 0)
 
 
 def add_assistive_force(

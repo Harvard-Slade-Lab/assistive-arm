@@ -1,69 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <OpenSimDocument Version="40000">
 	<Model name="subject_4_simple_LaiUhlrich2022_scaled">
-		<!--List of components that this component owns and serializes.-->
-		<components>
-			<CoordinateActuator name="reserve_pelvis_tilt">
-				<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
-				<min_control>-Inf</min_control>
-				<!--Maximum allowed value for control signal. Used primarily when solving for control values.-->
-				<max_control>Inf</max_control>
-				<!--Name of the generalized coordinate to which the actuator applies.-->
-				<coordinate>pelvis_tilt</coordinate>
-				<!--The maximum generalized force produced by this actuator.-->
-				<optimal_force>700</optimal_force>
-			</CoordinateActuator>
-			<CoordinateActuator name="reserve_pelvis_rotation">
-				<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
-				<min_control>-Inf</min_control>
-				<!--Maximum allowed value for control signal. Used primarily when solving for control values.-->
-				<max_control>Inf</max_control>
-				<!--Name of the generalized coordinate to which the actuator applies.-->
-				<coordinate>pelvis_rotation</coordinate>
-				<!--The maximum generalized force produced by this actuator.-->
-				<optimal_force>700</optimal_force>
-			</CoordinateActuator>
-			<CoordinateActuator name="reserve_pelvis_list">
-				<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
-				<min_control>-Inf</min_control>
-				<!--Maximum allowed value for control signal. Used primarily when solving for control values.-->
-				<max_control>Inf</max_control>
-				<!--Name of the generalized coordinate to which the actuator applies.-->
-				<coordinate>pelvis_list</coordinate>
-				<!--The maximum generalized force produced by this actuator.-->
-				<optimal_force>700</optimal_force>
-			</CoordinateActuator>
-			<CoordinateActuator name="reserve_pelvis_tx">
-				<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
-				<min_control>-Inf</min_control>
-				<!--Maximum allowed value for control signal. Used primarily when solving for control values.-->
-				<max_control>Inf</max_control>
-				<!--Name of the generalized coordinate to which the actuator applies.-->
-				<coordinate>pelvis_tx</coordinate>
-				<!--The maximum generalized force produced by this actuator.-->
-				<optimal_force>700</optimal_force>
-			</CoordinateActuator>
-			<CoordinateActuator name="reserve_pelvis_ty">
-				<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
-				<min_control>-Inf</min_control>
-				<!--Maximum allowed value for control signal. Used primarily when solving for control values.-->
-				<max_control>Inf</max_control>
-				<!--Name of the generalized coordinate to which the actuator applies.-->
-				<coordinate>pelvis_ty</coordinate>
-				<!--The maximum generalized force produced by this actuator.-->
-				<optimal_force>700</optimal_force>
-			</CoordinateActuator>
-			<CoordinateActuator name="reserve_pelvis_tz">
-				<!--Minimum allowed value for control signal. Used primarily when solving for control values.-->
-				<min_control>-Inf</min_control>
-				<!--Maximum allowed value for control signal. Used primarily when solving for control values.-->
-				<max_control>Inf</max_control>
-				<!--Name of the generalized coordinate to which the actuator applies.-->
-				<coordinate>pelvis_tz</coordinate>
-				<!--The maximum generalized force produced by this actuator.-->
-				<optimal_force>700</optimal_force>
-			</CoordinateActuator>
-		</components>
 		<!--The model's ground reference frame.-->
 		<Ground name="ground">
 			<!--The geometry used to display the axes of this Frame.-->
@@ -7010,6 +6947,204 @@
 					<!--Make the passive fiber force 0. Default: false.-->
 					<ignore_passive_fiber_force>true</ignore_passive_fiber_force>
 				</DeGrooteFregly2016Muscle>
+				<CoordinateActuator name="reserve_jointset_ground_pelvis_pelvis_tilt">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>pelvis_tilt</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_ground_pelvis_pelvis_list">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>pelvis_list</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_ground_pelvis_pelvis_rotation">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>pelvis_rotation</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_ground_pelvis_pelvis_tx">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>pelvis_tx</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_ground_pelvis_pelvis_ty">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>pelvis_ty</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_ground_pelvis_pelvis_tz">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>pelvis_tz</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_hip_r_hip_flexion_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>hip_flexion_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_hip_r_hip_adduction_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>hip_adduction_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_hip_r_hip_rotation_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>hip_rotation_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_walker_knee_r_knee_angle_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>knee_angle_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_ankle_r_ankle_angle_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>ankle_angle_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_subtalar_r_subtalar_angle_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>subtalar_angle_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_mtp_r_mtp_angle_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>mtp_angle_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_hip_l_hip_flexion_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>hip_flexion_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_hip_l_hip_adduction_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>hip_adduction_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_hip_l_hip_rotation_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>hip_rotation_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_walker_knee_l_knee_angle_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>knee_angle_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_ankle_l_ankle_angle_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>ankle_angle_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_subtalar_l_subtalar_angle_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>subtalar_angle_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_mtp_l_mtp_angle_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>mtp_angle_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_back_lumbar_extension">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>lumbar_extension</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_back_lumbar_bending">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>lumbar_bending</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_back_lumbar_rotation">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>lumbar_rotation</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_acromial_r_arm_flex_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>arm_flex_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_acromial_r_arm_add_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>arm_add_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_acromial_r_arm_rot_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>arm_rot_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_elbow_r_elbow_flex_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>elbow_flex_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_radioulnar_r_pro_sup_r">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>pro_sup_r</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_acromial_l_arm_flex_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>arm_flex_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_acromial_l_arm_add_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>arm_add_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_acromial_l_arm_rot_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>arm_rot_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_elbow_l_elbow_flex_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>elbow_flex_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
+				<CoordinateActuator name="reserve_jointset_radioulnar_l_pro_sup_l">
+					<!--Name of the generalized coordinate to which the actuator applies.-->
+					<coordinate>pro_sup_l</coordinate>
+					<!--The maximum generalized force produced by this actuator.-->
+					<optimal_force>700</optimal_force>
+				</CoordinateActuator>
 			</objects>
 			<groups>
 				<ObjectGroup name="right_leg">
@@ -7503,7 +7638,7 @@
 					</objects>
 					<groups />
 					<!--Storage file (.sto) containing (3) components of force and/or torque and point of application.Note: this file overrides the data source specified by the individual external forces if specified.-->
-					<datafile>/Users/xabieririzar/Desktop/Life/Studium/TUM/M.Sc Robotics/Masterarbeit Harvard/Thesis/Subject testing/Subject data/subject_4/trial_4/grf_filtered.mot</datafile>
+					<datafile>/Users/xabieririzar/Desktop/Life/Studium/TUM/M.Sc Robotics/Harvard/Thesis/Subject testing/Subject data/subject_4/trial_3/grf_filtered.mot</datafile>
 				</ExternalLoads>
 			</objects>
 			<groups />

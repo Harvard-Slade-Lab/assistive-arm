@@ -21,6 +21,8 @@ def export_filtered_force(force_data: pd.DataFrame, filename: Path) -> None:
         "endheader\n",
     ]
 
+    print("Writing to ", filename)
+
     with open(filename, "w") as f:
         f.writelines(header + contents)
 
@@ -150,7 +152,7 @@ def transform_force_coordinates(force_trial: pd.DataFrame, new_origin: pd.Series
     return force_trial_tf
 
 
-def sync_mocap_with_opencap(mocap_data: pd.DataFrame, force_data: pd.DataFrame, opencap_data: pd.DataFrame) -> pd.DataFrame:
+def sync_mocap_with_opencap(mocap_data: pd.DataFrame, force_data: pd.DataFrame, opencap_data: pd.DataFrame) -> tuple:
     # Cut the mocap data such that it perfectly overlaps with opencap
 
     # using zero-crossings
@@ -178,7 +180,22 @@ def sync_mocap_with_opencap(mocap_data: pd.DataFrame, force_data: pd.DataFrame, 
     opencap_synced = opencap_data.copy(deep=True)
     opencap_synced.reset_index(drop=True, inplace=True)
 
-    return mocap_data_synced, force_data, opencap_synced, lag
+    # Filter data after user stands up
+    threshold = 5
+
+    standup_index = force_data['ground_force_chair_vy'].lt(threshold).idxmax()
+
+    # Check if the series actually contains any values below 5 to prevent setting the whole column to 0 if there is none
+    if force_data['ground_force_chair_vy'][standup_index] < threshold:
+        # Set every element after this index to 0
+        force_data.loc[standup_index:, 'ground_force_chair_vx'] = 0
+        force_data.loc[standup_index:, 'ground_force_chair_vy'] = 0
+        force_data.loc[standup_index:, 'ground_force_chair_vz'] = 0
+        force_data.loc[standup_index:, 'ground_torque_chair_x'] = 0
+        force_data.loc[standup_index:, 'ground_torque_chair_y'] = 0
+        force_data.loc[standup_index:, 'ground_torque_chair_z'] = 0
+
+    return mocap_data_synced, force_data, opencap_synced, lag, standup_index
 
 
 def prepare_mocap_force_df(
