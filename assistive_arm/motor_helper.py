@@ -138,8 +138,6 @@ def read_motor_msg(data: can.Message) -> tuple:
     p = uint_to_float(p_int, PMIN, PMAX, 16)
     v = uint_to_float(v_int, VMIN, VMAX, 12)
     t = uint_to_float(t_int, TMIN, TMAX, 12)
-    if id_val != 1:
-        print("ID val:", id_val, len(data))  # check if id = 1?
 
     return p, v, t  # position, velocity, torque
 

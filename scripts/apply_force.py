@@ -18,6 +18,24 @@ def load_assistive_profile(control_solution: Path):
     df = pd.read_csv(control_solution)
 
 
+class PIDController:
+    def __init__(self, kp: float, kd: float, ki: float, dt: float) -> None:
+        self.kp = kp
+        self.kd = kd
+        self.ki = ki
+        self.dt = dt
+
+        self.error_prev = 0
+        self.error_sum = 0
+
+    def update(self, error: float) -> float:
+        self.error_sum += error * self.dt
+        error_d = (error - self.error_prev) / self.dt
+        self.error_prev = error
+
+        return self.kp * error + self.kd * error_d + self.ki * self.error_sum
+
+
 def provide_assistance(joint_1, joint_2):
 
     # Set up motors for control
@@ -29,8 +47,16 @@ def provide_assistance(joint_1, joint_2):
     
     print("Starting 2 DOF demo. Press ctrl+C to quit.")
 
+
     # 200Hz control loop
-    loop = SoftRealtimeLoop(dt = 0.005, report=True, fade=0)
+    dt = 1 / 200
+    K_p = 10
+    K_d = 0.5
+
+    torque_1_controller = PIDController(kp=10, kd=0.5, ki=0, dt=dt)
+    torque_2_controller = PIDController(kp=10, kd=0.5, ki=0, dt=dt)
+
+    loop = SoftRealtimeLoop(dt = dt, report=True, fade=0)
 
     for t in loop:
         # Get motor states
@@ -43,10 +69,13 @@ def provide_assistance(joint_1, joint_2):
         # Turn hip position into percentage
         motion_percent = hip_position / (hip_profile.max() - hip_profile.min())
 
-        target_tau_1, target_tau_2 = torque_profile.iloc[motion_percent]
+        tau_1_des, tau_2_des = torque_profile.iloc[motion_percent]
 
-        joint_1.torque = target_tau_1
-        joint_2.torque = target_tau_2
+        error_1 = tau_1_des - joint_1.get_motor_torque_newton_meters()
+        error_2 = tau_2_des - joint_2.get_motor_torque_newton_meters()
+        
+        joint_1.torque = torque_1_controller.update(error_1)
+        joint_2.torque = torque_2_controller.update(error_2)
 
         # implement torque control
         

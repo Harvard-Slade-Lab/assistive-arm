@@ -4,8 +4,8 @@ import time
 from TMotorCANControl.mit_can import TMotorManager_mit_can
 
 # CHANGE THESE TO MATCH YOUR DEVICE!
-Type = 'AK70-10'
-ID = 1
+Type = 'AK60-6'
+ID = 2
 
 def position_tracking(dev):
     dev.set_zero_position() # has a delay!
@@ -20,6 +20,7 @@ def position_tracking(dev):
         if t < 1.0:
             dev.position = 0.0
         else:
+            dev.position = 0.5 * np.sin(np.pi*t)
             print(dev.get_motor_torque_newton_meters())
     
     del loop
