@@ -1,9 +1,11 @@
 import can
-import os
-import traceback
+import csv
 import numpy as np
+import os
+import sys
+import traceback
 
-from time import sleep
+import time
 from typing import Literal
 
 from assistive_arm.motor_helper import read_motor_msg, pack_cmd
@@ -51,11 +53,26 @@ MOTOR_PARAMS = {
 }
 
 class CubemarsMotor:
-    def __init__(self, motor_type: Literal["AK60-6", "AK70-10"]) -> None:
+    def __init__(self, motor_type: Literal["AK60-6", "AK70-10"], csv_file: str=None, frequency: int=200) -> None:
         self.type = motor_type
         self.params = MOTOR_PARAMS[motor_type]
+        self.log_vars = ["position", "velocity", "torque"]
+
+        self.position = 0
+        self.velocity = 0
+        self.torque = 0
+
+        self.frequency = frequency
+        self.csv_file_name = csv_file
+        self._start_time = time.time()
     
     def __enter__(self):
+        if self.csv_file_name is not None:
+            with open(self.csv_file_name,'w') as fd:
+                writer = csv.writer(fd)
+                writer.writerow(["pi_time"]+self.log_vars)
+            self.csv_file = open(self.csv_file_name,'a').__enter__()
+            self.csv_writer = csv.writer(self.csv_file)
         self._init_can_ports()
         self.can_bus = can.interface.Bus(channel=self.params['CAN'], bustype='socketcan')
         self._connect_motor()
@@ -93,7 +110,7 @@ class CubemarsMotor:
 
             self.can_bus.send(self._send_message(data=start_motor_mode))
             print("Waiting for response...", )
-            sleep(0.1)
+            time.sleep(0.1)
             response = self.can_bus.recv(delay)  # time
 
             try:
@@ -121,6 +138,18 @@ class CubemarsMotor:
             traceback.print_exc()
             print(f"Failed to shutdown motor {self.type} or {can_name}")
 
+    def print_state(self, other_motor=None, P_EE=None) -> None:
+        """ Print state of this motor, optionally the state of another motor, and optionally P_EE """
+        lines_to_move_up = 3 if P_EE is not None else 2
+        sys.stdout.write(f'\x1b[{lines_to_move_up}A\x1b[2K')  # Move the cursor up and clear these lines
+
+        print(f"{self.type}: Angle: {self.position:.3f} Velocity: {self.velocity:.3f} Torque: {self.torque:.3f}")
+        if other_motor:
+            print(f"{other_motor.type}: Angle: {other_motor.position:.3f} Velocity: {other_motor.velocity:.3f} Torque: {other_motor.torque:.3f}")
+
+        if P_EE is not None:
+            print(f"P_EE: x:{P_EE[0]:.3f} y:{P_EE[1]:.3f} theta_1+theta_2:{np.rad2deg(P_EE[2]):.3f}")
+
     def send_zero_position(self) -> None:
         zero_position = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE]
 
@@ -134,49 +163,62 @@ class CubemarsMotor:
 
         self._update_motor(cmd=zero_cmd, wait_time=0.001)
 
-    def send_angle(self, angle: float) -> tuple:
-        """ Send angle to motor in degrees
+    def send_angle(self, angle: float) -> None:
+        """ Send angle to motor (degrees)
         Args:
-            angle (float): angle in degrees
+            angle (float): angle (degrees)
 
         Returns:
-            tuple: pos, vel, torque
+            None
         """
-        cmd = [np.deg2rad(angle), 0, 10, 0.2, 0]
-        pos, vel, torque = self._update_motor(cmd=cmd)
-
-        return pos, vel, torque
+        cmd = [np.deg2rad(angle), 0, 5, 0.2, 0]
+        
+        self._update_motor(cmd=cmd)
     
-    def send_velocity(self, desired_vel: float) -> tuple:
+    def send_velocity(self, desired_vel: float) -> None:
+        """ Send velocity to motor in rad/s
+        Args:
+            desired_vel (float): target speed in rad/s
 
-        cmd = [0, desired_vel, 0, 2.5, 0]
-        pos, vel, torque = self._update_motor(cmd=cmd)
-
-        return pos, vel, torque
+        Returns:
+            tuple: pos [rad], vel [rad/s], torque [Nm]
+        """
+        vel_gain = 5 if self.type == "AK70-10" else 2.5
+        cmd = [0, desired_vel, 0, vel_gain, 0]
+        self._update_motor(cmd=cmd)
     
     def send_torque(self, desired_torque: float) -> tuple:
         filtered_torque = np.clip(desired_torque, self.params['T_min'], self.params['T_max'])
         cmd = [0, 0, 0, 0, filtered_torque]
-        pos, vel, torque = self._update_motor(cmd=cmd)
-
-        return pos, vel, torque
+        
+        self._update_motor(cmd=cmd)
 
     def _update_motor(self, cmd: list[hex], wait_time: float = 0.001) -> tuple:
         if len(cmd) != 5:
             print("Too many or too few arguments")
             return None
 
+        # Invert sign of position, velocity or torque for AK60-6
+        if self.type == "AK60-6":
+            cmd[0] *= -1
+            cmd[1] *= -1
+            cmd[-1] *= -1
+
         packed_cmd = pack_cmd(*cmd)
 
         self.can_bus.send(self._send_message(packed_cmd))
         new_msg = self.can_bus.recv(wait_time)
+        self._last_update_time = time.time()
 
         try:
-            pos, vel, torque = read_motor_msg(new_msg.data)
-            return np.rad2deg(pos), vel, torque
+            self.position, self.velocity, self.torque = read_motor_msg(new_msg.data)
+            self.csv_writer.writerow([self._last_update_time - self._start_time] + [self.position, self.velocity, self.torque])
+
+            self.position *= -1 if self.type == "AK60-6" else 1
+            self.velocity *= -1 if self.type == "AK60-6" else 1
+            self.torque *= -1 if self.type == "AK60-6" else 1
         
-        except AttributeError:
-            print("Motor returned None")
+        except AttributeError as e:
             return 0, 0, 0
 
     def _send_message(self, data):

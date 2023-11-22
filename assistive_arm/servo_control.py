@@ -58,6 +58,9 @@ class ServoBase(ABC):
         pass
 
 class ServoControl:
+    """ Servo control class (DEPRECATED), tested only for MG996R basic servo motors. When upgrading to more powerful servos, the functionality of this class is not guaranteed. 
+    
+    """
     def __init__(self, pin: int):
         # TODO Make sure that there is no other servo connected at this pin
         self._gpio_pin = pin

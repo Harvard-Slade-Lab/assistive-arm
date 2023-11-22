@@ -66,7 +66,7 @@ class AssistiveArm(BaseArm):
 
         # Measurements in mm
         self.link_length = 250
-        self.dist_links = 25
+        self.dist_links = 0
 
         # REMINDER: Offset z by dist_links
         self._T_W_0 = np.array([[0, -1, 0, 516.78],
@@ -198,7 +198,6 @@ class AssistiveArm(BaseArm):
         )
         # Save angles in degrees
         target_angles = np.degrees(np.array([theta_1, theta_2]))
-        print("target: ", target_angles)
 
         self.set_joint_angles(target_angles)
 
@@ -245,6 +244,14 @@ class AssistiveArm(BaseArm):
 
 
 class Joint:
+
+    """ Deprecated joint class, ideal for controlling servo motors directly from Raspi GPIO pins. Has been tested on MG996R servos.
+    Raises:
+        Exception: _description_
+
+    Returns:
+        _type_: _description_
+    """
     ports = [11, 13, 15, 16, 18, 22]  # List of ports that can be used for the servos
     # See https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png
 
