@@ -1,11 +1,28 @@
 import sys
 import numpy as np
+import pandas as pd
+
+np.set_printoptions(precision=3, suppress=True)
+
+from pathlib import Path
 
 from NeuroLocoMiddleware.SoftRealtimeLoop import SoftRealtimeLoop
 from assistive_arm.motor_control import CubemarsMotor
-from assistive_arm.base import AssistiveArm
 
-np.set_printoptions(precision=3, suppress=True)
+
+def calculate_ee_pos(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
+    L1 = 0.44
+    L2 = 0.41
+
+    P_EE = np.array([
+        L1*np.cos(motor_1.position) + L2*np.cos(motor_1.position + motor_2.position),
+        L1*np.sin(motor_1.position) + L2*np.sin(motor_1.position + motor_2.position),
+        motor_1.position + motor_2.position])
+
+    return P_EE
+
+def read_profiles(profile_path: Path) -> tuple:
+    profiles = pd.read_csv()
 
 def main(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
     freq = 200 # Hz
@@ -22,10 +39,8 @@ def main(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
             motor_1.send_torque(desired_torque=0)
             motor_2.send_torque(desired_torque=0)
 
-            P_EE = np.array([
-                L1*np.cos(motor_1.position) + L2*np.cos(motor_1.position + motor_2.position),
-                L1*np.sin(motor_1.position) + L2*np.sin(motor_1.position + motor_2.position),
-                motor_1.position + motor_2.position])
+            P_EE = calculate_ee_pos(motor_1, motor_2)
+
 
             if cur_time - start_time > 0.05:
                 motor_1.print_state(motor_2, P_EE)
