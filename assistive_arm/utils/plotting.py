@@ -1,8 +1,11 @@
 import pandas as pd
+import numpy as np
 
 from typing import List
 from pathlib import Path
 
+import matplotlib.colors as colors
+import matplotlib.cm as cmx
 import matplotlib.pyplot as plt
 
 def extract_reserve_columns(df: pd.DataFrame):
@@ -98,7 +101,7 @@ def plot_res_assist_forces(time: pd.Series, dataframes: List[pd.DataFrame], conf
         # Pelvis T_coord
         # axs[i].plot(time, assist_false[f'/forceset/reserve_jointset_ground_pelvis_pelvis_t{coord}']*config["reserve_actuator_force"], label=f'Residual {coord.upper()} (unassisted)')
         # axs[i].plot(time, assist_true[f'/forceset/reserve_jointset_ground_pelvis_pelvis_t{coord}']*config["reserve_actuator_force"], label=f'Residual {coord.upper()} (assisted)')
-        axs[i].plot(time, assist_true[f"/forceset/assistive_force_{coord}"]*config["assistive_force_magnitude"], label=f"Assistive Force {coord.upper()}")
+        axs[i].plot(time, assist_true[f"/forceset/assistive_force_{coord}"]*config["actuator_magnitude"], label=f"Assistive Force {coord.upper()}")
         axs[i].plot(grf.time, grf[f'ground_force_l_v{coord}'], label=f'Ground Force {coord.upper()}')
         axs[i].set_title(coord.upper())
         axs[i].grid()
@@ -160,3 +163,43 @@ def plot_residual_forces(df: pd.DataFrame, config_file: dict, output_path: Path=
     # axs[3].set_title("Min of reserve actuator forces")
     # axs[3].set_ylabel("Min [N]")
     # axs[3].set_xticklabels(df_assist_true_reserve.columns, rotation=45, ha="right")
+
+
+def create_torque_plot(torques, feasible_profiles, l1, l2):
+    # Normalizing color map based on peak torque values
+    cNorm = colors.Normalize(vmin=np.min([torques.tau_1.min(), torques.tau_2.min()]), 
+                             vmax=np.max([torques.tau_1.max(), torques.tau_2.max()]))
+    scalarMap = cmx.ScalarMappable(norm=cNorm, cmap="ocean")
+
+    # Highlight point and label
+    highlight = (l1, l2)
+    highlight_label = f"({l1:.2f}, {l2:.2f})"
+
+    # Creating subplots
+    fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+    fig.suptitle(f"L1: {l1:.2f}, L2: {l2:.2f}")
+
+    # First subplot for Tau 1
+    sc1 = axs[0].scatter(feasible_profiles.l1, feasible_profiles.l2, c=scalarMap.to_rgba(torques.tau_1))
+    axs[0].scatter(*highlight, color='red')
+    axs[0].axvline(x=highlight[0], linestyle="--", color='grey')
+    axs[0].axhline(y=highlight[1], linestyle="--", color='grey')
+    axs[0].grid(color='black', linestyle='-', linewidth=0.1, alpha=0.5)
+    axs[0].set_xlabel("L1")
+    axs[0].set_ylabel("L2")
+    axs[0].set_title("Tau 1")
+
+    # Second subplot for Tau 2
+    sc2 = axs[1].scatter(feasible_profiles.l1, feasible_profiles.l2, c=scalarMap.to_rgba(torques.tau_2))
+    axs[1].scatter(*highlight, color='red')
+    axs[1].axvline(x=highlight[0], linestyle="--", color='grey')
+    axs[1].axhline(y=highlight[1], linestyle="--", color='grey')
+    axs[1].grid(color='black', linestyle='-', linewidth=0.1, alpha=0.5)
+    axs[1].set_xlabel("L1")
+    axs[1].set_ylabel("L2")
+    axs[1].set_title("Tau 2")
+
+    # Adding color bar
+    fig.colorbar(scalarMap, ax=axs.ravel().tolist())
+
+    plt.show()

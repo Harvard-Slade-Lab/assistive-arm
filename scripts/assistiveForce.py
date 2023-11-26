@@ -28,7 +28,10 @@ def main():
     model_name = f"{subject}_simple"  # simple / full
     model_path = subject_data / "model" / "LaiUhlrich2022_scaled.osim"
 
-    trial = subject_data / "trial_3"
+    trial = subject_data / "trial_4"
+
+    if not os.path.exists(trial / "control_solutions"):
+        os.makedirs(trial / "control_solutions")
 
     config_file["subject"] = subject
     config_file["trial"] = str(trial)
@@ -37,7 +40,7 @@ def main():
     assistive_force = None  # 700N or None
 
     t_0 = 5.7
-    t_f = 7.25
+    t_f = 8.5  # 7.25s for subject4 trial3
     mesh_interval = 0.05
 
     config_file["t_0"] = t_0
@@ -45,7 +48,10 @@ def main():
     config_file["mesh_interval"] = mesh_interval
     config_file["grf_path"] = str(trial / "grf_filtered.mot")
 
-    modify_force_xml("./moco/forces/grf_sit_stand.xml", str(trial / "grf_filtered.mot"))
+    modify_force_xml(
+        xml_file="./moco/forces/grf_sit_stand.xml",
+        new_datafile=str(trial / "grf_filtered.mot"),
+    )
 
     model = get_model(
         subject_name=model_name,
@@ -73,7 +79,9 @@ def main():
     solution_name = f"{model_name}_{trial.stem}_assistance_{str(assistive_force).lower()}_{cur_time}"
 
     config_file["solution_name"] = solution_name
-    config_file["solution_path"] = str(trial / f"/control_solutions/{solution_name}.sto")
+    config_file["solution_path"] = str(
+        trial / f"/control_solutions/{solution_name}.sto"
+    )
 
     with open(f"./moco/control_solutions/{solution_name}.yaml", "w") as f:
         yaml.dump(config_file, f)

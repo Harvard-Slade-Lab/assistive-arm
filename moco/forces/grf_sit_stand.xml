@@ -46,6 +46,6 @@
 		</objects>
 		<groups/>
 		<!--Storage file (.sto) containing (3) components of force and/or torque and point of application.Note: this file overrides the data source specified by the individual external forces if specified.-->
-		<datafile>/Users/xabieririzar/Desktop/Life/Studium/TUM/M.Sc Robotics/Harvard/Thesis/Subject testing/Subject data/subject_4/trial_3/grf_filtered.mot</datafile>
+		<datafile>/Users/xabieririzar/Desktop/Life/Studium/TUM/M.Sc Robotics/Harvard/Thesis/Subject testing/Subject data/subject_4/trial_4/grf_filtered.mot</datafile>
 	</ExternalLoads>
 </OpenSimDocument>
