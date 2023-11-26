@@ -138,17 +138,7 @@ class CubemarsMotor:
             traceback.print_exc()
             print(f"Failed to shutdown motor {self.type} or {can_name}")
 
-    def print_state(self, other_motor=None, P_EE=None) -> None:
-        """ Print state of this motor, optionally the state of another motor, and optionally P_EE """
-        lines_to_move_up = 3 if P_EE is not None else 2
-        sys.stdout.write(f'\x1b[{lines_to_move_up}A\x1b[2K')  # Move the cursor up and clear these lines
-
-        print(f"{self.type}: Angle: {self.position:.3f} Velocity: {self.velocity:.3f} Torque: {self.torque:.3f}")
-        if other_motor:
-            print(f"{other_motor.type}: Angle: {other_motor.position:.3f} Velocity: {other_motor.velocity:.3f} Torque: {other_motor.torque:.3f}")
-
-        if P_EE is not None:
-            print(f"P_EE: x:{P_EE[0]:.3f} y:{P_EE[1]:.3f} theta_1+theta_2:{np.rad2deg(P_EE[2]):.3f}")
+# Move the cursor up and clear these lines
 
     def send_zero_position(self) -> None:
         zero_position = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE]
@@ -187,8 +177,13 @@ class CubemarsMotor:
         cmd = [0, desired_vel, 0, vel_gain, 0]
         self._update_motor(cmd=cmd)
     
-    def send_torque(self, desired_torque: float) -> tuple:
+    def send_torque(self, desired_torque: float, safety: bool=True) -> tuple:
         filtered_torque = np.clip(desired_torque, self.params['T_min'], self.params['T_max'])
+        
+        # Hard code safety
+        if safety:
+            filtered_torque = np.clip(filtered_torque, -2, 2)
+            
         cmd = [0, 0, 0, 0, filtered_torque]
         
         self._update_motor(cmd=cmd)
@@ -196,7 +191,7 @@ class CubemarsMotor:
     def _update_motor(self, cmd: list[hex], wait_time: float = 0.001) -> tuple:
         if len(cmd) != 5:
             print("Too many or too few arguments")
-            return None
+            return None, None, None
 
         # Invert sign of position, velocity or torque for AK60-6
         if self.type == "AK60-6":

@@ -21,12 +21,19 @@ def calculate_ee_pos(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
 
     return P_EE
 
-def read_profiles(profile_path: Path) -> tuple:
-    profiles = pd.read_csv()
+def read_profiles(profile_path: Path) -> pd.DataFrame:
+    profiles = pd.read_csv(profile_path, index_col="Time")
+
+    return profiles
 
 def main(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
     freq = 200 # Hz
     loop = SoftRealtimeLoop(dt=1/freq, report=True, fade=0)
+
+    profile_path = Path("~/ability-lab/assistive-arm/torque_profiles/scaled_torque_profile.csv")
+
+    profiles = read_profiles(profile_path=profile_path)
+    profile_EE = profiles[["X", "Y", "theta_1_2"]]
 
     start_time = 0
 
@@ -39,11 +46,20 @@ def main(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
             motor_1.send_torque(desired_torque=0)
             motor_2.send_torque(desired_torque=0)
 
+            
             P_EE = calculate_ee_pos(motor_1, motor_2)
+
+            closest_point = np.linalg.norm(profile_EE - P_EE, axis=1).argmin()
+            target_torques = profiles.iloc[closest_point][['tau_1', 'tau_2']]
+            index = profiles.index[closest_point]
 
 
             if cur_time - start_time > 0.05:
-                motor_1.print_state(motor_2, P_EE)
+                print(f"{motor_1.type}: Angle: {motor_1.position:.3f} Velocity: {motor_1.velocity:.3f} Torque: {motor_1.torque:.3f}")
+                print(f"{motor_2.type}: Angle: {motor_2.position:.3f} Velocity: {motor_2.velocity:.3f} Torque: {motor_2.torque:.3f}")
+                print(f"P_EE: x:{P_EE[0]:.3f} y:{P_EE[1]:.3f} theta_1+theta_2:{np.rad2deg(P_EE[2]):.3f}")
+                print(f"Movement %: {index: .0f}%. tau_1: {target_torques.tau_1}, tau_2: {target_torques.tau_2}")
+                sys.stdout.write(f'\x1b[4A\x1b[2K')
 
                 start_time = cur_time
         del loop

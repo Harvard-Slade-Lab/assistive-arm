@@ -16,7 +16,8 @@ def main(motor_1: CubemarsMotor):
     # General control loop
     try:
         for t in loop:
-            motor_1.send_torque(desired_torque=0)
+            # motor_1.send_torque(desired_torque=0)
+            motor_1.send_velocity(desired_vel=0.5)
             
             if t - start_time > 0.1:
                 motor_1.print_state()

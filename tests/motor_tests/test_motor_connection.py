@@ -6,5 +6,5 @@ def main(motor: CubemarsMotor):
         
 
 if __name__ == "__main__":
-    with CubemarsMotor(motor_type="AK60-6") as motor_2:
-        main(motor_2)
+    with CubemarsMotor(motor_type="AK60-6") as motor:
+        main(motor)
