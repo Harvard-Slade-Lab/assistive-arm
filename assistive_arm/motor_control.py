@@ -2,69 +2,36 @@ import can
 import csv
 import numpy as np
 import os
-import sys
-import traceback
-
 import time
+import traceback
+import yaml
+
 from typing import Literal
+from pathlib import Path
 
 from assistive_arm.motor_helper import read_motor_msg, pack_cmd
 
 
-MOTOR_PARAMS = {
-    'AK70-10' : {
-            'P_min' : -12.5,
-            'P_max' : 12.5,
-            'V_min' : -50.0,
-            'V_max' : 50.0,
-            'T_min' : -25.0,
-            'T_max' : 25.0,
-            'Kp_min': 0.0,
-            'Kp_max': 500.0,
-            'Kd_min': 0.0,
-            'Kd_max': 5.0,
-            'Kt_TMotor' : 0.095, # from TMotor website (actually 1/Kvll)
-            'Current_Factor' : 0.59, # # UNTESTED CONSTANT!
-            'Kt_actual': 0.122, # UNTESTED CONSTANT!
-            'GEAR_RATIO': 10.0,
-            'Use_derived_torque_constants': False, # true if you have bettermodel
-            'CAN': "can0",
-            'ID': 0x01
-        },
-    'AK60-6':{
-            'P_min' : -12.5,
-            'P_max' : 12.5,
-            'V_min' : -50.0,
-            'V_max' : 50.0,
-            'T_min' : -15.0,
-            'T_max' : 15.0,
-            'Kp_min': 0.0,
-            'Kp_max': 500.0,
-            'Kd_min': 0.0,
-            'Kd_max': 5.0,
-            'Kt_TMotor' : 0.068, # from TMotor website (actually 1/Kvll)
-            'Current_Factor' : 0.59, # # UNTESTED CONSTANT!
-            'Kt_actual': 0.087, # UNTESTED CONSTANT!
-            'GEAR_RATIO': 6.0, 
-            'Use_derived_torque_constants': False, # true if you have a better model
-            'CAN': "can1",
-            'ID': 0x02
-        }
-}
+with open("./motor_config.yaml", "r") as f:
+        MOTOR_PARAMS = yaml.load(f, Loader=yaml.FullLoader)
 
 class CubemarsMotor:
-    def __init__(self, motor_type: Literal["AK60-6", "AK70-10"], csv_file: str=None, frequency: int=200) -> None:
+    def __init__(self, motor_type: Literal["AK60-6", "AK70-10"], csv_file: Path=None, frequency: int=200) -> None:
         self.type = motor_type
         self.params = MOTOR_PARAMS[motor_type]
         self.log_vars = ["position", "velocity", "torque"]
+
 
         self.position = 0
         self.velocity = 0
         self.torque = 0
 
         self.frequency = frequency
-        self.csv_file_name = csv_file
+        self.csv_file_name = csv_file.with_name(f"{self.type}_" + csv_file.name)
         self._start_time = time.time()
+
+        os.system(f"touch {self.csv_file_name}")
+
     
     def __enter__(self):
         if self.csv_file_name is not None:
@@ -178,11 +145,20 @@ class CubemarsMotor:
         self._update_motor(cmd=cmd)
     
     def send_torque(self, desired_torque: float, safety: bool=True) -> tuple:
+        """ Send torque to motor
+
+        Args:
+            desired_torque (float): target torque
+            safety (bool, optional): Safety clipping. Defaults to True.
+
+        Returns:
+            tuple: _description_
+        """
         filtered_torque = np.clip(desired_torque, self.params['T_min'], self.params['T_max'])
         
         # Hard code safety
         if safety:
-            filtered_torque = np.clip(filtered_torque, -2, 2)
+            filtered_torque = np.clip(filtered_torque, -3, 3)
             
         cmd = [0, 0, 0, 0, filtered_torque]
         
@@ -207,7 +183,8 @@ class CubemarsMotor:
 
         try:
             self.position, self.velocity, self.torque = read_motor_msg(new_msg.data)
-            self.csv_writer.writerow([self._last_update_time - self._start_time] + [self.position, self.velocity, self.torque])
+            if self.csv_writer:
+                self.csv_writer.writerow([self._last_update_time - self._start_time] + [self.position, self.velocity, self.torque])
 
             self.position *= -1 if self.type == "AK60-6" else 1
             self.velocity *= -1 if self.type == "AK60-6" else 1
