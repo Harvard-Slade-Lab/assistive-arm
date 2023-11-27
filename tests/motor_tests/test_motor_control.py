@@ -16,11 +16,11 @@ def main(motor_1: CubemarsMotor):
     # General control loop
     try:
         for t in loop:
-            # motor_1.send_torque(desired_torque=0)
-            motor_1.send_velocity(desired_vel=0.5)
+            motor_1.send_torque(desired_torque=20, safety=False)
             
             if t - start_time > 0.1:
-                motor_1.print_state()
+                print(f"{motor_1.type}: Angle: {motor_1.position:.3f} Velocity: {motor_1.velocity:.3f} Torque: {motor_1.torque:.3f}")
+                sys.stdout.write(f'\x1b[1A\x1b[2K')
                 start_time = t
         del loop
 
@@ -34,5 +34,5 @@ if __name__ == "__main__":
     log_file = f"../logs/{filename.split('.')[0]}_{time.strftime('%m-%d-%H-%M-%S')}.csv"
     os.system(f"touch {log_file}")
 
-    with CubemarsMotor('AK60-6', csv_file=log_file) as motor_1:
+    with CubemarsMotor('AK70-10', csv_file=log_file) as motor_1:
         main(motor_1)

@@ -1,22 +1,19 @@
 import numpy as np
-import time
+import os
 import pandas as pd
+import sys
+import time
 
 from pathlib import Path
 
 from NeuroLocoMiddleware.SoftRealtimeLoop import SoftRealtimeLoop
-from TMotorCANControl.mit_can import TMotorManager_mit_can
+from assistive_arm.motor_control import CubemarsMotor
+from assistive_arm.robotic_arm import calculate_ee_pos
 
-# CHANGE THESE TO MATCH YOUR DEVICE!
-ID_1 = 1
-ID_2 = 2
+def read_profiles(profile_path: Path) -> pd.DataFrame:
+    profiles = pd.read_csv(profile_path, index_col="Percentage")
 
-Type_1 = 'AK70-10'
-Type_2 = 'AK60-6'
-
-def load_assistive_profile(control_solution: Path):
-    df = pd.read_csv(control_solution)
-
+    return profiles
 
 class PIDController:
     def __init__(self, kp: float, kd: float, ki: float, dt: float) -> None:
@@ -36,56 +33,75 @@ class PIDController:
         return self.kp * error + self.kd * error_d + self.ki * self.error_sum
 
 
-def provide_assistance(joint_1, joint_2):
-
-    # Set up motors for control
-    joint_1.set_zero_position()
-    joint_2.set_zero_position()
-    time.sleep(1.5) # wait for the motors to zero (~1 second)
-    joint_1.set_impedance_gains_real_unit(K=10.0,B=0.5)
-    joint_2.set_impedance_gains_real_unit(K=10.0,B=0.5)
-    
-    print("Starting 2 DOF demo. Press ctrl+C to quit.")
-
-
+def provide_assistance(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
     # 200Hz control loop
-    dt = 1 / 200
-    K_p = 10
-    K_d = 0.5
+    freq = 200
 
-    torque_1_controller = PIDController(kp=10, kd=0.5, ki=0, dt=dt)
-    torque_2_controller = PIDController(kp=10, kd=0.5, ki=0, dt=dt)
+    loop = SoftRealtimeLoop(dt = 1/freq, report=True, fade=0)
 
-    loop = SoftRealtimeLoop(dt = dt, report=True, fade=0)
-
-    for t in loop:
-        # Get motor states
-        joint_1.update()
-        joint_2.update()
-
-        # Read height of the hip joint / get hip angle
-        hip_position = get_hip_position()
-
-        # Turn hip position into percentage
-        motion_percent = hip_position / (hip_profile.max() - hip_profile.min())
-
-        tau_1_des, tau_2_des = torque_profile.iloc[motion_percent]
-
-        error_1 = tau_1_des - joint_1.get_motor_torque_newton_meters()
-        error_2 = tau_2_des - joint_2.get_motor_torque_newton_meters()
-        
-        joint_1.torque = torque_1_controller.update(error_1)
-        joint_2.torque = torque_2_controller.update(error_2)
-
-        # implement torque control
-        
+    torque_1_controller = PIDController(kp=10, kd=0.5, ki=0, dt=1/freq)
+    torque_2_controller = PIDController(kp=10, kd=0.5, ki=0, dt=1/freq)
 
 
-    del loop
+    profile_path = Path("~/ability-lab/assistive-arm/torque_profiles/scaled_torque_profile.csv")
+
+    profiles = read_profiles(profile_path=profile_path)
+    profile_EE = profiles[["X", "Y", "theta_1_2"]]
+
+    start_time = 0
+
+    L1 = 0.44
+    L2 = 0.41
+
+    try:
+        for i, t in enumerate(loop):
+            # Read height of the hip joint / get hip angle
+
+            P_EE = calculate_ee_pos(motor_1=motor_1, motor_2=motor_2)
+
+            closest_point = np.linalg.norm(profile_EE - P_EE, axis=1).argmin()
+            target_torque = profiles.iloc[closest_point][['tau_1', 'tau_2']]
+            index = profiles.index[closest_point]
+
+            
+            try:
+                motor_1.send_torque(desired_torque=-profiles.iloc[i].tau_1)
+                motor_2.send_torque(desired_torque=-profiles.iloc[i].tau_2)
+                print(profiles.iloc[i].tau_1, profiles.iloc[i].tau_2)
+            except IndexError:
+                print("Out of bounds")
+                break
+
+            # error_1 = target_torque.tau_1 - motor_1.torque
+            # error_2 = target_torque.tau_2 - motor_2.torque
+            
+            # motor_1.send_torque(torque_1_controller.update(error_1))
+            # motor_2.send_torque(torque_2_controller.update(error_2))
+
+
+            
+            if t - start_time > 0.05:
+
+                print(f"{motor_1.type}: Angle: {motor_1.position:.3f} Velocity: {motor_1.velocity:.3f} Torque: {motor_1.torque:.3f}")
+                print(f"{motor_2.type}: Angle: {motor_2.position:.3f} Velocity: {motor_2.velocity:.3f} Torque: {motor_2.torque:.3f}")
+                print(f"P_EE: x:{P_EE[0]:.3f} y:{P_EE[1]:.3f} theta_1+theta_2:{np.rad2deg(P_EE[2]):.3f}")
+                print(f"Movement %: {index: .0f}%. tau_1: {target_torque.tau_1}, tau_2: {target_torque.tau_2}")
+                sys.stdout.write(f'\x1b[4A\x1b[2K')
+
+                start_time = t
+
+        del loop
+
+    except KeyboardInterrupt:
+        print("Keyboard interrupt detected. Shutting down...")
 
 if __name__ == '__main__':
     # to use additional motors, simply add another with block
     # remember to give each motor a different log name!
-    with TMotorManager_mit_can(motor_type=Type_1, motor_ID=ID_1) as base_motor:
-        with TMotorManager_mit_can(motor_type=Type_2, motor_ID=ID_2) as elbow_motor:
-            provide_assistance(base_motor,elbow_motor)
+
+    filename = os.path.basename(__file__).split('.')[0]
+    log_file = Path(f"../logs/{filename}_{time.strftime('%m-%d-%H-%M-%S')}.csv")
+
+    with CubemarsMotor(motor_type="AK70-10", csv_file=log_file) as base_motor:
+        with CubemarsMotor(motor_type="AK60-6", csv_file=log_file) as elbow_motor:
+            provide_assistance(motor_1=base_motor, motor_2=elbow_motor)
