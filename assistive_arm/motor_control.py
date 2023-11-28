@@ -27,26 +27,32 @@ class CubemarsMotor:
         self.torque = 0
 
         self.frequency = frequency
-        self.csv_file_name = csv_file.with_name(f"{self.type}_" + csv_file.name)
-        self._start_time = time.time()
 
-        os.system(f"touch {self.csv_file_name}")
+        if csv_file:
+            self.csv_file_name = csv_file.with_name(f"{self.type}_" + csv_file.name)
+            os.system(f"touch {self.csv_file_name}")
+
+        self._emergency_stop = False
 
     
     def __enter__(self):
         if self.csv_file_name is not None:
             with open(self.csv_file_name,'w') as fd:
                 writer = csv.writer(fd)
-                writer.writerow(["pi_time"]+self.log_vars)
+                writer.writerow(["time"]+self.log_vars)
             self.csv_file = open(self.csv_file_name,'a').__enter__()
             self.csv_writer = csv.writer(self.csv_file)
         self._init_can_ports()
         self.can_bus = can.interface.Bus(channel=self.params['CAN'], bustype='socketcan')
         self._connect_motor()
+        self._start_time = time.time()
 
         return self
 
     def __exit__(self, exc_type, exc_value, trb):
+        if self._emergency_stop:
+            raise Exception("Emergency stop triggered. Shutting down...")
+        
         self._stop_motor()
         self._stop_can_port()
 
@@ -104,6 +110,16 @@ class CubemarsMotor:
         except:
             traceback.print_exc()
             print(f"Failed to shutdown motor {self.type} or {can_name}")
+
+    def check_safety_speed_limit(self):
+        self.speed_threshold = 7 # rad/s
+
+        if abs(self.velocity) > self.speed_threshold:
+            self._emergency_stop = True
+            self.send_velocity(0)
+            time.sleep(0.3)
+            self._stop_motor()
+            self._stop_can_port()
 
 # Move the cursor up and clear these lines
 
@@ -164,10 +180,10 @@ class CubemarsMotor:
         
         self._update_motor(cmd=cmd)
 
-    def _update_motor(self, cmd: list[hex], wait_time: float = 0.001) -> tuple:
+    def _update_motor(self, cmd: list[hex], wait_time: float = 0.001) -> bool:
         if len(cmd) != 5:
             print("Too many or too few arguments")
-            return None, None, None
+            return
 
         # Invert sign of position, velocity or torque for AK60-6
         if self.type == "AK60-6":
@@ -181,17 +197,21 @@ class CubemarsMotor:
         new_msg = self.can_bus.recv(wait_time)
         self._last_update_time = time.time()
 
+        if self._emergency_stop:
+            return
+
+        self.check_safety_speed_limit()
         try:
             self.position, self.velocity, self.torque = read_motor_msg(new_msg.data)
-            if self.csv_writer:
-                self.csv_writer.writerow([self._last_update_time - self._start_time] + [self.position, self.velocity, self.torque])
-
             self.position *= -1 if self.type == "AK60-6" else 1
             self.velocity *= -1 if self.type == "AK60-6" else 1
             self.torque *= -1 if self.type == "AK60-6" else 1
+            
+            if self.csv_writer:
+                self.csv_writer.writerow([self._last_update_time - self._start_time] + [self.position, self.velocity, self.torque])
         
         except AttributeError as e:
-            return 0, 0, 0
+            return True
 
     def _send_message(self, data):
         return can.Message(arbitration_id=self.params['ID'], data=data, is_extended_id=False)
