@@ -1,4 +1,9 @@
-from NeuroLocoMiddleware.SoftRealtimeLoop import SoftRealtimeLoop
+import os
+import time
+
+from pathlib import Path
+
+
 from assistive_arm.motor_control import CubemarsMotor
 
 def main(motor: CubemarsMotor):
@@ -6,5 +11,7 @@ def main(motor: CubemarsMotor):
         
 
 if __name__ == "__main__":
-    with CubemarsMotor(motor_type="AK60-6") as motor:
+    filename = os.path.basename(__file__)
+    log_file = Path(f"../logs/{filename.split('.')[0]}_{time.strftime('%m-%d-%H-%M-%S')}.csv")
+    with CubemarsMotor(motor_type="AK60-6", csv_file=log_file) as motor:
         main(motor)
