@@ -4,6 +4,8 @@ import os
 import time
 import sys
 
+from pathlib import Path
+
 from NeuroLocoMiddleware.SoftRealtimeLoop import SoftRealtimeLoop
 from assistive_arm.motor_control import CubemarsMotor
 import os
@@ -13,7 +15,7 @@ dt = 0.005
 print_every = 0.05  # seconds
 
 
-def set_dh_origin(motor, origin):
+def set_dh_origin(motor: CubemarsMotor, origin: float):
     loop_3 = SoftRealtimeLoop(dt=dt, report=True, fade=0)
 
     print("Setting new origin...")
@@ -25,16 +27,18 @@ def set_dh_origin(motor, origin):
             motor.send_velocity(desired_vel=-1)
         else:
             motor.send_velocity(desired_vel=-0.5)
+        
+        target_diff = abs(motor.position - origin)
 
         if t - start_time >= print_every:
             sys.stdout.write('\x1b[1A\x1b[2K')
-            print(f"Diff: {np.rad2deg(abs(motor.position - origin)): .3f} Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.torque: .3f}")
+            print(f"Diff: {np.rad2deg(target_diff): .3f} Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.torque: .3f}")
             start_time = t
 
-        if abs(motor.position - origin) < 0.005:
+        if target_diff < 0.005:
             motor.send_zero_position()
             print("Origin reached! Setting zero position...")
-            print(f"Target offset: {np.rad2deg(abs(motor.position - origin)): .3f}º")
+            print(f"Target offset: {np.rad2deg(target_diff): .3f}º")
             break
 
     del loop_3
@@ -81,8 +85,8 @@ def limit_tracking(motor: CubemarsMotor, direction='right', velocity=1):
 if __name__ == "__main__":
     # Create CSV file for later analysis, naming it with current time
 
-    filename = os.path.basename(__file__)
-    log_file = f"../logs/{filename.split('.')[0]}_{time.strftime('%m-%d-%H-%M-%S')}.csv"
+    filename = os.path.basename(__file__).split('.')[0]
+    log_file = Path(f"../logs/{filename}_{time.strftime('%m-%d-%H-%M-%S')}.csv")
     os.system(f"touch {log_file}")
 
     # with CubemarsMotor(motor_type="AK70-10", csv_file=log_file) as motor_1:
