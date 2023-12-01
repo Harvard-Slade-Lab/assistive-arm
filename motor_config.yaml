@@ -9,6 +9,7 @@
   Kp_max: 500.0
   Kd_min: 0.0
   Kd_max: 5.0
+  Vel_limit: 4 # rad/s
   Kt_TMotor: 0.095 # from TMotor website (actually 1/Kvll)
   Current_Factor: 0.59 # UNTESTED CONSTANT!
   Kt_actual: 0.122 # UNTESTED CONSTANT!
@@ -27,6 +28,7 @@
   Kp_max: 500.0
   Kd_min: 0.0
   Kd_max: 5.0
+  Vel_limit: 8 # rad/s
   Kt_TMotor: 0.068 # from TMotor website (actually 1/Kvll)
   Current_Factor: 0.59 # UNTESTED CONSTANT!
   Kt_actual: 0.087 # UNTESTED CONSTANT!

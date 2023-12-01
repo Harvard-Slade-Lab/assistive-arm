@@ -9,8 +9,6 @@ import yaml
 from typing import Literal
 from pathlib import Path
 
-from assistive_arm.motor_helper import read_motor_msg, pack_cmd
-
 
 with open("./motor_config.yaml", "r") as f:
         MOTOR_PARAMS = yaml.load(f, Loader=yaml.FullLoader)
@@ -21,8 +19,8 @@ class CubemarsMotor:
         self.params = MOTOR_PARAMS[motor_type]
         self.log_vars = ["position", "velocity", "torque"]
 
-
         self.position = 0
+        self.prev_velocity = 0
         self.velocity = 0
         self.torque = 0
 
@@ -46,6 +44,7 @@ class CubemarsMotor:
         self.can_bus = can.interface.Bus(channel=self.params['CAN'], bustype='socketcan')
         self._connect_motor()
         self._start_time = time.time()
+        self._last_update_time = self._start_time
 
         return self
 
@@ -87,7 +86,7 @@ class CubemarsMotor:
             response = self.can_bus.recv(delay)  # time
 
             try:
-                P, V, T = read_motor_msg(response.data)
+                P, V, T = self._read_motor_msg(response.data)
                 print(f"Motor {self.type} connected successfully")
                 starting = True
                 if zero:
@@ -112,16 +111,13 @@ class CubemarsMotor:
             print(f"Failed to shutdown motor {self.type} or {can_name}")
 
     def check_safety_speed_limit(self):
-        self.speed_threshold = 7 # rad/s
-
-        if abs(self.velocity) > self.speed_threshold:
+        
+        if abs(self.velocity) > self.params["Vel_limit"]:
             self._emergency_stop = True
             self.send_velocity(0)
             time.sleep(0.3)
             self._stop_motor()
             self._stop_can_port()
-
-# Move the cursor up and clear these lines
 
     def send_zero_position(self) -> None:
         zero_position = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE]
@@ -130,7 +126,7 @@ class CubemarsMotor:
         # Sleep for 2.5s to allow motor to zero
         response = self.can_bus.recv(1.5)
         print("Zeroing position...")
-        print("Pos, Vel, Torque: ", read_motor_msg(response.data))
+        print("Pos, Vel, Torque: ", self._read_motor_msg(response.data))
 
         zero_cmd = [0, 0, 0, 0, 0]
 
@@ -191,18 +187,19 @@ class CubemarsMotor:
             cmd[1] *= -1
             cmd[-1] *= -1
 
-        packed_cmd = pack_cmd(*cmd)
+        packed_cmd = self._pack_cmd(*cmd)
 
         self.can_bus.send(self._send_message(packed_cmd))
         new_msg = self.can_bus.recv(wait_time)
-        self._last_update_time = time.time()
 
         if self._emergency_stop:
             return
 
         self.check_safety_speed_limit()
         try:
-            self.position, self.velocity, self.torque = read_motor_msg(new_msg.data)
+            alpha = 0.1
+            self.position, self.velocity, self.torque = self._read_motor_msg(new_msg.data)
+
             self.position *= -1 if self.type == "AK60-6" else 1
             self.velocity *= -1 if self.type == "AK60-6" else 1
             self.torque *= -1 if self.type == "AK60-6" else 1
@@ -212,6 +209,65 @@ class CubemarsMotor:
         
         except AttributeError as e:
             return True
+        
+        self.prev_velocity = self.velocity
+        self._last_update_time = time.time()
+
+
+    def _uint_to_float(self, x, xmin, xmax, bits):
+        span = xmax - xmin
+        int_val = float(x) * span / (float((1 << bits) - 1)) + xmin
+        return int_val
+    
+    def _float_to_uint(self, x, xmin, xmax, bits):
+        span = xmax - xmin
+        if x < xmin:
+            x = xmin
+        elif x > xmax:
+            x = xmax
+        convert = int((x - xmin) * (((1 << bits) - 1) / span))
+        return convert
+
+    def _read_motor_msg(self, data: can.Message) -> tuple:
+        """ Read motor message
+        Args:
+            data (can.Message): can message response
+        Returns:
+            tuple: pos, vel, torque
+        """
+        if data == None:
+            return None
+        # else:
+        #    print(data[0],data[1], data)
+        id_val = data[0]
+        p_int = (data[1] << 8) | data[2]
+        v_int = (data[3] << 4) | (data[4] >> 4)
+        t_int = ((data[4] & 0xF) << 8) | data[5]
+        # convert to floats
+        p = self._uint_to_float(p_int, self.params['P_min'], self.params['P_max'], 16)
+        v = self._uint_to_float(v_int, self.params['V_min'], self.params['V_max'], 12)
+        t = self._uint_to_float(t_int, self.params['T_min'], self.params['T_max'], 12)
+
+        return p, v, t  # position, velocity, torque
+
+    def _pack_cmd(self, p_des: int, v_des: int, kp: int, kd: int, t_ff: int):
+        # convert floats to ints
+        p_int = self._float_to_uint(p_des, self.params['P_min'], self.params['P_max'], 16)
+        v_int = self._float_to_uint(v_des, self.params['V_min'], self.params['V_max'], 12)
+        kp_int = self._float_to_uint(kp, self.params['Kp_min'], self.params['Kp_max'], 12)
+        kd_int = self._float_to_uint(kd, self.params['Kd_min'], self.params['Kd_max'], 12)
+        t_int = self._float_to_uint(t_ff, self.params['T_min'], self.params['T_max'], 12)
+        # pack ints into buffer message
+        msg = []
+        msg.append(p_int >> 8)
+        msg.append(p_int & 0xFF)
+        msg.append(v_int >> 4)
+        msg.append((((v_int & 0xF) << 4)) | (kp_int >> 8))
+        msg.append(kp_int & 0xFF)
+        msg.append(kd_int >> 4)
+        msg.append((((kd_int & 0xF) << 4)) | (t_int >> 8))
+        msg.append(t_int & 0xFF)
+        return msg
 
     def _send_message(self, data):
         return can.Message(arbitration_id=self.params['ID'], data=data, is_extended_id=False)

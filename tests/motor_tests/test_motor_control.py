@@ -18,8 +18,8 @@ def main(motor_1: CubemarsMotor):
     # General control loop
     try:
         for t in loop:
-            motor_1.send_torque(desired_torque=5, safety=False)
-            
+            motor_1.send_torque(desired_torque=-5, safety=False)
+                
             if t - start_time > 0.1:
                 print(f"{motor_1.type}: Angle: {motor_1.position:.3f} Velocity: {motor_1.velocity:.3f} Torque: {motor_1.torque:.3f}")
                 sys.stdout.write(f'\x1b[1A\x1b[2K')
