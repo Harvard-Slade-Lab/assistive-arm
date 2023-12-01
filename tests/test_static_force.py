@@ -25,8 +25,8 @@ def main(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
 
     try:
         for t in loop:
-            tau_1 = np.sin(t ) * max_tau_1
-            tau_2 = np.sin(t) * max_tau_2
+            tau_1 = np.sin(t/5) * max_tau_1
+            tau_2 = np.sin(t/5) * max_tau_2
 
             motor_1.send_torque(desired_torque=tau_1, safety=False)
             motor_2.send_torque(desired_torque=tau_2, safety=False)

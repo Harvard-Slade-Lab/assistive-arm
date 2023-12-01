@@ -49,9 +49,9 @@ class CubemarsMotor:
         return self
 
     def __exit__(self, exc_type, exc_value, trb):
+        os.system(f"scp ../logs/{self.csv_file_name} macbook:/Users/xabieririzar/uni-projects/Harvard/assistive-arm/motor_logs/")
         if self._emergency_stop:
             raise Exception("Emergency stop triggered. Shutting down...")
-        
         self._stop_motor()
         self._stop_can_port()
 
