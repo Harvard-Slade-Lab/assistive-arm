@@ -160,4 +160,5 @@ cython_debug/
 #.idea/
 Geometry/
 moco/control_solutions
+motor_logs/
 .DS_STORE
