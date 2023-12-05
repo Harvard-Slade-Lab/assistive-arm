@@ -18,7 +18,7 @@ def main(motor_1: CubemarsMotor):
     # General control loop
     try:
         for t in loop:
-            motor_1.send_torque(desired_torque=-9, safety=False)
+            motor_1.send_torque(desired_torque=0, safety=True)
                 
             if t - start_time > 0.1:
                 print(f"{motor_1.type}: Angle: {motor_1.position:.3f} Velocity: {motor_1.velocity:.3f} Torque: {motor_1.torque:.3f}")
@@ -35,8 +35,5 @@ def main(motor_1: CubemarsMotor):
     
 
 if __name__ == "__main__":
-    filename = os.path.basename(__file__)
-    log_file = Path(f"../logs/{filename.split('.')[0]}_{time.strftime('%m-%d-%H-%M-%S')}.csv")
-
-    with CubemarsMotor('AK60-6', csv_file=log_file) as motor_1:
+    with CubemarsMotor('AK60-6', logging=True) as motor_1:
         main(motor_1)

@@ -85,24 +85,20 @@ def limit_tracking(motor: CubemarsMotor, direction='right', velocity=1):
 if __name__ == "__main__":
     # Create CSV file for later analysis, naming it with current time
 
-    filename = os.path.basename(__file__).split('.')[0]
-    log_file = Path(f"../logs/{filename}_{time.strftime('%m-%d-%H-%M-%S')}.csv")
-    os.system(f"touch {log_file}")
+    with CubemarsMotor(motor_type="AK70-10", logging=False) as motor_1:
+        print(f"Calibrating {motor_1.type}... Do not touch.")
 
-    # with CubemarsMotor(motor_type="AK70-10", csv_file=log_file) as motor_1:
-    #     print(f"Calibrating {motor_1.type}... Do not touch.")
+        limit_tracking(motor_1, direction='right', velocity=2)
+        print(f"Setting origin at 0º...")
+        print("Sleeping...")
+        time.sleep(2)
 
-    #     limit_tracking(motor_1, direction='right', velocity=2)
-    #     print(f"Setting origin at 0º...")
-    #     print("Sleeping...")
-    #     time.sleep(2)
+        left_limit = limit_tracking(motor_1, direction='left', velocity=2)
 
-    #     left_limit = limit_tracking(motor_1, direction='left', velocity=2)
+        print("Angle range: ", [0, left_limit])
+        time.sleep(1.5)
 
-    #     print("Angle range: ", [0, left_limit])
-    #     time.sleep(1.5)
-
-    with CubemarsMotor(motor_type="AK60-6", csv_file=log_file) as motor_2:
+    with CubemarsMotor(motor_type="AK60-6", logging=False) as motor_2:
         print("Calibrating motor... Do not touch.")
 
         limit_tracking(motor_2, direction='right', velocity=3)

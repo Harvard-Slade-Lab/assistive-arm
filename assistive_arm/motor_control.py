@@ -2,22 +2,26 @@ import can
 import csv
 import numpy as np
 import os
+import sys
 import time
 import traceback
 import yaml
 
+from datetime import datetime
 from typing import Literal
 from pathlib import Path
+from functools import wraps
 
 
 with open("./motor_config.yaml", "r") as f:
         MOTOR_PARAMS = yaml.load(f, Loader=yaml.FullLoader)
 
 class CubemarsMotor:
-    def __init__(self, motor_type: Literal["AK60-6", "AK70-10"], csv_file: Path=None, frequency: int=200) -> None:
+    def __init__(self, motor_type: Literal["AK60-6", "AK70-10"], logging: bool=False, frequency: int=200) -> None:
         self.type = motor_type
         self.params = MOTOR_PARAMS[motor_type]
         self.log_vars = ["position", "velocity", "torque"]
+        self.logging_on = logging
 
         self.position = 0
         self.prev_velocity = 0
@@ -26,15 +30,14 @@ class CubemarsMotor:
 
         self.frequency = frequency
 
-        if csv_file:
-            self.csv_file_name = csv_file.with_name(f"{self.type}_" + csv_file.name)
-            os.system(f"touch {self.csv_file_name}")
+        if self.logging_on:
+            self._setup_log_file()
 
         self._emergency_stop = False
 
     
     def __enter__(self):
-        if self.csv_file_name is not None:
+        if self.logging_on:
             with open(self.csv_file_name,'w') as fd:
                 writer = csv.writer(fd)
                 writer.writerow(["time"]+self.log_vars)
@@ -49,7 +52,16 @@ class CubemarsMotor:
         return self
 
     def __exit__(self, exc_type, exc_value, trb):
-        os.system(f"scp ../logs/{self.csv_file_name} macbook:/Users/xabieririzar/uni-projects/Harvard/assistive-arm/motor_logs/")
+        if self.logging_on:
+            print('Sending logfile to Mac...')
+
+            # Extract the folder name (Month_DD) from the csv_file_name
+            log_folder = os.path.basename(os.path.dirname(self.csv_file_name))
+            remote_path = f"/Users/xabieririzar/uni-projects/Harvard/assistive-arm/motor_logs/{log_folder}/"
+
+            os.system(f"ssh macbook 'mkdir -p {remote_path}'")
+            os.system(f"scp {self.csv_file_name} macbook:{remote_path}")
+
         if self._emergency_stop:
             raise Exception("Emergency stop triggered. Shutting down...")
         self._stop_motor()
@@ -64,6 +76,31 @@ class CubemarsMotor:
 
     def _stop_can_port(self) -> None:
         os.system(f"sudo ifconfig {self.params['CAN']} down")
+
+    def _setup_log_file(self) -> None:
+        # Get filename
+        filename = os.path.basename(sys.argv[0]).split('.')[0]
+
+        # Get current date
+        current_date = datetime.now()
+        month_name = current_date.strftime("%B")
+        day = current_date.strftime("%d")
+        date_folder_name = f"{month_name}_{day}"
+
+        # Create a directory path for the new folder within 'logs'
+        log_directory = Path(f"./logs/{date_folder_name}")
+
+        # Create the directory if it does not exist
+        log_directory.mkdir(parents=True, exist_ok=True)
+
+        # Define the log file path
+        log_file = log_directory / f"{filename}_{time.strftime('%m-%d-%H-%M-%S')}.csv"
+
+        # Set the log file name for the class instance
+        self.csv_file_name = log_file.with_name(f"{self.type}_" + log_file.name)
+
+        # Create the log file
+        os.system(f"touch {self.csv_file_name}")
 
 
     def _connect_motor(self, delay: float = 0.001, zero: bool=False) -> None:
@@ -170,7 +207,7 @@ class CubemarsMotor:
         
         # Hard code safety
         if safety:
-            filtered_torque = np.clip(filtered_torque, -3, 3)
+            filtered_torque = np.clip(filtered_torque, -10, 10)
             
         cmd = [0, 0, 0, 0, filtered_torque]
         
@@ -197,14 +234,13 @@ class CubemarsMotor:
 
         self.check_safety_speed_limit()
         try:
-            alpha = 0.1
             self.position, self.velocity, self.torque = self._read_motor_msg(new_msg.data)
 
             self.position *= -1 if self.type == "AK60-6" else 1
             self.velocity *= -1 if self.type == "AK60-6" else 1
             self.torque *= -1 if self.type == "AK60-6" else 1
             
-            if self.csv_writer:
+            if self.logging_on:
                 self.csv_writer.writerow([self._last_update_time - self._start_time] + [self.position, self.velocity, self.torque])
         
         except AttributeError as e:
