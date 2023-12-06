@@ -22,13 +22,19 @@ class CubemarsMotor:
         self.params = MOTOR_PARAMS[motor_type]
         self.log_vars = ["position", "velocity", "torque"]
         self.logging_on = logging
+        self.frequency = frequency
+
 
         self.position = 0
         self.prev_velocity = 0
         self.velocity = 0
         self.torque = 0
 
-        self.frequency = frequency
+        self.buffer_size = int(0.1 * self.frequency)  # Buffer size for 0.3s
+        self.position_buffer = [0] * self.buffer_size
+        self.velocity_buffer = [0] * self.buffer_size
+        self.buffer_index = 0
+
 
         if self.logging_on:
             self._setup_log_file()
@@ -234,18 +240,32 @@ class CubemarsMotor:
 
         self.check_safety_speed_limit()
         try:
-            self.position, self.velocity, self.torque = self._read_motor_msg(new_msg.data)
+            # Read position, velocity, and torque from the received message
+            p, v, t = self._read_motor_msg(new_msg.data)
 
-            self.position *= -1 if self.type == "AK60-6" else 1
-            self.velocity *= -1 if self.type == "AK60-6" else 1
-            self.torque *= -1 if self.type == "AK60-6" else 1
-            
+            p *= -1 if self.type == "AK60-6" else 1
+            v *= -1 if self.type == "AK60-6" else 1
+            t *= -1 if self.type == "AK60-6" else 1
+
+            # Update the circular buffers
+            self.position_buffer[self.buffer_index] = p
+            self.velocity_buffer[self.buffer_index] = v
+            self.buffer_index = (self.buffer_index + 1) % self.buffer_size
+
+            # Calculate the moving average position and velocity
+            avg_position = sum(self.position_buffer) / self.buffer_size
+            avg_velocity = sum(self.velocity_buffer) / self.buffer_size
+
+            self.position = avg_position
+            self.velocity = avg_velocity
+            self.torque = t
+
             if self.logging_on:
                 self.csv_writer.writerow([self._last_update_time - self._start_time] + [self.position, self.velocity, self.torque])
-        
+
         except AttributeError as e:
             return True
-        
+
         self.prev_velocity = self.velocity
         self._last_update_time = time.time()
 
