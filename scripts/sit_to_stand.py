@@ -133,7 +133,13 @@ def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
         scale = (new_max - new_min) / (original_max - original_min)
 
         scaled_optimal_profile = unadjusted_profile.copy()
-        scaled_optimal_profile['EE_X'] = unadjusted_profile['EE_X'].apply(lambda x: new_min + (x - original_min) * scale)
+        scaled_curve = unadjusted_profile['EE_X'].apply(lambda x: new_min + (x - original_min) * scale)
+        for i, x in enumerate(scaled_curve):
+            if i == 0:
+                continue
+            if x > scaled_curve.iloc[i-1]:
+                scaled_curve.iloc[i] = scaled_curve.iloc[i-1]
+        scaled_optimal_profile['EE_X'] = scaled_curve
         scaled_profile_path = Path("./torque_profiles/scaled_optimal_profile.csv")
         scaled_optimal_profile.to_csv(scaled_profile_path)
 
