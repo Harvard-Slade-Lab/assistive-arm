@@ -18,17 +18,22 @@ def main():
     # Dict for yaml file
     config_file = dict()
 
-    subject = "subject_4"
+    subject = "subject_1"
     subject_data = (
         Path(
-            "/Users/xabieririzar/Desktop/Life/Studium/TUM/M.Sc Robotics/Harvard/Thesis/Subject testing/Subject data/"
+            "/Users/xabieririzar/Desktop/Life/Studium/TUM/Master_Robotics/Harvard/Thesis/Subject_testing/subject_data/"
         )
         / subject
     )
+    trial = subject_data / "trial_2"
+    
     model_name = f"{subject}_simple"  # simple / full
     model_path = subject_data / "model" / "LaiUhlrich2022_scaled.osim"
 
-    trial = subject_data / "trial_4"
+    assistive_force = None  # 700N or None
+
+    cur_time = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    solution_name = f"{model_name}_{trial.stem}_assistance_{str(assistive_force).lower()}_{cur_time}"
 
     if not os.path.exists(trial / "control_solutions"):
         os.makedirs(trial / "control_solutions")
@@ -37,10 +42,9 @@ def main():
     config_file["trial"] = str(trial)
     config_file["reserve_pelvis_weight"] = 15
 
-    assistive_force = None  # 700N or None
 
-    t_0 = 5.7
-    t_f = 8.5  # 7.25s for subject4 trial3
+    t_0 = 1.8
+    t_f = 3.2  # 7.25s for subject4 trial3
     mesh_interval = 0.05
 
     config_file["t_0"] = t_0
@@ -48,17 +52,17 @@ def main():
     config_file["mesh_interval"] = mesh_interval
     config_file["grf_path"] = str(trial / "grf_filtered.mot")
 
-    modify_force_xml(
-        xml_file="./moco/forces/grf_sit_stand.xml",
-        new_datafile=str(trial / "grf_filtered.mot"),
-    )
+    # modify_force_xml(
+    #     xml_file="./moco/forces/grf_sit_stand.xml",
+    #     new_datafile=str(trial / "grf_filtered.mot"),
+    # )
 
     model = get_model(
         subject_name=model_name,
         model_path=model_path,
         target_path=model_path.parent,
         assistive_force=assistive_force,
-        ground_forces=True,
+        ground_forces=False,
         minimal_actuators=False,
         config=config_file,
     )
@@ -74,9 +78,6 @@ def main():
     study = tracking_problem.initialize()
 
     set_moco_problem_weights(model=model, moco_study=study, config=config_file)
-
-    cur_time = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    solution_name = f"{model_name}_{trial.stem}_assistance_{str(assistive_force).lower()}_{cur_time}"
 
     config_file["solution_name"] = solution_name
     config_file["solution_path"] = str(

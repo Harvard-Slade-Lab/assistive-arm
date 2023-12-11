@@ -21,8 +21,8 @@
   P_max: 12.5
   V_min: -50.0
   V_max: 50.0
-  T_min: -15.0
-  T_max: 15.0
+  T_min: -9.0
+  T_max: 9.0
   Kp_min: 0.0
   Kp_max: 500.0
   Kd_min: 0.0

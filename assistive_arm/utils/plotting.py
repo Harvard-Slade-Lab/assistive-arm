@@ -113,56 +113,19 @@ def plot_res_assist_forces(time: pd.Series, dataframes: List[pd.DataFrame], conf
         fig.savefig(output_path, dpi=300)
     plt.show()
 
+def plot_residual_forces(df: pd.DataFrame, config_file: dict):
+    tx = 'reserve_pelvis_tx' if config_file["minimal_actuators"] else '/forceset/reserve_jointset_ground_pelvis_pelvis_tx'
+    ty = 'reserve_pelvis_ty' if config_file["minimal_actuators"] else '/forceset/reserve_jointset_ground_pelvis_pelvis_ty'
+    tz = 'reserve_pelvis_tz' if config_file["minimal_actuators"] else '/forceset/reserve_jointset_ground_pelvis_pelvis_tz'
 
-def plot_residual_forces(df: pd.DataFrame, config_file: dict, output_path: Path=None) -> None:
-    # Extract columns corresponding to reserve actuators
-    reserve_columns = [col for col in df.columns if "reserve" in col]
-    df_assist_true_reserve = df[reserve_columns]
-    df_assist_true_reserve.columns = [col.split("/")[2] for col in reserve_columns]
-
-    fig, axs = plt.subplots(5, 1, figsize=(15, 10), sharex=False)
-
-    axs[0].bar(df_assist_true_reserve.columns, df_assist_true_reserve.std(axis=0)*config_file["reserve_actuator_force"])
-    axs[0].set_ylabel("Standard deviation [N]")
-    axs[0].set_xticks(range(len(df_assist_true_reserve.columns)))
-    axs[0].set_xticklabels(range(len(df_assist_true_reserve.columns)))
-
-    axs[1].bar(df_assist_true_reserve.columns, df_assist_true_reserve.mean(axis=0)*config_file["reserve_actuator_force"])
-    axs[1].set_ylabel("Mean [N]")
-    axs[1].set_xticks(range(len(df_assist_true_reserve.columns)))
-    axs[1].set_xticklabels(range(len(df_assist_true_reserve.columns)))
-
-    axs[2].bar(df_assist_true_reserve.columns, df_assist_true_reserve.min(axis=0)*config_file["reserve_actuator_force"])
-    axs[2].set_ylabel("Min [N]")
-    axs[2].set_xticks(range(len(df_assist_true_reserve.columns)))
-    axs[2].set_xticklabels(range(len(df_assist_true_reserve.columns)))
-
-    axs[3].bar(df_assist_true_reserve.columns, df_assist_true_reserve.max(axis=0)*config_file["reserve_actuator_force"])
-    axs[3].set_ylabel("Max [N]")
-    axs[3].set_xticks(range(len(df_assist_true_reserve.columns)))
-    axs[3].set_xticklabels(range(len(df_assist_true_reserve.columns)))
-
-
-    
-    means = df_assist_true_reserve.mean(axis=0)*config_file["reserve_actuator_force"]
-    q1 = df_assist_true_reserve.quantile(0.25, axis=0)*config_file["reserve_actuator_force"]
-    q3 = df_assist_true_reserve.quantile(0.75, axis=0)*config_file["reserve_actuator_force"]
-    whislo = q1 - 1.5 * (q3 - q1)
-    whishi = q3 + 1.5 * (q3 - q1)
-
-    keys = ['med', 'q1', 'q3', 'whislo', 'whishi']
-    stats = [dict(zip(keys, vals)) for vals in zip(means, q1, q3, whislo, whishi)]
-    axs[4].bxp(stats, showfliers=False)
-    axs[4].set_xticks(range(1, len(stats) + 1))
-    axs[4].set_xticklabels(df_assist_true_reserve.columns, rotation=45, ha="right")
-    
-    if output_path:
-        fig.savefig(output_path, dpi=300)
-
-    # axs[3].bar(df_assist_true_reserve.columns, df_assist_true_reserve.min(axis=0)*350)
-    # axs[3].set_title("Min of reserve actuator forces")
-    # axs[3].set_ylabel("Min [N]")
-    # axs[3].set_xticklabels(df_assist_true_reserve.columns, rotation=45, ha="right")
+    plt.plot(df.time, df[tx]*config_file["actuator_magnitude"], label=f'Residual X')
+    plt.plot(df.time, df[ty]*config_file["actuator_magnitude"], label=f'Residual Y')
+    plt.plot(df.time, df[tz]*config_file["actuator_magnitude"], label=f'Residual Z')
+    plt.xlabel("Time [s]")
+    plt.ylabel("Force [N]")
+    plt.title(f"Residual forces ({'assisted' if config_file['assistive_force'] else 'unassisted'})")
+    plt.legend()
+    plt.show()
 
 
 def create_torque_plot(torques, feasible_profiles, l1, l2):
@@ -181,7 +144,7 @@ def create_torque_plot(torques, feasible_profiles, l1, l2):
 
     # First subplot for Tau 1
     sc1 = axs[0].scatter(feasible_profiles.l1, feasible_profiles.l2, c=scalarMap.to_rgba(torques.tau_1))
-    axs[0].scatter(*highlight, color='red')
+    axs[0].scatter(*highlight)
     axs[0].axvline(x=highlight[0], linestyle="--", color='grey')
     axs[0].axhline(y=highlight[1], linestyle="--", color='grey')
     axs[0].grid(color='black', linestyle='-', linewidth=0.1, alpha=0.5)
@@ -191,7 +154,7 @@ def create_torque_plot(torques, feasible_profiles, l1, l2):
 
     # Second subplot for Tau 2
     sc2 = axs[1].scatter(feasible_profiles.l1, feasible_profiles.l2, c=scalarMap.to_rgba(torques.tau_2))
-    axs[1].scatter(*highlight, color='red')
+    axs[1].scatter(*highlight)
     axs[1].axvline(x=highlight[0], linestyle="--", color='grey')
     axs[1].axhline(y=highlight[1], linestyle="--", color='grey')
     axs[1].grid(color='black', linestyle='-', linewidth=0.1, alpha=0.5)

@@ -11,6 +11,9 @@ def get_rotation_matrix(degrees: float) -> np.array:
         ]
     )
 
+def check_theta(series, theta_lims):
+    return series.apply(lambda x: theta_lims[0] <= x <= theta_lims[1]).all()
+
 def get_jacobian(l1: float, l2: float, N: int, theta_1: float, theta_2: float) -> np.array:
     jacobian = np.array(
         [
@@ -21,8 +24,7 @@ def get_jacobian(l1: float, l2: float, N: int, theta_1: float, theta_2: float) -
             [
                 l1 * np.cos(theta_1) + l2 * np.cos(theta_1 + theta_2),
                 l2 * np.cos(theta_1 + theta_2),
-            ],
-            np.ones((2, N)),
+            ]
         ]
     )
 
@@ -41,15 +43,17 @@ def compute_torque_profiles(
         elbow_up (int, optional): 1 if the elbow is up, -1 if the elbow is down. Defaults to 1.
 
     Returns:
-        np.array: torque array
+        pd.DataFrame: torques at joints over time
+        pd.DataFrame: joint angles over time
+        np.array: jacobian over time (not transposed)
     """
     N = position.shape[0]
 
-    # Rotate EE position to robot frame
-    rotate_ee = get_rotation_matrix(-90)
-    pos_rot = (
-        rotate_ee @ position.T
-    ).T  # We apply the transpose to get the correct shape
+    # Get rotation matrices
+    rotate_ee = get_rotation_matrix(-90) # Rotate EE position to robot frame
+    rotate_forces = get_rotation_matrix(90) # Rotate forces to robot frame by 90 degrees
+
+    pos_rot = (rotate_ee @ position.T).T  # Get correct shape
     pos_rot.columns = ["X", "Y", "Z"]
 
     arccos_argument = (pos_rot.X**2 + pos_rot.Y**2 - l1**2 - l2**2) / (
@@ -62,19 +66,20 @@ def compute_torque_profiles(
     theta_1 = np.arctan2(pos_rot.Y, pos_rot.X) - np.arctan2(
         l2 * np.sin(theta_2), l1 + l2 * np.cos(theta_2)
     )
+    thetas = pd.concat((theta_1, theta_2), axis=1, keys=["theta_1", "theta_2"])
+
 
     jacobian = get_jacobian(l1, l2, N, theta_1, theta_2)
-    # Force vector in robot frame, negate because we want to push
-    rotate_forces = get_rotation_matrix(90)
-    F_rot = -(rotate_forces @ F.T).T.to_numpy()
-    F_rot = F_rot[:, :-1]  # remove Z component
+    
+    # Rotate force vector to robot frame
+    F_rot = -(F @ rotate_forces).drop(2, axis=1)
+    F_rot = F_rot.to_numpy().reshape(N, 2, 1)
 
-    # Build force and torque vector (N, 3, 1))
-    torque = np.cross(pos_rot, F_rot)[:, -1].reshape(N, 1)
-    F_tot = np.concatenate((F_rot, torque), axis=1).reshape(N, 3, 1)
+    jacobian_T = jacobian.transpose((0, 2, 1))
 
-    torque = (jacobian.transpose((0, 2, 1)) @ F_tot).squeeze()
-    joint_angles = pd.concat((theta_1, theta_2), axis=1)
-    joint_angles.columns = ["theta_1", "theta_2"]
+    torques = (jacobian_T @ F_rot).squeeze()
+    torques = pd.DataFrame(torques, columns=["tau_1", "tau_2"])
 
-    return torque, joint_angles, jacobian
+
+
+    return torques, thetas, jacobian

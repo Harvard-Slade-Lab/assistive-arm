@@ -151,16 +151,49 @@ def transform_force_coordinates(force_trial: pd.DataFrame, new_origin: pd.Series
 
     return force_trial_tf
 
+def interpolate_dataframe(df: pd.DataFrame, desired_frequency: int=200) -> pd.DataFrame:
+    """ Interpolate dataframe to desired frequency
+
+    Args:
+        df (pd.DataFrame): dataframe
+        desired_frequency (int, optional): Target frequency. Defaults to 200.
+
+    Returns:
+        pd.DataFrame: interpolated dataframe
+    """
+    df_index = df.index
+    df_index_new = pd.Index(np.arange(df_index.min(), df_index.max(), 1/desired_frequency), name="Time")
+
+    df_interpolated = df.reindex(df_index_new, method="nearest").interpolate(method="polynomial", order=2)
+
+    return df_interpolated
+
+def smooth_dataframe(df: pd.DataFrame, window_size: int=10) -> pd.DataFrame:
+    """ Smooth dataframe using rolling mean
+
+    Args:
+        df (pd.DataFrame): target dataframe
+        window_size (int, optional): rolling window size. Defaults to 10.
+
+    Returns:
+        pd.DataFrame: smoothed dataframe
+    """
+    df_smoothed = df.copy().rolling(window=window_size, min_periods=1, center=True).mean()
+    return df_smoothed
+
 
 def sync_mocap_with_opencap(mocap_data: pd.DataFrame, force_data: pd.DataFrame, opencap_data: pd.DataFrame) -> tuple:
-    # Cut the mocap data such that it perfectly overlaps with opencap
+    """ Sync mocap data with opencap
 
-    # using zero-crossings
-    # gradient_opencap = opencap_data.LKnee.Y.diff().rolling(window=14).mean()
-    # opencap_min = np.where(np.diff(np.sign(gradient_opencap + 0.001)) > 0)[0][0]
-    
-    # gradient_mocap = mocap_data.Knee.Y.diff().rolling(window=14).mean()
-    # mocap_min = np.where(np.diff(np.sign(gradient_mocap + 0.001)) > 0)[0][0]
+    Args:
+        mocap_data (pd.DataFrame): dataframe containing mocap data
+        force_data (pd.DataFrame): dataframe containing force data
+        opencap_data (pd.DataFrame): dataframe containing opencap data
+
+    Returns:
+        tuple: tuple containing synced mocap data, synced force data, synced opencap data, lag between mocap and opencap
+    """
+
     
     # Using argmax
     mocap_min = mocap_data.Knee.Y.argmax()
@@ -183,17 +216,20 @@ def sync_mocap_with_opencap(mocap_data: pd.DataFrame, force_data: pd.DataFrame, 
     # Filter data after user stands up
     threshold = 5
 
-    standup_index = force_data['ground_force_chair_vy'].lt(threshold).idxmax()
+    if 'ground_force_chair_vy' in force_data.columns:
+        standup_index = force_data['ground_force_chair_vy'].lt(threshold).idxmax()
 
-    # Check if the series actually contains any values below 5 to prevent setting the whole column to 0 if there is none
-    if force_data['ground_force_chair_vy'][standup_index] < threshold:
-        # Set every element after this index to 0
-        force_data.loc[standup_index:, 'ground_force_chair_vx'] = 0
-        force_data.loc[standup_index:, 'ground_force_chair_vy'] = 0
-        force_data.loc[standup_index:, 'ground_force_chair_vz'] = 0
-        force_data.loc[standup_index:, 'ground_torque_chair_x'] = 0
-        force_data.loc[standup_index:, 'ground_torque_chair_y'] = 0
-        force_data.loc[standup_index:, 'ground_torque_chair_z'] = 0
+        # Check if the series actually contains any values below 5 to prevent setting the whole column to 0 if there is none
+        if force_data['ground_force_chair_vy'][standup_index] < threshold:
+            # Set every element after this index to 0
+            force_data.loc[standup_index:, 'ground_force_chair_vx'] = 0
+            force_data.loc[standup_index:, 'ground_force_chair_vy'] = 0
+            force_data.loc[standup_index:, 'ground_force_chair_vz'] = 0
+            force_data.loc[standup_index:, 'ground_torque_chair_x'] = 0
+            force_data.loc[standup_index:, 'ground_torque_chair_y'] = 0
+            force_data.loc[standup_index:, 'ground_torque_chair_z'] = 0
+    else:
+        standup_index = 0
 
     return mocap_data_synced, force_data, opencap_synced, lag, standup_index
 
