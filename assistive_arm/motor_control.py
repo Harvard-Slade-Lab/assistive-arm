@@ -14,66 +14,102 @@ from functools import wraps
 
 
 with open("./motor_config.yaml", "r") as f:
-        MOTOR_PARAMS = yaml.load(f, Loader=yaml.FullLoader)
+    MOTOR_PARAMS = yaml.load(f, Loader=yaml.FullLoader)
+
+
+def uint_to_float(x, xmin, xmax, bits):
+    span = xmax - xmin
+    int_val = float(x) * span / (float((1 << bits) - 1)) + xmin
+    return int_val
+
+
+def float_to_uint(x, xmin, xmax, bits):
+    span = xmax - xmin
+    if x < xmin:
+        x = xmin
+    elif x > xmax:
+        x = xmax
+    convert = int((x - xmin) * (((1 << bits) - 1) / span))
+    return convert
+
 
 class CubemarsMotor:
-    def __init__(self, motor_type: Literal["AK60-6", "AK70-10"], logging: bool=False, frequency: int=200) -> None:
+    def __init__(
+        self,
+        motor_type: Literal["AK60-6", "AK70-10"],
+        logging: bool = False,
+        frequency: int = 200,
+    ) -> None:
         self.type = motor_type
         self.params = MOTOR_PARAMS[motor_type]
         self.log_vars = ["position", "velocity", "torque"]
         self.logging_on = logging
         self.frequency = frequency
 
-
         self.position = 0
         self.prev_velocity = 0
         self.velocity = 0
-        self.torque = 0
+        self.measured_torque = 0
+        self.csv_file_name = None
 
-        self.buffer_size = int(0.1 * self.frequency)  # Buffer size for 0.3s
+        self.buffer_index = 0
+        self.buffer_size = int(0.1 * self.frequency)  # Buffer size for X secs
+
         self.position_buffer = [0] * self.buffer_size
         self.velocity_buffer = [0] * self.buffer_size
-        self.buffer_index = 0
-
+        self.torque_buffer = [0] * self.buffer_size
 
         if self.logging_on:
             self._setup_log_file()
 
         self._emergency_stop = False
 
-    
     def __enter__(self):
         if self.logging_on:
-            with open(self.csv_file_name,'w') as fd:
+            with open(self.csv_file_name, "w") as fd:
                 writer = csv.writer(fd)
-                writer.writerow(["time"]+self.log_vars)
-            self.csv_file = open(self.csv_file_name,'a').__enter__()
+                writer.writerow(["time"] + self.log_vars)
+            self.csv_file = open(self.csv_file_name, "a").__enter__()
             self.csv_writer = csv.writer(self.csv_file)
+
         self._init_can_ports()
-        self.can_bus = can.interface.Bus(channel=self.params['CAN'], bustype='socketcan')
+        self.can_bus = can.interface.Bus(
+            channel=self.params["CAN"], bustype="socketcan"
+        )
         self._connect_motor()
         self._start_time = time.time()
         self._last_update_time = self._start_time
 
         return self
 
-    def __exit__(self, exc_type, exc_value, trb):
-        if self.logging_on:
-            print('Sending logfile to Mac...')
-
-            # Extract the folder name (Month_DD) from the csv_file_name
-            log_folder = os.path.basename(os.path.dirname(self.csv_file_name))
-            remote_path = f"/Users/xabieririzar/uni-projects/Harvard/assistive-arm/motor_logs/{log_folder}/"
-
-            os.system(f"ssh macbook 'mkdir -p {remote_path}'")
-            os.system(f"scp {self.csv_file_name} macbook:{remote_path}")
-
+    def __exit__(self, exc_type: None, exc_value: None, trb: None):
         if self._emergency_stop:
-            raise Exception("Emergency stop triggered. Shutting down...")
-        self._stop_motor()
-        self._stop_can_port()
+            print("\n\nEmergency stop triggered. Shutting down...\n\n")
+            # return
+            # raise Exception("Emergency stop triggered. Shutting down...")
+        else:
+            self._stop_motor()
+            self._stop_can_port()
+        
+        if self.logging_on:
+            ans = input("Keep log file? [Y/n] ")
+            if ans == "n":
+                try:
+                    os.remove(self.csv_file_name)
+                except FileNotFoundError:
+                    print("File doesn't exist or was already deleted.")
+            else:
+                print("Sending logfile to Mac...")
 
-        if not (exc_type is None):
+                # Extract the folder name (Month_DD) from the csv_file_name
+                log_folder = os.path.basename(os.path.dirname(self.csv_file_name))
+                remote_path = f"/Users/xabieririzar/uni-projects/Harvard/assistive-arm/motor_logs/{log_folder}/"
+
+                os.system(f"ssh macbook 'mkdir -p {remote_path}'")
+                os.system(f"scp {self.csv_file_name} macbook:{remote_path}")
+
+
+        if exc_type is not None:
             traceback.print_exc()
 
     def _init_can_ports(self) -> None:
@@ -85,7 +121,7 @@ class CubemarsMotor:
 
     def _setup_log_file(self) -> None:
         # Get filename
-        filename = os.path.basename(sys.argv[0]).split('.')[0]
+        filename = os.path.basename(sys.argv[0]).split(".")[0]
 
         # Get current date
         current_date = datetime.now()
@@ -108,8 +144,7 @@ class CubemarsMotor:
         # Create the log file
         os.system(f"touch {self.csv_file_name}")
 
-
-    def _connect_motor(self, delay: float = 0.001, zero: bool=False) -> None:
+    def _connect_motor(self, delay: float = 0.005, zero: bool = False) -> None:
         """Establish connection with motor
         Args:
             can_bus (can.Bus): can bus object corresponding to motor
@@ -124,7 +159,9 @@ class CubemarsMotor:
             print("\nSending starting command...")
 
             self.can_bus.send(self._send_message(data=start_motor_mode))
-            print("Waiting for response...", )
+            print(
+                "Waiting for response...",
+            )
             time.sleep(0.1)
             response = self.can_bus.recv(delay)  # time
 
@@ -136,10 +173,10 @@ class CubemarsMotor:
                     self.send_zero_position()
             except AttributeError:
                 print("Received no response")
-    
+
     def _stop_motor(self) -> None:
-        """ Stop motor """
-        
+        """Stop motor"""
+
         stop_motor_mode = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD]
         can_name = self.can_bus.channel_info.split(" ")[-1]
 
@@ -154,11 +191,9 @@ class CubemarsMotor:
             print(f"Failed to shutdown motor {self.type} or {can_name}")
 
     def check_safety_speed_limit(self):
-        
         if abs(self.velocity) > self.params["Vel_limit"]:
             self._emergency_stop = True
             self.send_velocity(0)
-            time.sleep(0.3)
             self._stop_motor()
             self._stop_can_port()
 
@@ -176,7 +211,7 @@ class CubemarsMotor:
         self._update_motor(cmd=zero_cmd, wait_time=0.001)
 
     def send_angle(self, angle: float) -> None:
-        """ Send angle to motor (degrees)
+        """Send angle to motor (degrees)
         Args:
             angle (float): angle (degrees)
 
@@ -184,11 +219,11 @@ class CubemarsMotor:
             None
         """
         cmd = [np.deg2rad(angle), 0, 5, 0.2, 0]
-        
+
         self._update_motor(cmd=cmd)
-    
+
     def send_velocity(self, desired_vel: float) -> None:
-        """ Send velocity to motor in rad/s
+        """Send velocity to motor in rad/s
         Args:
             desired_vel (float): target speed in rad/s
 
@@ -198,7 +233,7 @@ class CubemarsMotor:
         vel_gain = 5 if self.type == "AK70-10" else 2.5
         cmd = [0, desired_vel, 0, vel_gain, 0]
         self._update_motor(cmd=cmd)
-    
+
     def send_torque(self, desired_torque: float, safety: bool=True) -> tuple:
         """ Send torque to motor
 
@@ -209,14 +244,19 @@ class CubemarsMotor:
         Returns:
             tuple: _description_
         """
-        filtered_torque = np.clip(desired_torque, self.params['T_min'], self.params['T_max'])
-        
+        # Apply a simple moving average filter to the desired torque
+        self.torque_buffer[self.buffer_index] = desired_torque
+        filtered_torque = sum(self.torque_buffer) / self.buffer_size
+
+        # Clip the filtered torque to the torque limits
+        filtered_torque = np.clip(filtered_torque, self.params['T_min'], self.params['T_max'])
+
         # Hard code safety
         if safety:
-            filtered_torque = np.clip(filtered_torque, -10, 10)
-            
+            filtered_torque = np.clip(filtered_torque, -3, 3)
+
         cmd = [0, 0, 0, 0, filtered_torque]
-        
+
         self._update_motor(cmd=cmd)
 
     def _update_motor(self, cmd: list[hex], wait_time: float = 0.001) -> bool:
@@ -235,6 +275,7 @@ class CubemarsMotor:
         self.can_bus.send(self._send_message(packed_cmd))
         new_msg = self.can_bus.recv(wait_time)
 
+        # Must be after sending message to ensure motor stops
         if self._emergency_stop:
             return
 
@@ -250,42 +291,35 @@ class CubemarsMotor:
             # Update the circular buffers
             self.position_buffer[self.buffer_index] = p
             self.velocity_buffer[self.buffer_index] = v
+            self.torque_buffer[self.buffer_index] = t
+
             self.buffer_index = (self.buffer_index + 1) % self.buffer_size
 
             # Calculate the moving average position and velocity
             avg_position = sum(self.position_buffer) / self.buffer_size
             avg_velocity = sum(self.velocity_buffer) / self.buffer_size
+            avg_torque = sum(self.torque_buffer) / self.buffer_size
 
             self.position = avg_position
             self.velocity = avg_velocity
-            self.torque = t
+            self.measured_torque = avg_torque
 
             if self.logging_on:
-                self.csv_writer.writerow([self._last_update_time - self._start_time] + [self.position, self.velocity, self.torque])
+                self.csv_writer.writerow(
+                    [self._last_update_time - self._start_time]
+                    + [self.position, self.velocity, self.measured_torque]
+                )
 
         except AttributeError as e:
+            traceback.print_exc()
             return True
 
         self.prev_velocity = self.velocity
         self._last_update_time = time.time()
 
 
-    def _uint_to_float(self, x, xmin, xmax, bits):
-        span = xmax - xmin
-        int_val = float(x) * span / (float((1 << bits) - 1)) + xmin
-        return int_val
-    
-    def _float_to_uint(self, x, xmin, xmax, bits):
-        span = xmax - xmin
-        if x < xmin:
-            x = xmin
-        elif x > xmax:
-            x = xmax
-        convert = int((x - xmin) * (((1 << bits) - 1) / span))
-        return convert
-
     def _read_motor_msg(self, data: can.Message) -> tuple:
-        """ Read motor message
+        """Read motor message
         Args:
             data (can.Message): can message response
         Returns:
@@ -300,19 +334,29 @@ class CubemarsMotor:
         v_int = (data[3] << 4) | (data[4] >> 4)
         t_int = ((data[4] & 0xF) << 8) | data[5]
         # convert to floats
-        p = self._uint_to_float(p_int, self.params['P_min'], self.params['P_max'], 16)
-        v = self._uint_to_float(v_int, self.params['V_min'], self.params['V_max'], 12)
-        t = self._uint_to_float(t_int, self.params['T_min'], self.params['T_max'], 12)
+        p = uint_to_float(p_int, self.params["P_min"], self.params["P_max"], 16)
+        v = uint_to_float(v_int, self.params["V_min"], self.params["V_max"], 12)
+        t = uint_to_float(t_int, self.params["T_min"], self.params["T_max"], 12)
 
         return p, v, t  # position, velocity, torque
 
     def _pack_cmd(self, p_des: int, v_des: int, kp: int, kd: int, t_ff: int):
         # convert floats to ints
-        p_int = self._float_to_uint(p_des, self.params['P_min'], self.params['P_max'], 16)
-        v_int = self._float_to_uint(v_des, self.params['V_min'], self.params['V_max'], 12)
-        kp_int = self._float_to_uint(kp, self.params['Kp_min'], self.params['Kp_max'], 12)
-        kd_int = self._float_to_uint(kd, self.params['Kd_min'], self.params['Kd_max'], 12)
-        t_int = self._float_to_uint(t_ff, self.params['T_min'], self.params['T_max'], 12)
+        p_int = float_to_uint(
+            p_des, self.params["P_min"], self.params["P_max"], 16
+        )
+        v_int = float_to_uint(
+            v_des, self.params["V_min"], self.params["V_max"], 12
+        )
+        kp_int = float_to_uint(
+            kp, self.params["Kp_min"], self.params["Kp_max"], 12
+        )
+        kd_int = float_to_uint(
+            kd, self.params["Kd_min"], self.params["Kd_max"], 12
+        )
+        t_int = float_to_uint(
+            t_ff, self.params["T_min"], self.params["T_max"], 12
+        )
         # pack ints into buffer message
         msg = []
         msg.append(p_int >> 8)
@@ -326,9 +370,6 @@ class CubemarsMotor:
         return msg
 
     def _send_message(self, data):
-        return can.Message(arbitration_id=self.params['ID'], data=data, is_extended_id=False)
-
-
-
-
-
+        return can.Message(
+            arbitration_id=self.params["ID"], data=data, is_extended_id=False
+        )
