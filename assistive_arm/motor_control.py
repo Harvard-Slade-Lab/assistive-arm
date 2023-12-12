@@ -251,7 +251,6 @@ class CubemarsMotor:
             self.velocity = avg_velocity
             self.torque = t
 
-
             
         except AttributeError as e:
             traceback.print_exc()
