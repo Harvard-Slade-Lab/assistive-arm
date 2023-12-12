@@ -105,8 +105,6 @@ def compute_torque_profiles(
     torques = (jacobian.T @ F_rot).squeeze()
     torques = pd.DataFrame(torques, columns=["tau_1", "tau_2"])
 
-
-
     return torques, thetas, jacobian
 
 

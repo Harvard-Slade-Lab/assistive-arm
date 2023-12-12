@@ -89,6 +89,8 @@ def limit_tracking(motor: CubemarsMotor, direction="right", velocity=1):
 
 
 if __name__ == "__main__":
+    freq = 200
+
     while True:
         # Display the menu
         print("\nOptions:")
@@ -100,7 +102,7 @@ if __name__ == "__main__":
         choice = input("Enter your choice: ")
 
         if choice == '1':
-            with CubemarsMotor(motor_type="AK70-10", logging=False) as motor_1:
+            with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                 print(f"Calibrating {motor_1.type}... Do not touch.")
                 limit_tracking(motor_1, direction="right", velocity=3)
                 print(f"Setting origin at 0º...")
@@ -111,7 +113,7 @@ if __name__ == "__main__":
                 time.sleep(1.5)
 
         elif choice == '2':
-            with CubemarsMotor(motor_type="AK60-6", logging=False) as motor_2:
+            with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
                 print("Calibrating motor... Do not touch.")
                 limit_tracking(motor_2, direction='right', velocity=3)
                 print("Sleeping...")

@@ -37,19 +37,16 @@ class CubemarsMotor:
     def __init__(
         self,
         motor_type: Literal["AK60-6", "AK70-10"],
-        logging: bool = False,
-        frequency: int = 200,
+        frequency: int,
     ) -> None:
         self.type = motor_type
         self.params = MOTOR_PARAMS[motor_type]
         self.log_vars = ["position", "velocity", "torque"]
-        self.logging_on = logging
         self.frequency = frequency
 
         self.position = 0
         self.prev_velocity = 0
         self.velocity = 0
-        self.measured_torque = 0
         self.csv_file_name = None
 
         self.buffer_index = 0
@@ -57,20 +54,10 @@ class CubemarsMotor:
 
         self.position_buffer = [0] * self.buffer_size
         self.velocity_buffer = [0] * self.buffer_size
-        self.torque_buffer = [0] * self.buffer_size
-
-        if self.logging_on:
-            self._setup_log_file()
 
         self._emergency_stop = False
 
     def __enter__(self):
-        if self.logging_on:
-            with open(self.csv_file_name, "w") as fd:
-                writer = csv.writer(fd)
-                writer.writerow(["time"] + self.log_vars)
-            self.csv_file = open(self.csv_file_name, "a").__enter__()
-            self.csv_writer = csv.writer(self.csv_file)
 
         self._init_can_ports()
         self.can_bus = can.interface.Bus(
@@ -85,30 +72,10 @@ class CubemarsMotor:
     def __exit__(self, exc_type: None, exc_value: None, trb: None):
         if self._emergency_stop:
             print("\n\nEmergency stop triggered. Shutting down...\n\n")
-            # return
-            # raise Exception("Emergency stop triggered. Shutting down...")
         else:
             self._stop_motor()
             self._stop_can_port()
-        
-        if self.logging_on:
-            ans = input("Keep log file? [Y/n] ")
-            if ans == "n":
-                try:
-                    os.remove(self.csv_file_name)
-                except FileNotFoundError:
-                    print("File doesn't exist or was already deleted.")
-            else:
-                print("Sending logfile to Mac...")
-
-                # Extract the folder name (Month_DD) from the csv_file_name
-                log_folder = os.path.basename(os.path.dirname(self.csv_file_name))
-                remote_path = f"/Users/xabieririzar/uni-projects/Harvard/assistive-arm/motor_logs/{log_folder}/"
-
-                os.system(f"ssh macbook 'mkdir -p {remote_path}'")
-                os.system(f"scp {self.csv_file_name} macbook:{remote_path}")
-
-
+    
         if exc_type is not None:
             traceback.print_exc()
 
@@ -118,31 +85,6 @@ class CubemarsMotor:
 
     def _stop_can_port(self) -> None:
         os.system(f"sudo ifconfig {self.params['CAN']} down")
-
-    def _setup_log_file(self) -> None:
-        # Get filename
-        filename = os.path.basename(sys.argv[0]).split(".")[0]
-
-        # Get current date
-        current_date = datetime.now()
-        month_name = current_date.strftime("%B")
-        day = current_date.strftime("%d")
-        date_folder_name = f"{month_name}_{day}"
-
-        # Create a directory path for the new folder within 'logs'
-        log_directory = Path(f"./logs/{date_folder_name}")
-
-        # Create the directory if it does not exist
-        log_directory.mkdir(parents=True, exist_ok=True)
-
-        # Define the log file path
-        log_file = log_directory / f"{filename}_{time.strftime('%m-%d-%H-%M-%S')}.csv"
-
-        # Set the log file name for the class instance
-        self.csv_file_name = log_file.with_name(f"{self.type}_" + log_file.name)
-
-        # Create the log file
-        os.system(f"touch {self.csv_file_name}")
 
     def _connect_motor(self, delay: float = 0.005, zero: bool = False) -> None:
         """Establish connection with motor
@@ -244,12 +186,8 @@ class CubemarsMotor:
         Returns:
             tuple: _description_
         """
-        # Apply a simple moving average filter to the desired torque
-        self.torque_buffer[self.buffer_index] = desired_torque
-        filtered_torque = sum(self.torque_buffer) / self.buffer_size
-
         # Clip the filtered torque to the torque limits
-        filtered_torque = np.clip(filtered_torque, self.params['T_min'], self.params['T_max'])
+        filtered_torque = np.clip(desired_torque, self.params['T_min'], self.params['T_max'])
 
         # Hard code safety
         if safety:
@@ -291,25 +229,18 @@ class CubemarsMotor:
             # Update the circular buffers
             self.position_buffer[self.buffer_index] = p
             self.velocity_buffer[self.buffer_index] = v
-            self.torque_buffer[self.buffer_index] = t
 
             self.buffer_index = (self.buffer_index + 1) % self.buffer_size
 
             # Calculate the moving average position and velocity
             avg_position = sum(self.position_buffer) / self.buffer_size
             avg_velocity = sum(self.velocity_buffer) / self.buffer_size
-            avg_torque = sum(self.torque_buffer) / self.buffer_size
 
             self.position = avg_position
             self.velocity = avg_velocity
-            self.measured_torque = avg_torque
+            self.torque = t
 
-            if self.logging_on:
-                self.csv_writer.writerow(
-                    [self._last_update_time - self._start_time]
-                    + [self.position, self.velocity, self.measured_torque]
-                )
-
+            
         except AttributeError as e:
             traceback.print_exc()
             return True
