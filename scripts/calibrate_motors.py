@@ -33,7 +33,7 @@ def set_dh_origin(motor: CubemarsMotor, origin: float):
         if t - start_time >= print_every:
             sys.stdout.write("\x1b[1A\x1b[2K")
             print(
-                f"Diff: {np.rad2deg(target_diff): .3f} Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.measured_torque: .3f}"
+                f"Diff: {np.rad2deg(target_diff): .3f} Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.torque: .3f}"
             )
             start_time = t
 
@@ -70,7 +70,7 @@ def limit_tracking(motor: CubemarsMotor, direction="right", velocity=1):
         if t - start_time >= print_every:
             sys.stdout.write("\x1b[1A\x1b[2K")
             print(
-                f"Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.measured_torque: .3f}"
+                f"Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.torque: .3f}"
             )
             start_time = t
 

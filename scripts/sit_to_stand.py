@@ -21,6 +21,7 @@ np.set_printoptions(precision=3, suppress=True)
 class States(Enum):
     CALIBRATING = 1
     ASSISTING = 2
+    ASSIST_PROFILES = 3
     EXIT = 0
 
     def __eq__(self, other):
@@ -80,10 +81,9 @@ def get_target_torques(theta_1: float, theta_2: float, profiles: pd.DataFrame) -
     P_EE = calculate_ee_pos(theta_1=theta_1, theta_2=theta_2)
     jacobian = get_jacobian(theta_1, theta_2)
 
-    closest_point = abs(profiles.EE_X - P_EE[0]).argmin()
+    closest_point = abs(profiles.theta_2 - theta_2).argmin()
     force_vector = profiles.iloc[closest_point][["force_X", "force_Y"]]
 
-    # tau_1, tau_2 = profiles.iloc[closest_point][["tau_1", "tau_2"]]
     tau_1, tau_2 = -jacobian.T @ force_vector
 
     index = profiles.index[closest_point]
@@ -99,13 +99,14 @@ def countdown(duration: int=3):
 
 
 def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, yaml_path: Path=None):
-    unadjusted_profile = pd.read_csv("./torque_profiles/optimal_profile.csv", index_col="Percentage")
+    unadjusted_profile = pd.read_csv("./torque_profiles/simulation_profile.csv", index_col="Percentage")
 
     loop = SoftRealtimeLoop(dt=1 / freq, report=True, fade=0)
 
     calibration_data = dict()
 
     P_EE_values = []
+    theta_2 = []
     start_time = 0
 
     try:
@@ -122,6 +123,7 @@ def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, 
             
             if not t < 0.5:
                 P_EE_values.append(P_EE[0])  # Assuming x is the first element
+                theta_2.append(motor_2.position)
 
             motor_1.send_torque(desired_torque=0, safety=True)
             motor_2.send_torque(desired_torque=0, safety=True)
@@ -132,43 +134,127 @@ def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, 
 
         print("Recording stopped. Processing data...\n")
 
-        # inverted because EE_X is negative
-        print(f"Estimated duration: {len(P_EE_values) / freq}s")
-        new_max = sum(P_EE_values[:30]) / 30
-        new_min = sum(P_EE_values[-30:]) / 30
+        # Add offset to ensure that when the subject stands, 0 or 100% will be reached
+        theta_2 = np.array(theta_2)
+        new_max = theta_2.max() - 0.01
+        new_min = theta_2.min() + 0.03
 
-        print("Calibration completed. New range: ")
-        print(f"Old 0% STS: {unadjusted_profile.EE_X.max()} 0%: {new_max}")
-        print(f"STS 100%: {unadjusted_profile.EE_X.min()} 100%: {new_min}\n")
-
-        EE = -np.array(P_EE_values)
-        EE_dt = np.gradient(EE) / 0.005
-
-        start = np.where(EE_dt > 0.05)[0][0]
-        end = np.where(EE_dt < -0.05)[0][-1]
-
-        EE_pos = EE[start:end]
-
-        new_len = unadjusted_profile.shape[0]
-
-        step = len(EE_pos) / float(new_len)
-        EE_pos =  [EE_pos[int(step * i)] for i in range(new_len)] 
-
-        original_max = unadjusted_profile.EE_X.max()
-        original_min = unadjusted_profile.EE_X.min()
-
-        calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
-        calibration_data["EE_values"] = EE_pos
+        original_max = unadjusted_profile.theta_2.max()
+        original_min = unadjusted_profile.theta_2.min()
 
         scale = (new_max - new_min) / (original_max - original_min)
 
+        theta_2_scaled = unadjusted_profile['theta_2'].apply(lambda x: new_min + (x - original_min) * scale)
+
+        print(f"Estimated duration: {len(theta_2) / freq}s")
+        
+        print("Calibration completed. New range: ")
+        print(f"Old 0% STS: {np.rad2deg(unadjusted_profile.theta_2.max())} 0%: {np.rad2deg(new_max)}")
+        print(f"STS 100%: {np.rad2deg(unadjusted_profile.theta_2.min())} 100%: {np.rad2deg(new_min)}\n")
+
+        calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
+        calibration_data["theta_2_values"] = [float(angle) for angle in theta_2]
+
         scaled_optimal_profile = unadjusted_profile.copy()
-        scaled_optimal_profile['EE_X'] = unadjusted_profile['EE_X'].apply(lambda x: new_min + (x - original_min) * scale)
-        scaled_profile_path = Path("./torque_profiles/scaled_optimal_profile.csv")
+        scaled_optimal_profile.theta_2 = theta_2_scaled
+        scaled_profile_path = Path("./torque_profiles/scaled_simulation_profile.csv")
         scaled_optimal_profile.to_csv(scaled_profile_path)
+
+        os.system(f"scp {scaled_profile_path} macbook:/Users/xabieririzar/uni-projects/Harvard/assistive-arm/torque_profiles/")
 
         with open(yaml_path, "w") as f:
             yaml.dump(calibration_data, f, default_flow_style=False)
+
+    except KeyboardInterrupt:
+        print("Keyboard interrupt detected. Shutting down...")
+
+def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, logger: csv.writer=None):
+    spline_profiles_path = Path("./torque_profiles/spline_profiles/")
+    spline_dict = dict()
+
+    loop = SoftRealtimeLoop(dt=1 / freq, report=True, fade=0)
+
+    for path in spline_profiles_path.iterdir():
+        peak_time = int(path.stem.split("_")[2])
+        peak_force = int(path.stem.split("_")[5])
+
+        if peak_time not in spline_dict:
+            spline_dict[peak_time] = dict()
+
+        spline_dict[peak_time][peak_force] = pd.read_csv(path, index_col="Percentage")
+
+    try:
+        motor_1.send_torque(desired_torque=0, safety=True)
+        motor_2.send_torque(desired_torque=0, safety=True)
+
+        print('Choose mode:')
+        print('1 - Single profile')
+        print('2 - All profiles for 1 peak time')
+        print('3 - All profiles for 1 peak force')
+        print('4 - All profiles')
+
+        chosen_mode = input("\nChoose mode: ")
+
+        if chosen_mode == "1":
+            peak_time = int(input("Enter peak time: "))
+            peak_force = int(input("Enter peak force: "))
+            profiles = spline_dict[peak_time][peak_force]
+
+            print(f"Using profile: {peak_time}_{peak_force}")
+
+            print("Press Enter to start recording...")
+            countdown(duration=3)
+        
+        elif chosen_mode == "2":
+            peak_time = None
+            print("Available peak times: [%]\n", list(spline_dict.keys()))
+
+            # Check for valid entry
+            while not peak_time:
+                peak_time = int(input("Enter peak time: "))
+                if peak_time not in spline_dict:
+                    peak_time = None
+                    print("Invalid peak time. Try again.")
+            
+            profiles = spline_dict[peak_time]
+
+            print(f"Using following profiles for peak time: {peak_time}")
+            print(list(spline_dict[peak_time].keys()))
+            
+            for peak_force, profile in profiles.items():
+                print(f"Current profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
+                print("Press Enter to start recording...")
+                countdown(duration=3)
+                print()
+                print_time = 0
+                start_time = time.time()
+
+
+                for t in loop:
+                    cur_time = time.time()
+                    if motor_1._emergency_stop or motor_2._emergency_stop:
+                        break
+                    
+                    tau_1, tau_2, P_EE, index = get_target_torques(
+                        theta_1=motor_1.position,
+                        theta_2=motor_2.position,
+                        profiles=profile
+                    )
+
+                    motor_1.send_torque(desired_torque=tau_1, safety=False)
+                    motor_2.send_torque(desired_torque=tau_2, safety=False)
+
+                    if t - print_time >= 0.05:
+                        print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.torque:.3f}")
+                        print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.torque:.3f}")
+                        print(f"Body height: {-P_EE[0]}")
+                        print(f"Movement: {index: .0f}%. tau_1: {tau_1}, tau_2: {tau_2}")
+                        sys.stdout.write(f"\x1b[4A\x1b[2K")
+                    
+                        print_time = t
+
+                    logger.writerow([cur_time - start_time, index, tau_1, motor_1.torque, motor_1.position, motor_1.velocity, tau_2, motor_2.torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
+                del loop   
 
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
@@ -178,12 +264,10 @@ def main(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, logger: csv.
 
     loop = SoftRealtimeLoop(dt=1 / freq, report=True, fade=0)
 
-
-    profiles = pd.read_csv("./torque_profiles/scaled_optimal_profile.csv", index_col="Percentage")
+    profiles = pd.read_csv("./torque_profiles/scaled_simulation_profile.csv", index_col="Percentage")
 
     print_time = 0
     start_time = time.time()
-
 
     try:
         for t in loop:
@@ -201,15 +285,9 @@ def main(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, logger: csv.
             motor_2.send_torque(desired_torque=tau_2, safety=False)
 
             if t - print_time >= 0.05:
-                print(
-                    f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Velocity: {motor_1.velocity:.3f} Torque: {motor_1.measured_torque:.3f}"
-                )
-                print(
-                    f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Velocity: {motor_2.velocity:.3f} Torque: {motor_2.measured_torque:.3f}"
-                )
-                print(
-                    f"P_EE: x:{P_EE[0]}, y:{P_EE[1]}"
-                )
+                print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.torque:.3f}")
+                print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.torque:.3f}")
+                print(f"Body height: {-P_EE[0]}")
                 print(f"Movement: {index: .0f}%. tau_1: {tau_1}, tau_2: {tau_2}")
                 sys.stdout.write(f"\x1b[4A\x1b[2K")
             
@@ -235,6 +313,7 @@ if __name__ == "__main__":
         print("\nOptions:")
         print("1 - Calibrate Height")
         print("2 - Run Assistance")
+        print("3 - Apply multiple assistance profiles")
         print("0 - Exit")
 
         # Get user's choice
@@ -249,11 +328,17 @@ if __name__ == "__main__":
         elif choice == States.ASSISTING:
             with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                 with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                    main(motor_1, motor_2, freq=freq, logger=task_logger)                      
-         
+                    main(motor_1, motor_2, freq=freq, logger=task_logger)
+
+        elif choice == States.ASSIST_PROFILES:
+            with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
+                with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
+                    assist_multiple_profiles(motor_1, motor_2, freq=freq, logger=task_logger)
+
         elif choice == States.EXIT:
             print("Exiting...")
             break
+
     ans = input("Keep log file? [Y/n] ")
     if ans == "n":
         try:

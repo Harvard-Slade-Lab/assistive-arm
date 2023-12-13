@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from assistive_arm.robotic_arm import get_jacobian
 
 def get_rotation_matrix(degrees: float) -> np.array:
     """ Get 3x3 rotation matrix
