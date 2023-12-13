@@ -381,6 +381,97 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
+def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, logger: csv.writer=None):
+    spline_profiles_path = Path("./torque_profiles/spline_profiles/")
+    spline_dict = dict()
+
+    loop = SoftRealtimeLoop(dt=1 / freq, report=True, fade=0)
+
+    for path in spline_profiles_path.iterdir():
+        peak_time = int(path.stem.split("_")[2])
+        peak_force = int(path.stem.split("_")[5])
+
+        if peak_time not in spline_dict:
+            spline_dict[peak_time] = dict()
+
+        spline_dict[peak_time][peak_force] = pd.read_csv(path, index_col="Percentage")
+
+    try:
+        motor_1.send_torque(desired_torque=0, safety=True)
+        motor_2.send_torque(desired_torque=0, safety=True)
+
+        print('Choose mode:')
+        print('1 - Single profile')
+        print('2 - All profiles for 1 peak time')
+        print('3 - All profiles for 1 peak force')
+        print('4 - All profiles')
+
+        chosen_mode = input("\nChoose mode: ")
+
+        if chosen_mode == "1":
+            peak_time = int(input("Enter peak time: "))
+            peak_force = int(input("Enter peak force: "))
+            profiles = spline_dict[peak_time][peak_force]
+
+            print(f"Using profile: {peak_time}_{peak_force}")
+
+            print("Press Enter to start recording...")
+            countdown(duration=3)
+        
+        elif chosen_mode == "2":
+            peak_time = None
+            print("Available peak times: [%]\n", list(spline_dict.keys()))
+
+            # Check for valid entry
+            while not peak_time:
+                peak_time = int(input("Enter peak time: "))
+                if peak_time not in spline_dict:
+                    peak_time = None
+                    print("Invalid peak time. Try again.")
+            
+            profiles = spline_dict[peak_time]
+
+            print(f"Using following profiles for peak time: {peak_time}")
+            print(list(spline_dict[peak_time].keys()))
+            
+            for peak_force, profile in profiles.items():
+                print(f"Current profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
+                print("Press Enter to start recording...")
+                countdown(duration=3)
+                print()
+                print_time = 0
+                start_time = time.time()
+
+
+                for t in loop:
+                    cur_time = time.time()
+                    if motor_1._emergency_stop or motor_2._emergency_stop:
+                        break
+                    
+                    tau_1, tau_2, P_EE, index = get_target_torques(
+                        theta_1=motor_1.position,
+                        theta_2=motor_2.position,
+                        profiles=profile
+                    )
+
+                    motor_1.send_torque(desired_torque=tau_1, safety=False)
+                    motor_2.send_torque(desired_torque=tau_2, safety=False)
+
+                    if t - print_time >= 0.05:
+                        print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.torque:.3f}")
+                        print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.torque:.3f}")
+                        print(f"Body height: {-P_EE[0]}")
+                        print(f"Movement: {index: .0f}%. tau_1: {tau_1}, tau_2: {tau_2}")
+                        sys.stdout.write(f"\x1b[4A\x1b[2K")
+                    
+                        print_time = t
+
+                    logger.writerow([cur_time - start_time, index, tau_1, motor_1.torque, motor_1.position, motor_1.velocity, tau_2, motor_2.torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
+                del loop   
+
+    except KeyboardInterrupt:
+        print("Keyboard interrupt detected. Shutting down...")
+
 
 def control_loop_and_log(
         motor_1: CubemarsMotor,
