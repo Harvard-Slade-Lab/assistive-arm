@@ -3,6 +3,7 @@ import json
 import logging
 import numpy as np
 import timeit
+import time
 import zmq
 
 
@@ -54,7 +55,7 @@ def setup_client_logger() -> logging.Logger:
     return logger
 
 
-@print_elapsed_time()
+# @print_elapsed_time()
 def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
     """Get marker and force data from Motion Capture
 
@@ -68,6 +69,7 @@ def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
     # Retrieve data from server
     marker_data = {}
     force_data = {}
+    analog_data = {}
 
     rt_data = read_mocap_data(logger=logger, socket=socket)
 
@@ -77,14 +79,17 @@ def get_qrt_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
             force_data[rt_id] = [forces(*sensor) for sensor in data]
         elif "marker" in rt_id:
             marker_data[rt_id] = np.array(data)
-
-    logger.info(f"Force data: \n{force_data}")
+        elif "analog" in rt_id:
+            analog_data[rt_id] = np.array(data)
+    # logger.info(f"timestamp: \n{time.time()}")
+    # logger.info(f"Force data: \n{force_data}")
     logger.info(f"Marker data: \n{marker_data}")
+    logger.info(f"Analog data: \n{analog_data}")
 
-    return marker_data, force_data
+    return marker_data, force_data, analog_data
 
 
-@print_elapsed_time()
+# @print_elapsed_time()
 def read_mocap_data(logger: logging.Logger, socket: zmq.Socket) -> dict:
     """ Read mocap data from publisher node
 

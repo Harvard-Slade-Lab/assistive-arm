@@ -15,8 +15,10 @@ def main():
     try:
         while True:
             cur_time = timeit.default_timer()
-            markers, forces = get_qrt_data(logger=client_logger, socket=subscriber)
-            print(f"Elapsed time: {timeit.default_timer() - cur_time}s")
+            markers, forces, analog_data = get_qrt_data(logger=client_logger, socket=subscriber)
+            print("markers: ", markers)
+            print("analog data: ", analog_data)
+            # print(f"Elapsed time: {timeit.default_timer() - cur_time}s")
 
     except KeyboardInterrupt:
         exit(0)
