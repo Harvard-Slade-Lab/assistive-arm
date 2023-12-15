@@ -160,8 +160,8 @@ cython_debug/
 #.idea/
 Geometry/
 moco/control_solutions
-motor_logs/
-torque_profiles/
 subject_logs/
+torque_profiles/spline_profiles/*
+torque_profiles/
 .DS_STORE
 paper_figures/
