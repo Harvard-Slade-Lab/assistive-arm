@@ -26,7 +26,6 @@ np.set_printoptions(precision=3, suppress=True)
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(17, GPIO.IN)
 
-
 PROJECT_DIR_REMOTE = Path("/Users/xabieririzar/uni-projects/Harvard/assistive-arm")
 
 class States(Enum):
@@ -381,11 +380,9 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
-def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, logger: csv.writer=None):
+def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path):
     spline_profiles_path = Path("./torque_profiles/spline_profiles/")
     spline_dict = dict()
-
-    loop = SoftRealtimeLoop(dt=1 / freq, report=True, fade=0)
 
     for path in spline_profiles_path.iterdir():
         peak_time = int(path.stem.split("_")[2])
@@ -400,27 +397,40 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
         motor_1.send_torque(desired_torque=0, safety=True)
         motor_2.send_torque(desired_torque=0, safety=True)
 
-        print('Choose mode:')
+        print('Choose mode:\n')
         print('1 - Single profile')
-        print('2 - All profiles for 1 peak time')
-        print('3 - All profiles for 1 peak force')
+        print('2 - All profiles for a given peak time')
+        print('3 - All profiles for a given peak force')
         print('4 - All profiles')
 
         chosen_mode = input("\nChoose mode: ")
 
         if chosen_mode == "1":
+            peak_times = sorted(list(spline_dict.keys()))
+            peak_forces = sorted(list(spline_dict[peak_times[0]].keys()))
+            print("Available peak times: [%]\n", peak_times)
+            print("Peak forces: [N]\n", peak_forces)
+
             peak_time = int(input("Enter peak time: "))
             peak_force = int(input("Enter peak force: "))
-            profiles = spline_dict[peak_time][peak_force]
+            profile = spline_dict[peak_time][peak_force]
 
-            print(f"Using profile: {peak_time}_{peak_force}")
+            log_path, logger = get_logger(log_name=f"single_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
+            print(f"Recording to {log_path}")
+            print(f"\nUsing profile with:")
+            print(f"Peak time: {peak_time}%")
+            print(f"Peak force: {peak_force}N")
 
-            print("Press Enter to start recording...")
-            countdown(duration=3)
-        
+            print("\nPress trigger to start recording P_EE...")
+            while not GPIO.input(17):
+                pass
+            print()
+            control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
+            save_log_or_delete(remote_dir=remote_dir, log_path=log_path) 
+
         elif chosen_mode == "2":
             peak_time = None
-            print("Available peak times: [%]\n", list(spline_dict.keys()))
+            print("Available peak times: [%]\n", sorted(list(spline_dict.keys())))
 
             # Check for valid entry
             while not peak_time:
@@ -431,43 +441,51 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
             
             profiles = spline_dict[peak_time]
 
-            print(f"Using following profiles for peak time: {peak_time}")
-            print(list(spline_dict[peak_time].keys()))
+            print(f"Using following profiles for a peak time of {peak_time}%")
+            print(list(spline_dict[peak_force].keys()))
             
             for peak_force, profile in profiles.items():
-                print(f"Current profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
-                print("Press Enter to start recording...")
+                # peak_time because we select a specific peak time and iterate over the peak forces
+                log_path, logger = get_logger(log_name=f"peak_time_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
+
+                print(f"\nCurrent profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
+                print(f"Recording to {log_path}")
+                input("Press Enter to start recording...")
                 countdown(duration=3)
                 print()
-                print_time = 0
-                start_time = time.time()
+                control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
+                save_log_or_delete(remote_dir=remote_dir, log_path=log_path) 
+
+        elif chosen_mode == '3':
+            peak_force = None
+            peak_times = sorted(list(spline_dict.keys()))
+            peak_forces = sorted(list(spline_dict[peak_times[0]].keys()))
+            print("Available peak forces: [N]\n", peak_forces)
+
+            # Check for valid entry
+            while not peak_force:
+                peak_force = int(input("Enter peak force: "))
+                if peak_force not in peak_forces:
+                    peak_force = None
+                    print("Peak force not in profile. Try again.")
 
 
-                for t in loop:
-                    cur_time = time.time()
-                    if motor_1._emergency_stop or motor_2._emergency_stop:
-                        break
-                    
-                    tau_1, tau_2, P_EE, index = get_target_torques(
-                        theta_1=motor_1.position,
-                        theta_2=motor_2.position,
-                        profiles=profile
-                    )
+            print(f"Using following profiles for a peak force of {peak_force}N")
+            print(f"Peak times: \n",list(spline_dict.keys()))
+            
+            for peak_time in peak_times:
+                profile = spline_dict[peak_time][peak_force]
+                # peak_force because we select a specific peak force and iterate over the peak times
+                log_path, logger = get_logger(log_name=f"fixed_force_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
 
-                    motor_1.send_torque(desired_torque=tau_1, safety=False)
-                    motor_2.send_torque(desired_torque=tau_2, safety=False)
-
-                    if t - print_time >= 0.05:
-                        print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.torque:.3f}")
-                        print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.torque:.3f}")
-                        print(f"Body height: {-P_EE[0]}")
-                        print(f"Movement: {index: .0f}%. tau_1: {tau_1}, tau_2: {tau_2}")
-                        sys.stdout.write(f"\x1b[4A\x1b[2K")
-                    
-                        print_time = t
-
-                    logger.writerow([cur_time - start_time, index, tau_1, motor_1.torque, motor_1.position, motor_1.velocity, tau_2, motor_2.torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
-                del loop   
+                print(f"Current profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
+                print(f"Recording to {log_path}")
+                print("\nPress trigger to start recording P_EE...")
+                while not GPIO.input(17):
+                    pass
+                print()
+                control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
+                save_log_or_delete(remote_dir=remote_dir, log_path=log_path)
 
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
