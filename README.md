@@ -21,3 +21,6 @@ communicate between them.
 
 You might need to modify the IP address and make it static so that they are on 
 the same network.
+
+### Sit-to-stand
+[![Video](https://img.youtube.com/vi/tL9eCLn0_UM/maxresdefault.jpg)](https://youtube.com/shorts/tL9eCLn0_UM?feature=share)
