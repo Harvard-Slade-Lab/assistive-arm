@@ -161,4 +161,6 @@ cython_debug/
 Geometry/
 moco/control_solutions
 motor_logs/
+torque_profiles/
+subject_logs/
 .DS_STORE
