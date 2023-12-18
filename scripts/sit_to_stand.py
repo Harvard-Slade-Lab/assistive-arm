@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import yaml
 import re
+from typing import Literal
 
 from pathlib import Path
 from enum import Enum
@@ -25,18 +26,77 @@ np.set_printoptions(precision=3, suppress=True)
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(17, GPIO.IN)
 
+
 PROJECT_DIR_REMOTE = Path("/Users/xabieririzar/uni-projects/Harvard/assistive-arm")
 
 class States(Enum):
     CALIBRATING = 1
     ASSISTING = 2
     ASSIST_PROFILES = 3
+    UNPOWERED_COLLECTION = 4
     EXIT = 0
 
     def __eq__(self, other):
             if isinstance(other, int):
                 return self.value == other
             return False
+    
+
+def await_trigger_signal(mode: Literal["TRIGGER", "ENTER"]):
+    """ Wait for trigger signal OR Enter to start recording """
+    if mode == "ENTER": 
+        input("\nPress Enter to start recording...")
+
+    
+    if mode == "TRIGGER":
+        print("\nPress trigger to start recording P_EE...")
+        while not GPIO.input(17):
+            pass
+        print()
+
+
+def save_log_or_delete(remote_dir: Path, log_path: Path, force_delete: bool=False):
+    if force_delete:
+        os.remove(log_path)
+        return
+    
+    print("\n\n\n\n")
+    ans = input("\nKeep log file? [Y/n] ")
+    if ans == "n":
+        try:
+            os.remove(log_path)
+        except FileNotFoundError:
+            print("File doesn't exist or was already deleted.")
+    else:
+        print("\nSending logfile to Mac...")
+        print("log file: ", log_path)
+        os.system(f"scp {log_path} macbook:{remote_dir}")
+
+
+def get_logger(log_name: str, session_dir: Path) -> tuple[Path, csv.writer]:
+    logged_vars = ["Percentage", "target_tau_1", "measured_tau_1", "theta_1", "velocity_1", "target_tau_2", "measured_tau_2", "theta_2", "velocity_2", "EE_X", "EE_Y"]
+
+    sample_num = get_next_sample_number(session_dir=session_dir, log_name=log_name)
+    log_file = f"{sample_num}_{log_name}.csv"
+    log_path = session_dir / log_file
+    log_path.touch(exist_ok=True)
+
+    with open(log_path, "w") as fd:
+        writer = csv.writer(fd)
+        writer.writerow(["time"] + logged_vars)
+
+    csv_file = open(log_path, "a").__enter__()
+    task_logger = csv.writer(csv_file)
+
+    return log_path, task_logger
+
+
+def get_yaml_path(yaml_name: str, session_dir: Path) -> Path:
+    yaml_file = f"{yaml_name}.yaml"
+    yaml_path = session_dir / yaml_file
+
+    return yaml_path
+
 
 def get_next_sample_number(session_dir: Path, log_name: str) -> int:
     """
@@ -78,7 +138,7 @@ def set_up_logging_dir(subject_folder: Path) -> tuple:
     session_dir = subject_folder / f"{month_name}_{day}"
     session_dir.mkdir(parents=True, exist_ok=True)
 
-    session_remote_dir = f"{PROJECT_DIR_REMOTE}/subject_logs/{subject_folder.name}/"
+    session_remote_dir = Path(f"{PROJECT_DIR_REMOTE}/subject_logs/") / session_dir.relative_to("subject_logs")
     os.system(f"ssh macbook 'mkdir -p {session_remote_dir}'")
     
     return session_dir, session_remote_dir
@@ -92,11 +152,11 @@ def countdown(duration: int=3):
 
 
 def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path):
-    yaml_path = get_yaml_path(yaml_name="calibration_data", session_dir=session_dir)
+    yaml_path = get_yaml_path(yaml_name="device_height_calibration", session_dir=session_dir)
 
     unadjusted_profile = pd.read_csv("./torque_profiles/simulation_profile.csv", index_col="Percentage")
 
-    loop = SoftRealtimeLoop(dt=1 / freq, report=True, fade=0)
+    loop = SoftRealtimeLoop(dt=1 / freq, report=False, fade=0)
 
     calibration_data = dict()
 
@@ -129,6 +189,7 @@ def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, 
                 start_time = t
         del loop
 
+        print("\n\n\n\n")
         print("Recording stopped. Processing data...\n")
 
         # Add offset to ensure that when the subject stands, 0 or 100% will be reached
@@ -188,18 +249,20 @@ def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, 
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
-def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path):
+def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, mode: Literal["TRIGGER", "ENTER"]):
     spline_profiles_path = Path("./torque_profiles/spline_profiles/")
     spline_dict = dict()
 
+    # Load spline profiles
     for path in spline_profiles_path.iterdir():
-        peak_time = int(path.stem.split("_")[2])
-        peak_force = int(path.stem.split("_")[5])
+        if path.suffix == ".csv":
+            peak_time = int(path.stem.split("_")[2])
+            peak_force = int(path.stem.split("_")[5])
 
-        if peak_time not in spline_dict:
-            spline_dict[peak_time] = dict()
+            if peak_time not in spline_dict:
+                spline_dict[peak_time] = dict()
 
-        spline_dict[peak_time][peak_force] = pd.read_csv(path, index_col="Percentage")
+            spline_dict[peak_time][peak_force] = pd.read_csv(path, index_col="Percentage")
 
     try:
         motor_1.send_torque(desired_torque=0, safety=True)
@@ -216,6 +279,7 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
         if chosen_mode == "1":
             peak_times = sorted(list(spline_dict.keys()))
             peak_forces = sorted(list(spline_dict[peak_times[0]].keys()))
+
             print("Available peak times: [%]\n", peak_times)
             print("Peak forces: [N]\n", peak_forces)
 
@@ -224,21 +288,22 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
             profile = spline_dict[peak_time][peak_force]
 
             log_path, logger = get_logger(log_name=f"single_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
-            print(f"Recording to {log_path}")
-            print(f"\nUsing profile with:")
+
+            print(f"Recording to {log_path}\n")
+            print(f"Using profile with:")
             print(f"Peak time: {peak_time}%")
             print(f"Peak force: {peak_force}N")
 
-            print("\nPress trigger to start recording P_EE...")
-            while not GPIO.input(17):
-                pass
-            print()
-            control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
+            await_trigger_signal(mode=mode)
+
+            control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, mode=mode)
             save_log_or_delete(remote_dir=remote_dir, log_path=log_path) 
 
         elif chosen_mode == "2":
             peak_time = None
-            print("Available peak times: [%]\n", sorted(list(spline_dict.keys())))
+            peak_times = sorted(list(spline_dict.keys()))
+
+            print("Available peak times: [%]\n", )
 
             # Check for valid entry
             while not peak_time:
@@ -257,10 +322,8 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
                 log_path, logger = get_logger(log_name=f"peak_time_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
 
                 print(f"\nCurrent profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
-                print(f"Recording to {log_path}")
-                input("Press Enter to start recording...")
-                countdown(duration=3)
-                print()
+                print(f"Recording to {log_path}\n")
+                await_trigger_signal()
                 control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
                 save_log_or_delete(remote_dir=remote_dir, log_path=log_path) 
 
@@ -268,6 +331,7 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
             peak_force = None
             peak_times = sorted(list(spline_dict.keys()))
             peak_forces = sorted(list(spline_dict[peak_times[0]].keys()))
+            
             print("Available peak forces: [N]\n", peak_forces)
 
             # Check for valid entry
@@ -277,55 +341,58 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
                     peak_force = None
                     print("Peak force not in profile. Try again.")
 
-
             print(f"Using following profiles for a peak force of {peak_force}N")
-            print(f"Peak times: \n",list(spline_dict.keys()))
+            print(f"Peak times: \n", peak_times)
             
-            for peak_time in peak_times:
-                profile = spline_dict[peak_time][peak_force]
-                # peak_force because we select a specific peak force and iterate over the peak times
-                log_path, logger = get_logger(log_name=f"fixed_force_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
+            for i, peak_time in enumerate(peak_times):
+                success = False
+                print(f"\n\nIteration {i + 1} of {len(peak_times)}\n\n")
 
-                print(f"Current profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
-                print(f"Recording to {log_path}")
-                print("\nPress trigger to start recording P_EE...")
-                while not GPIO.input(17):
-                    pass
-                print()
-                control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
-                save_log_or_delete(remote_dir=remote_dir, log_path=log_path)
+                while not success:
+                    profile = spline_dict[peak_time][peak_force]
+                    # peak_force because we select a specific peak force and iterate over the peak times
+                    log_path, logger = get_logger(log_name=f"fixed_force_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
+
+                    print(f"\n\nCurrent profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
+                    print(f"\nRecording to {log_path}")
+
+                    await_trigger_signal(mode=mode)
+                    success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, apply_force=True, mode=mode)
+
+                    save_log_or_delete(remote_dir=remote_dir, log_path=log_path, force_delete=not success)
 
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
-def save_log_or_delete(remote_dir, log_path):
-    ans = input("Keep log file? [Y/n] ")
-    if ans == "n":
-        try:
-            os.remove(log_path)
-        except FileNotFoundError:
-            print("File doesn't exist or was already deleted.")
-    else:
-        print("Sending logfile to Mac...")
-        print("log file: ", log_path)
-        os.system(f"scp {log_path} macbook:{remote_dir}")
 
-
-def control_loop_and_log(motor_1: CubemarsMotor, motor_2: CubemarsMotor, logger: csv.writer, profile: pd.DataFrame, freq: int):
+def control_loop_and_log(
+        motor_1: CubemarsMotor,
+        motor_2: CubemarsMotor,
+        logger: csv.writer,
+        profile: pd.DataFrame,
+        freq: int,
+        mode: Literal["TRIGGER", "ENTER"],
+        apply_force: bool=True):
 
     print("Recording started. Please perform the sit-to-stand motion.")
-    print("Press Ctrl + C to stop recording.\n")
+    print("Press Ctrl + C or trigger to stop recording.\n")
     print_time = 0
     start_time = time.time()
 
-    loop = SoftRealtimeLoop(dt=1 / freq, report=True, fade=0)
+    loop = SoftRealtimeLoop(dt=1 / freq, report=False, fade=0)
+
+    success = True
 
     for t in loop:
-        if not GPIO.input(17):  # Detects if signal turns off (low signal)
-            print("Stopped recording, exiting...")
-            break
+        if mode == "TRIGGER":
+            if not GPIO.input(17):  # Detects if signal turns off (low signal)
+                print("Stopped recording, exiting...")
+                break
+        
         cur_time = time.time()
+
         if motor_1._emergency_stop or motor_2._emergency_stop:
+            success = False
             break
                     
         tau_1, tau_2, P_EE, index = get_target_torques(
@@ -333,9 +400,13 @@ def control_loop_and_log(motor_1: CubemarsMotor, motor_2: CubemarsMotor, logger:
                         theta_2=motor_2.position,
                         profiles=profile
                     )
-
-        motor_1.send_torque(desired_torque=tau_1, safety=False)
-        motor_2.send_torque(desired_torque=tau_2, safety=False)
+        
+        if apply_force:
+            motor_1.send_torque(desired_torque=tau_1, safety=False)
+            motor_2.send_torque(desired_torque=tau_2, safety=False)
+        else:
+            motor_1.send_torque(desired_torque=0, safety=False) 
+            motor_2.send_torque(desired_torque=0, safety=False)
 
         if t - print_time >= 0.05:
             print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.torque:.3f}")
@@ -352,30 +423,13 @@ def control_loop_and_log(motor_1: CubemarsMotor, motor_2: CubemarsMotor, logger:
     motor_1.send_torque(desired_torque=0, safety=False)
     motor_2.send_torque(desired_torque=0, safety=False)
 
+    if not success:
+        motor_1._emergency_stop = False
+        motor_2._emergency_stop = False
 
-def get_logger(log_name: str, session_dir: Path) -> tuple[Path, csv.writer]:
-    logged_vars = ["index", "target_tau_1", "measured_tau_1", "theta_1", "velocity_1", "target_tau_2", "measured_tau_2", "theta_2", "velocity_2", "EE_X", "EE_Y"]
+        print("\nSomething went wrong. Repeating the iteration...")
 
-    sample_num = get_next_sample_number(session_dir=session_dir, log_name=log_name)
-    log_file = f"{sample_num}_{log_name}.csv"
-    log_path = session_dir / log_file
-    log_path.touch(exist_ok=True)
-
-    with open(log_path, "w") as fd:
-        writer = csv.writer(fd)
-        writer.writerow(["time"] + logged_vars)
-
-    csv_file = open(log_path, "a").__enter__()
-    task_logger = csv.writer(csv_file)
-
-    return log_path, task_logger
-
-
-def get_yaml_path(yaml_name: str, session_dir: Path) -> Path:
-    yaml_file = f"{yaml_name}.yaml"
-    yaml_path = session_dir / yaml_file
-
-    return yaml_path
+    return success
 
 
 def apply_simulation_profile(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path):
@@ -392,6 +446,38 @@ def apply_simulation_profile(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
+def collect_unpowered_data(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, mode: Literal["TRIGGER", "ENTER"]):
+    """ Collect unpowered data for EMG synchronization.
+
+    Args:
+        motor_1 (CubemarsMotor): motor_1
+        motor_2 (CubemarsMotor): motor_2
+        freq (int): target frequency (Hz)
+        session_dir (Path): session directory
+        remote_dir (Path): remote session directory
+        mode (Literal["TRIGGER", "ENTER"]): record on trigger or Enter pressing
+    """
+    iterations = 5
+
+    profile = pd.read_csv("./torque_profiles/scaled_simulation_profile.csv", index_col="Percentage")
+
+    # range from 1-5
+    for i in range(1, iterations + 1):
+        print("\nIteration number: ", i)
+        success = False
+        while not success:
+            try:
+                log_path, logger = get_logger(log_name=f"unpowered_device_{i}", session_dir=session_dir)
+                print(f"Recording to {log_path}")
+
+                await_trigger_signal(mode=mode)
+                success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, apply_force=False, mode=mode)
+                save_log_or_delete(remote_dir=remote_dir, log_path=log_path, force_delete=not success)
+
+            except Exception as e:
+                print(e.with_traceback)
+                print(f"An error occurred: {e}")
+                print("Repeating the iteration...")
 
 if __name__ == "__main__":
     logging = True
@@ -399,6 +485,8 @@ if __name__ == "__main__":
 
     subject_id = "Xabi"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
+
+    trigger_mode = "TRIGGER"
 
     session_dir, session_remote_dir = set_up_logging_dir(subject_folder=subject_folder)
     try:
@@ -408,6 +496,7 @@ if __name__ == "__main__":
             print("1 - Calibrate Height")
             print("2 - Run Assistance")
             print("3 - Apply multiple assistance profiles")
+            print("4 - Collect unpowered data")
             print("0 - Exit")
 
             # Get user's choice
@@ -418,15 +507,20 @@ if __name__ == "__main__":
                     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
                         calibrate_height(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir)
 
+            elif choice ==States.UNPOWERED_COLLECTION:
+                with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
+                    with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
+                        collect_unpowered_data(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, mode=trigger_mode)
+
             elif choice == States.ASSISTING:
                 with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                        apply_simulation_profile(motor_1, motor_2, freq=freq, session_dir=session_dir)
+                        apply_simulation_profile(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, mode=trigger_mode)
 
             elif choice == States.ASSIST_PROFILES:
                 with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                        assist_multiple_profiles(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir)
+                        assist_multiple_profiles(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, mode=trigger_mode)
 
             elif choice == States.EXIT:
                 print("Exiting...")

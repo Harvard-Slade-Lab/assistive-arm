@@ -136,8 +136,10 @@ class CubemarsMotor:
         if abs(self.velocity) > self.params["Vel_limit"]:
             self._emergency_stop = True
             self.send_velocity(0)
-            self._stop_motor()
-            self._stop_can_port()
+            self.velocity = 0
+            time.sleep(0.5)
+            self.send_torque(0)
+            # self._stop_motor()
 
     def send_zero_position(self) -> None:
         zero_position = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE]
@@ -233,12 +235,17 @@ class CubemarsMotor:
             self.buffer_index = (self.buffer_index + 1) % self.buffer_size
 
             # Calculate the moving average position and velocity
+            if self._emergency_stop:
+                self.velocity_buffer = [0] * self.buffer_size
             avg_position = sum(self.position_buffer) / self.buffer_size
             avg_velocity = sum(self.velocity_buffer) / self.buffer_size
+
+            
 
             self.position = avg_position
             self.velocity = avg_velocity
             self.torque = t
+
 
             
         except AttributeError as e:
