@@ -163,8 +163,7 @@ moco/control_solutions
 subject_logs/
 paper_figures/
 motor_logs/
-torque_profiles/
 subject_logs/
-torque_profiles/spline_profiles/*
+torque_profiles/
 .DS_STORE
 paper_figures/
