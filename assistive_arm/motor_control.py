@@ -56,6 +56,7 @@ class CubemarsMotor:
         self.velocity_buffer = [0] * self.buffer_size
 
         self._emergency_stop = False
+        self._first_run = True
 
     def __enter__(self):
 
@@ -237,10 +238,14 @@ class CubemarsMotor:
             # Calculate the moving average position and velocity
             if self._emergency_stop:
                 self.velocity_buffer = [0] * self.buffer_size
+            
+            if self._first_run: 
+                self.position_buffer = [p] * self.buffer_size
+                self.velocity_buffer = [v] * self.buffer_size
+                self._first_run = False
+            
             avg_position = sum(self.position_buffer) / self.buffer_size
             avg_velocity = sum(self.velocity_buffer) / self.buffer_size
-
-            
 
             self.position = avg_position
             self.velocity = avg_velocity

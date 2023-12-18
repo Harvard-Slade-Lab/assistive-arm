@@ -55,34 +55,41 @@ def await_trigger_signal(mode: Literal["TRIGGER", "ENTER"]):
         print()
 
 
-def save_log_or_delete(remote_dir: Path, log_path: Path, force_delete: bool=False):
-    if force_delete:
-        os.remove(log_path)
-        return
-    
+def save_log_or_delete(remote_dir: Path, log_path: Path, successful: bool=False):
     print("\n\n\n\n")
-    ans = input("\nKeep log file? [Y/n] ")
-    if ans == "n":
-        try:
-            os.remove(log_path)
-        except FileNotFoundError:
-            print("File doesn't exist or was already deleted.")
-    else:
+    if successful:
         print("\nSending logfile to Mac...")
         print("log file: ", log_path)
         os.system(f"scp {log_path} macbook:{remote_dir}")
+    else:
+        print(f"Removing {log_path}")
+        os.remove(log_path)
 
 
-def get_logger(log_name: str, session_dir: Path) -> tuple[Path, csv.writer]:
+def get_logger(log_name: str, session_dir: Path, profile_details: list=None) -> tuple[Path, csv.writer]:
+    """ Set up logger for the various task in the script. Return the necessary paths
+
+    Args:
+        log_name (str): log name. If it exists, a number will be added in front of it.
+        session_dir (Path): session directory where we store the logs
+        profile_details (list, optional): [peak_time, peak_force]. Defaults to None.
+
+    Returns:
+        tuple[Path, csv.writer]: log_path, task_logger
+    """
+    
     logged_vars = ["Percentage", "target_tau_1", "measured_tau_1", "theta_1", "velocity_1", "target_tau_2", "measured_tau_2", "theta_2", "velocity_2", "EE_X", "EE_Y"]
 
     sample_num = get_next_sample_number(session_dir=session_dir, log_name=log_name)
-    log_file = f"{sample_num}_{log_name}.csv"
+    log_file = f"{log_name}_{sample_num:02}.csv"
     log_path = session_dir / log_file
     log_path.touch(exist_ok=True)
 
     with open(log_path, "w") as fd:
         writer = csv.writer(fd)
+        if profile_details:
+            writer.writerow(["peak_time", profile_details[0]])
+            writer.writerow(["peak_force", profile_details[1]])
         writer.writerow(["time"] + logged_vars)
 
     csv_file = open(log_path, "a").__enter__()
@@ -107,7 +114,7 @@ def get_next_sample_number(session_dir: Path, log_name: str) -> int:
     :return: The next sample number.
     """
     # Regular expression to match files and extract sample number
-    pattern = re.compile(rf"(\d+)_{log_name}.csv")
+    pattern = re.compile(rf"{log_name}_(\d+).csv")
 
     # Find the highest sample number in existing files
     max_sample = 0
@@ -273,6 +280,7 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
         print('2 - All profiles for a given peak time')
         print('3 - All profiles for a given peak force')
         print('4 - All profiles')
+        print('0 - Exit')
 
         chosen_mode = input("\nChoose mode: ")
 
@@ -287,7 +295,7 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
             peak_force = int(input("Enter peak force: "))
             profile = spline_dict[peak_time][peak_force]
 
-            log_path, logger = get_logger(log_name=f"single_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
+            log_path, logger = get_logger(log_name=f"single_time_{peak_time}_force_{peak_force}", session_dir=session_dir, profile_details=[peak_time, peak_force])
 
             print(f"Recording to {log_path}\n")
             print(f"Using profile with:")
@@ -351,15 +359,19 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
                 while not success:
                     profile = spline_dict[peak_time][peak_force]
                     # peak_force because we select a specific peak force and iterate over the peak times
-                    log_path, logger = get_logger(log_name=f"fixed_force_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
+                    log_path, logger = get_logger(log_name=f"assist", session_dir=session_dir, profile_details=[peak_time, peak_force])
 
                     print(f"\n\nCurrent profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
                     print(f"\nRecording to {log_path}")
 
                     await_trigger_signal(mode=mode)
-                    success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, apply_force=True, mode=mode)
+                    success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, apply_force=False, mode=mode)
 
-                    save_log_or_delete(remote_dir=remote_dir, log_path=log_path, force_delete=not success)
+                    save_log_or_delete(remote_dir=remote_dir, log_path=log_path, successful=success)
+
+        elif chosen_mode == '0':
+            print("Exiting...")
+            return
 
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
@@ -472,7 +484,7 @@ def collect_unpowered_data(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq:
 
                 await_trigger_signal(mode=mode)
                 success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, apply_force=False, mode=mode)
-                save_log_or_delete(remote_dir=remote_dir, log_path=log_path, force_delete=not success)
+                save_log_or_delete(remote_dir=remote_dir, log_path=log_path, successful=not success)
 
             except Exception as e:
                 print(e.with_traceback)
@@ -486,7 +498,7 @@ if __name__ == "__main__":
     subject_id = "Xabi"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
 
-    trigger_mode = "TRIGGER"
+    trigger_mode = "ENTER" # TRIGGER or ENTER
 
     session_dir, session_remote_dir = set_up_logging_dir(subject_folder=subject_folder)
     try:
