@@ -27,7 +27,7 @@ def export_filtered_force(force_data: pd.DataFrame, filename: Path) -> None:
         f.writelines(header + contents)
 
 
-def read_headers(file_path: Path, rows: int) -> list:
+def read_headers(file_path: Path, rows: int, delimiter: str) -> list:
     """Read the first rows of a csv file and return them as a list.
 
     Args:
@@ -39,7 +39,7 @@ def read_headers(file_path: Path, rows: int) -> list:
     """
     header_lines = []
     with open(file_path, "r") as f:
-        reader = csv.reader(f, delimiter="\t")  # replace ';' by your delimiter
+        reader = csv.reader(f, delimiter=delimiter)  # replace ';' by your delimiter
         for i, line in enumerate(reader):
             if i < rows:
                 header_lines.append(line)
