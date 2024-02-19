@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import scipy as sp
 
+import matplotlib.pyplot as plt
+
 
 def filter_emg(unfiltered_df: pd.DataFrame, low_pass=4, sfreq=2000, high_band=20, low_band=450):
     """
@@ -49,3 +51,49 @@ def filter_emg(unfiltered_df: pd.DataFrame, low_pass=4, sfreq=2000, high_band=20
     env_freq = int(low_pass_normalized * sfreq)
 
     return envelopes, env_freq
+
+
+def interpolate_dataframe_to_length(df, target_length, reference_column=None):
+    """
+    Interpolates the values of a DataFrame to a given target length.
+
+    Parameters:
+    - df: Pandas DataFrame to interpolate.
+    - target_length: The target length for the interpolation.
+    - reference_column: The name of the column to use as a reference for interpolation.
+      If None, the DataFrame's index is used.
+
+    Returns:
+    - A new DataFrame with interpolated values at the target length.
+    """
+    if df.empty:
+        nan_df = pd.DataFrame(np.nan, index=range(target_length), columns=df.columns)
+        # If using a reference column, adjust the index name accordingly
+        if reference_column is not None:
+            nan_df.index.name = reference_column
+        return nan_df
+    
+    # Determine the interpolation reference (index or specified column)
+    if reference_column is not None:
+        x = df[reference_column].values
+    else:
+        x = df.index.values
+
+    # Normalize x to have values from 0 to 1, aiding in consistent interpolation
+    x_norm = np.linspace(x.min(), x.max(), num=target_length)
+
+    # Create an empty DataFrame to hold the interpolated values
+    interpolated_df = pd.DataFrame(index=x_norm)
+
+    # Interpolate each column in the DataFrame
+    for column in df.columns:
+        if column != reference_column:  # Skip the reference column if it's part of the DataFrame
+            # Setup the interpolator
+            interpolator = sp.interpolate.interp1d(x, df[column], kind='linear', bounds_error=False, fill_value='extrapolate')
+            # Perform the interpolation and assign to the new DataFrame
+            interpolated_df[column] = interpolator(x_norm)
+
+    # If using a reference column, set it as index if desired, or drop/adjust it based on your needs
+    interpolated_df.index.name = df.index.name
+
+    return interpolated_df

@@ -14,7 +14,7 @@ def get_rotation_matrix(degrees: float) -> np.array:
 def check_theta(series, theta_lims):
     return series.apply(lambda x: theta_lims[0] <= x <= theta_lims[1]).all()
 
-def get_jacobian(l1: float, l2: float, N: int, theta_1: float, theta_2: float) -> np.array:
+def get_jacobian(l1: float, l2: float, theta_1: float, theta_2: float) -> np.array:
     jacobian = np.array(
         [
             [
@@ -69,7 +69,7 @@ def compute_torque_profiles(
     thetas = pd.concat((theta_1, theta_2), axis=1, keys=["theta_1", "theta_2"])
 
 
-    jacobian = get_jacobian(l1, l2, N, theta_1, theta_2)
+    jacobian = get_jacobian(l1, l2, theta_1, theta_2)
     
     # Rotate force vector to robot frame
     F_rot = -(F @ rotate_forces).drop(2, axis=1)

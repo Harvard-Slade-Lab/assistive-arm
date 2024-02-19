@@ -164,5 +164,4 @@ def create_torque_plot(torques, feasible_profiles, l1, l2):
 
     # Adding color bar
     fig.colorbar(scalarMap, ax=axs.ravel().tolist())
-
     plt.show()
