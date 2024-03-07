@@ -32,7 +32,6 @@ def plot_every_muscle(title: str, muscles: list, dfs: list[pd.DataFrame], freq: 
             filtered_cols = [rel_col for rel_col in cols if muscle in rel_col]
 
             axs[i, j].set_title(f'Iteration {i+1}, {muscle}')
-            axs[i, j].grid(True)
             axs[-1, j].set_xlabel("Time (s)")
             axs[i, 0].set_ylabel("EMG\n(% MVIC)")
             axs[i, j].set_ylim(0, 1)
@@ -41,7 +40,7 @@ def plot_every_muscle(title: str, muscles: list, dfs: list[pd.DataFrame], freq: 
                 axs[i, j].plot(time_unfiltered, emg_df[col], label=col)
                 axs[i, j].legend()
 
-    plt.tight_layout(pad=2.0, w_pad=2.0, h_pad=2.0)
+    plt.tight_layout()
     plt.show()
 
 
