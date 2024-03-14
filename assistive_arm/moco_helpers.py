@@ -196,8 +196,6 @@ def get_model(
 
     coordSet = model.updCoordinateSet()
 
-
-
     if minimal_actuators:
         for actuator in config["minimal_actuator_names"]:
             actu = osim.CoordinateActuator()
@@ -266,8 +264,12 @@ def set_moco_problem_weights(
                 )
     effort_goal.setWeightForControl("/forceset/recfem_r", 1)
     effort_goal.setWeightForControl("/forceset/vasmed_r", 1)
+    effort_goal.setWeightForControl("/forceset/bflh_r", 1)
+    effort_goal.setWeightForControl("/forceset/bfsh_r", 1)
     effort_goal.setWeightForControl("/forceset/recfem_l", 1)
     effort_goal.setWeightForControl("/forceset/vasmed_l", 1)
+    effort_goal.setWeightForControl("/forceset/bflh_l", 1)
+    effort_goal.setWeightForControl("/forceset/bfsh_l", 1)
     effort_goal.setWeightForControl("/forceset/soleus_r", 1)
     effort_goal.setWeightForControl("/forceset/soleus_l", 1)
     effort_goal.setWeightForControl("/forceset/tibant_r", 1)

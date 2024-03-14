@@ -28,7 +28,7 @@ def get_jacobian(l1: float, l2: float, theta_1: float, theta_2: float) -> np.arr
         ]
     )
 
-    return jacobian
+    return jacobian#.transpose((1, 0, 2))
 
 
 def compute_torque_profiles(
@@ -66,8 +66,8 @@ def compute_torque_profiles(
     theta_1 = np.arctan2(pos_rot.Y, pos_rot.X) - np.arctan2(
         l2 * np.sin(theta_2), l1 + l2 * np.cos(theta_2)
     )
-    thetas = pd.concat((theta_1, theta_2), axis=1, keys=["theta_1", "theta_2"])
 
+    thetas = pd.concat([theta_1, theta_2], axis=1, keys=["theta_1", "theta_2"])
 
     jacobian = get_jacobian(l1, l2, theta_1, theta_2)
     
