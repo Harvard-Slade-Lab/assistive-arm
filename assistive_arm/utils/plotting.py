@@ -165,7 +165,7 @@ def plot_residual_forces(df: pd.DataFrame, config_file: dict):
 #     plt.show()
 #     plt.savefig("torque_profiles.svg", dpi=500, format="svg")
 
-def create_torque_surface_plot(torques, feasible_profiles, l1, l2):
+def create_torque_plot(torques, feasible_profiles, l1, l2):
     # Grid points for interpolation
     grid_x, grid_y = np.mgrid[min(feasible_profiles.l1):max(feasible_profiles.l1):200j, 
                               min(feasible_profiles.l2):max(feasible_profiles.l2):200j]
@@ -177,7 +177,7 @@ def create_torque_surface_plot(torques, feasible_profiles, l1, l2):
     # Normalizing color map based on peak torque values
     cNorm = colors.Normalize(vmin=min(torques.tau_1.min(), torques.tau_2.min()), 
                              vmax=max(torques.tau_1.max(), torques.tau_2.max()))
-    scalarMap = cmx.ScalarMappable(norm=cNorm, cmap="viridis")
+    scalarMap = cmx.ScalarMappable(norm=cNorm, cmap="YlOrRd")
 
     fig = plt.figure(figsize=(20, 10))
     fig.suptitle(f"L1: {l1:.2f}, L2: {l2:.2f}")
