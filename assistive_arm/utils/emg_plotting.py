@@ -108,6 +108,16 @@ def plot_muscle_emg(
         plt.savefig(fig_path, bbox_inches='tight', format='svg')
         plt.savefig(fig_path.with_suffix('.png'), bbox_inches='tight', format='png')
 
+    fig.legend(handles, labels, loc='upper center', ncols=len(labels), bbox_to_anchor=(0.5, 0.9))
+
+    if fig_path and not fig_path.exists():
+        plt.savefig(fig_path, bbox_inches='tight', format='svg' if fig_path.suffix == ".svg" else "png")
+    elif fig_path and fig_path.exists():
+        print(f"Figure {fig_path} already exists, skipping...")
+    else:
+        print("No path provided, skipping saving...")
+    
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     if show:
         plt.show()
     
