@@ -28,7 +28,7 @@ def get_jacobian(l1: float, l2: float, theta_1: float, theta_2: float) -> np.arr
         ]
     )
 
-    return jacobian.transpose((1, 0, 2))
+    return jacobian
 
 
 def compute_torque_profiles(
