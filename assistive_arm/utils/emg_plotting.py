@@ -47,6 +47,7 @@ def plot_every_muscle(title: str, muscles: list, dfs: list[pd.DataFrame], freq: 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     if fig_path:
         plt.savefig(fig_path, dpi=500, format='svg')
+        plt.savefig(fig_path.with_suffix(".png"), dpi=500, format='png')
     plt.show()
 
 
@@ -86,7 +87,7 @@ def plot_muscle_emg(
         axs[0, i].set_title(f"Iteration {i+1}")
  
         axs[0, 0].set_ylabel(f"{target_muscle} UNFILTERED\n(mV)")
-        axs[1, 0].set_ylabel(f"{target_muscle} FILTERED\n (mV)")
+        axs[1, 0].set_ylabel(f"{target_muscle} FILTERED\n (% MVIC)")
         axs[1, i].set_xlabel("Time (s)")
 
         plot_every = 30
@@ -97,18 +98,19 @@ def plot_muscle_emg(
         axs[1, i].plot(time_filtered[::plot_every], filtered_dfs[i][f'{target_muscle}_LEFT'][::plot_every], label=f"LEFT")
         axs[1, i].plot(time_filtered[::plot_every], filtered_dfs[i][::plot_every][f'{target_muscle}_RIGHT'], label=f"RIGHT")
 
+        axs[1, i].yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1, symbol=None))
+        axs[1, i].set_ylim(0, 0.7)
+
         handles, labels = axs[0, i].get_legend_handles_labels()
 
     fig.legend(handles, labels, loc='upper center', ncols=len(labels), bbox_to_anchor=(0.5, 0.9))
 
-    if fig_path and not fig_path.exists():
-        plt.savefig(fig_path, bbox_inches='tight', format='svg' if fig_path.suffix == ".svg" else "png")
-    elif fig_path and fig_path.exists():
-        print(f"Figure {fig_path} already exists, skipping...")
-    else:
-        print("No path provided, skipping saving...")
-    
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    
+    if fig_path:
+        plt.savefig(fig_path, bbox_inches='tight', format='svg')
+        plt.savefig(fig_path.with_suffix('.png'), bbox_inches='tight', format='png')
+
     if show:
         plt.show()
     
