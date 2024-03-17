@@ -98,6 +98,9 @@ def plot_muscle_emg(
         axs[1, i].plot(time_filtered[::plot_every], filtered_dfs[i][::plot_every][f'{target_muscle}_LEFT'], label=f"LEFT")
         axs[1, i].plot(time_filtered[::plot_every], filtered_dfs[i][::plot_every][f'{target_muscle}_RIGHT'], label=f"RIGHT")
 
+        axs[1, i].yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1, symbol=None))
+        axs[1, i].set_ylim(0, 0.7)
+
         handles, labels = axs[0, i].get_legend_handles_labels()
 
     fig.legend(handles, labels, loc='upper center', ncols=len(labels), bbox_to_anchor=(0.5, 0.9))
@@ -118,6 +121,11 @@ def plot_muscle_emg(
         print("No path provided, skipping saving...")
     
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    
+    if fig_path:
+        plt.savefig(fig_path, bbox_inches='tight', format='svg')
+        plt.savefig(fig_path.with_suffix('.png'), bbox_inches='tight', format='png')
+
     if show:
         plt.show()
     
