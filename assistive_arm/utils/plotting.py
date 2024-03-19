@@ -165,7 +165,7 @@ def plot_residual_forces(df: pd.DataFrame, config_file: dict):
 #     plt.show()
 #     plt.savefig("torque_profiles.svg", dpi=500, format="svg")
 
-def create_torque_plot(torques, feasible_profiles, l1, l2):
+def create_torque_plot(torques, feasible_profiles, l1, l2, fig_path: Path=None):
     # Grid points for interpolation
     grid_x, grid_y = np.mgrid[min(feasible_profiles.l1):max(feasible_profiles.l1):200j, 
                               min(feasible_profiles.l2):max(feasible_profiles.l2):200j]
@@ -185,23 +185,26 @@ def create_torque_plot(torques, feasible_profiles, l1, l2):
     # 3D surface plot for Tau 1
     ax1 = fig.add_subplot(121, projection='3d')
     surf1 = ax1.plot_surface(grid_x, grid_y, grid_z1, cmap=scalarMap.cmap, linewidth=0, antialiased=True)
-    ax1.view_init(elev=25, azim=-45)  # Adjusting the view angle
-    ax1.set_xlabel("L1")
-    ax1.set_ylabel("L2")
+    ax1.view_init(elev=20, azim=-15)  # Adjusting the view angle
+    ax1.set_xlabel("L1 (m)")
+    ax1.set_ylabel("L2 (m)")
     ax1.set_zlabel(r"$\tau_1$")
     ax1.set_title("Torque 1 Surface")
 
     # 3D surface plot for Tau 2
     ax2 = fig.add_subplot(122, projection='3d')
-    surf2 = ax2.plot_surface(grid_x, grid_y, grid_z2, cmap=scalarMap.cmap, linewidth=0, antialiased=True)
-    ax2.view_init(elev=25, azim=-45)  # Adjusting the view angle
-    ax2.set_xlabel("L1")
-    ax2.set_ylabel("L2")
+    surf2 = ax2.plot_surface(grid_x, grid_y, grid_z2, cmap=scalarMap.cmap, linewidth=10, antialiased=True)
+    ax2.view_init(elev=10, azim=30)  # Adjusting the view angle
+    ax2.set_xlabel("L1 (m)")
+    ax2.set_ylabel("L2 (m)")
     ax2.set_zlabel(r"$\tau_2$")
     ax2.set_title("Torque 2 Surface")
 
     # Adding color bar
     cbar = fig.colorbar(scalarMap, ax=[ax1, ax2], shrink=0.5, aspect=5)
     cbar.set_label('Torque')
+
+    if fig_path:
+        fig.savefig(fig_path, dpi=500, format='png')
 
     plt.show()
