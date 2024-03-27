@@ -3,6 +3,14 @@ import pandas as pd
 
 
 def get_rotation_matrix(degrees: float) -> np.array:
+    """ Get 3x3 rotation matrix
+
+    Args:
+        degrees (float): rotate by degrees (rad)
+
+    Returns:
+        np.array: np array of 3x3 matrix
+    """
     return np.array(
         [
             [np.cos(np.deg2rad(degrees)), -np.sin(np.deg2rad(degrees)), 0],
@@ -11,10 +19,30 @@ def get_rotation_matrix(degrees: float) -> np.array:
         ]
     )
 
-def check_theta(series, theta_lims):
+def check_theta(series: pd.Series, theta_lims: np.array) -> pd.Series:
+    """ Check if angles are within allowed limits
+
+    Args:
+        series (pd.Series): target angles
+        theta_lims (np.array): angle range
+
+    Returns:
+        pd.Series: filtered series
+    """
     return series.apply(lambda x: theta_lims[0] <= x <= theta_lims[1]).all()
 
-def get_jacobian(l1: float, l2: float, theta_1: float, theta_2: float) -> np.array:
+def get_jacobian(l1: float, l2: float, theta_1: pd.Series, theta_2: pd.Series) -> np.array:
+    """ Get jacobian matrix
+
+    Args:
+        l1 (float): link 1
+        l2 (float): link 2
+        theta_1 (float): angle series
+        theta_2 (float): angle series
+
+    Returns:
+        np.array: jacobian matrix
+    """
     jacobian = np.array(
         [
             [
@@ -27,8 +55,7 @@ def get_jacobian(l1: float, l2: float, theta_1: float, theta_2: float) -> np.arr
             ]
         ]
     )
-
-    return jacobian#.transpose((1, 0, 2))
+    return jacobian
 
 
 def compute_torque_profiles(
@@ -83,7 +110,16 @@ def compute_torque_profiles(
     return torques, thetas, jacobian
 
 
-def interpolate_dataframe(df: pd.DataFrame, desired_frequency: int=200):
+def interpolate_dataframe(df: pd.DataFrame, desired_frequency: int=200) -> pd.DataFrame:
+    """ Interpolate dataframe to target frequency
+
+    Args:
+        df (pd.DataFrame): target dataframe
+        desired_frequency (int, optional): target frequency (Hz). Defaults to 200.
+
+    Returns:
+        pd.DataFrame: interpolated dataframe
+    """
     df_index = df.index
     df_index_new = pd.Index(np.arange(df_index.min(), df_index.max(), 1/desired_frequency), name="Time")
 
@@ -91,6 +127,15 @@ def interpolate_dataframe(df: pd.DataFrame, desired_frequency: int=200):
 
     return df_interpolated
 
-def smooth_dataframe(df, window_size):
+def smooth_dataframe(df: pd.DataFrame, window_size: int=30) -> pd.DataFrame:
+    """ Smooth dataframe to filter out noise
+
+    Args:
+        df (pd.DataFrame): target dataframe
+        window_size (int, optional): window size. Defaults to 30.
+
+    Returns:
+        pd.DataFrame: smoothed dataframe
+    """
     df_smoothed = df.copy().rolling(window=window_size, min_periods=1, center=True).mean()
     return df_smoothed
