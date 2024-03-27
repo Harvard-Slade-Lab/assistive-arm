@@ -5,13 +5,18 @@ import scipy as sp
 import matplotlib.pyplot as plt
 
 
-def filter_emg(unfiltered_df: pd.DataFrame, low_pass=4, sfreq=2000, high_band=20, low_band=450):
-    """
-    unfiltered_df: DataFrame containing the EMG data and time
-    low_pass: Low-pass cut off frequency
-    sfreq: Sampling frequency
-    high_band: High-band frequency for bandpass filter
-    low_band: Low-band frequency for bandpass filter
+def filter_emg(unfiltered_df: pd.DataFrame, low_pass=4, sfreq=2000, high_band=20, low_band=450) -> pd.DataFrame:
+    """ Filter EMG signals
+
+    Args:
+        unfiltered_df (pd.DataFrame): DataFrame containing the EMG data and time
+        low_pass (int, optional): Low-pass cut off frequency. Defaults to 4.
+        sfreq (int, optional): Sampling frequency. Defaults to 2000.
+        high_band (int, optional): High-band frequency for bandpass filter. Defaults to 20.
+        low_band (int, optional): Low-band frequency for bandpass filter. Defaults to 450.
+
+    Returns:
+        pd.DataFrame: filtered dataframe
     """
     emg_data = unfiltered_df.copy()
 
