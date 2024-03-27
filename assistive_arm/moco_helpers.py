@@ -5,6 +5,12 @@ from pathlib import Path
 
 
 def simplify_model(model_name: str, model: osim.Model) -> None:
+    """ Simplify model by reducing actuators and muscles
+
+    Args:
+        model_name (str): model name
+        model (osim.Model): model object
+    """
     muscles_to_remove = []
 
     # Remove unnecessary actuators
@@ -73,6 +79,11 @@ def simplify_model(model_name: str, model: osim.Model) -> None:
 
 
 def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
+    """ Set up marker tracking weights for individual model markerse
+
+    Args:
+        track (osim.MocoTrack): moco tracking problem
+    """
     markerWeights = osim.MocoWeightSet()
 
     markerWeights.cloneAndAppend(osim.MocoWeight("r.ASIS_study", 20))
