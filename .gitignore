@@ -164,3 +164,4 @@ motor_logs/
 torque_profiles/
 subject_logs/
 .DS_STORE
+paper_figures/

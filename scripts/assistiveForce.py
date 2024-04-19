@@ -18,14 +18,14 @@ def main():
     # Dict for yaml file
     config_file = dict()
 
-    subject = "subject_1"
+    subject = "subject_4"
     subject_data = (
         Path(
             "/Users/xabieririzar/Desktop/Life/Studium/TUM/Master_Robotics/Harvard/Thesis/Subject_testing/subject_data/"
         )
         / subject
     )
-    trial = subject_data / "trial_2"
+    trial = subject_data / "trial_4"
     
     model_name = f"{subject}_simple"  # simple / full
     model_path = subject_data / "model" / "LaiUhlrich2022_scaled.osim"
@@ -43,19 +43,14 @@ def main():
     config_file["reserve_pelvis_weight"] = 15
 
 
-    t_0 = 1.8
-    t_f = 3.2  # 7.25s for subject4 trial3
+    t_0 = 5.45 # subject4 trial4 5.45s
+    t_f = 8  # 7.25s for subject4 trial3, trial 4 8s
     mesh_interval = 0.05
 
     config_file["t_0"] = t_0
     config_file["t_f"] = t_f
     config_file["mesh_interval"] = mesh_interval
     config_file["grf_path"] = str(trial / "grf_filtered.mot")
-
-    # modify_force_xml(
-    #     xml_file="./moco/forces/grf_sit_stand.xml",
-    #     new_datafile=str(trial / "grf_filtered.mot"),
-    # )
 
     model = get_model(
         subject_name=model_name,

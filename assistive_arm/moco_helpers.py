@@ -5,6 +5,12 @@ from pathlib import Path
 
 
 def simplify_model(model_name: str, model: osim.Model) -> None:
+    """ Simplify model by reducing actuators and muscles
+
+    Args:
+        model_name (str): model name
+        model (osim.Model): model object
+    """
     muscles_to_remove = []
 
     # Remove unnecessary actuators
@@ -73,6 +79,11 @@ def simplify_model(model_name: str, model: osim.Model) -> None:
 
 
 def set_marker_tracking_weights(track: osim.MocoTrack) -> None:
+    """ Set up marker tracking weights for individual model markerse
+
+    Args:
+        track (osim.MocoTrack): moco tracking problem
+    """
     markerWeights = osim.MocoWeightSet()
 
     markerWeights.cloneAndAppend(osim.MocoWeight("r.ASIS_study", 20))
@@ -196,8 +207,6 @@ def get_model(
 
     coordSet = model.updCoordinateSet()
 
-
-
     if minimal_actuators:
         for actuator in config["minimal_actuator_names"]:
             actu = osim.CoordinateActuator()
@@ -266,8 +275,12 @@ def set_moco_problem_weights(
                 )
     effort_goal.setWeightForControl("/forceset/recfem_r", 1)
     effort_goal.setWeightForControl("/forceset/vasmed_r", 1)
+    effort_goal.setWeightForControl("/forceset/bflh_r", 1)
+    effort_goal.setWeightForControl("/forceset/bfsh_r", 1)
     effort_goal.setWeightForControl("/forceset/recfem_l", 1)
     effort_goal.setWeightForControl("/forceset/vasmed_l", 1)
+    effort_goal.setWeightForControl("/forceset/bflh_l", 1)
+    effort_goal.setWeightForControl("/forceset/bfsh_l", 1)
     effort_goal.setWeightForControl("/forceset/soleus_r", 1)
     effort_goal.setWeightForControl("/forceset/soleus_l", 1)
     effort_goal.setWeightForControl("/forceset/tibant_r", 1)
