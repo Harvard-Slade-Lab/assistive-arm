@@ -162,5 +162,6 @@ Geometry/
 moco/control_solutions
 subject_logs/
 torque_profiles/
+paper_figures/
 .DS_STORE
 paper_figures/
