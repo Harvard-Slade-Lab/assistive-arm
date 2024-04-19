@@ -208,9 +208,6 @@ def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, 
         original_max = unadjusted_profile.theta_2.max()
         original_min = unadjusted_profile.theta_2.min()
 
-        calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
-        calibration_data["EE_values"] = EE_pos
-
         scale = (new_max - new_min) / (original_max - original_min)
 
         theta_2_scaled = unadjusted_profile['theta_2'].apply(lambda x: new_min + (x - original_min) * scale)
