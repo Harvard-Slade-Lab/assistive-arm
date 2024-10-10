@@ -11,5 +11,5 @@ def main(motor: CubemarsMotor):
         
 
 if __name__ == "__main__":
-    with CubemarsMotor(motor_type="AK60-6", logging=False) as motor:
+    with CubemarsMotor(motor_type="AK60-6", frequency=200) as motor:
         main(motor)

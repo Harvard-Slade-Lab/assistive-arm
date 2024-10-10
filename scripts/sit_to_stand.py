@@ -26,7 +26,8 @@ np.set_printoptions(precision=3, suppress=True)
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(17, GPIO.IN)
 
-PROJECT_DIR_REMOTE = Path("/Users/xabieririzar/uni-projects/Harvard/assistive-arm")
+# Directory to directly save the logs to remote host, also need to add Host in ~/.ssh/config
+PROJECT_DIR_REMOTE = Path("/Users/nathanirniger/Desktop/MA/Project/Code/assistive-arm")
 
 class States(Enum):
     CALIBRATING = 1
@@ -51,11 +52,11 @@ def await_trigger_signal(mode: Literal["TRIGGER", "ENTER"]):
         print("\nPress trigger to start recording P_EE...")
         while not GPIO.input(17):
             pass
-        print()
 
 
 def save_log_or_delete(remote_dir: Path, log_path: Path, successful: bool=False):
     print("\n\n\n\n")
+    # If next iteration starts to soon -> add time delay (due to trigger signal)
     if successful:
         print("\nSending logfile to Mac...")
         print("log file: ", log_path)
@@ -157,10 +158,10 @@ def countdown(duration: int=3):
     print("\nGO!")
 
 
-def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path):
+def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, profile_dir: Path):
     yaml_path = get_yaml_path(yaml_name="device_height_calibration", session_dir=session_dir)
 
-    unadjusted_profile = pd.read_csv("./torque_profiles/simulation_profile.csv", index_col="Percentage")
+    unadjusted_profile = pd.read_csv(profile_dir, index_col="Percentage")
 
     loop = SoftRealtimeLoop(dt=1 / freq, report=False, fade=0)
 
@@ -223,6 +224,7 @@ def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, 
 
         # Apply calibrated theta to all spline profiles
         spline_path = Path("./torque_profiles/spline_profiles")
+        # Create directory on remote host
         os.system(f"ssh macbook 'mkdir -p {PROJECT_DIR_REMOTE / spline_path}'")
 
         zip_file_path = Path("./torque_profiles/spline_profiles/spline_profiles.zip")
@@ -234,16 +236,23 @@ def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, 
                     spline_profile.theta_2 = theta_2_scaled
                     spline_profile.to_csv(profile)
                     zip_file.write(profile, os.path.basename(profile))
-
+        # Send zip file to remote host
         os.system(f"scp {zip_file_path} macbook:{PROJECT_DIR_REMOTE / spline_path}")
         unzip_command = f"ssh macbook 'unzip -oq {PROJECT_DIR_REMOTE / zip_file_path} -d {PROJECT_DIR_REMOTE / spline_path}'"
+        # Unzip the file on the remote host
         os.system(unzip_command)
+        # Remove the zip file on the remote host
         os.system(f"ssh macbook 'rm {PROJECT_DIR_REMOTE / zip_file_path}'")
         
+        # Unzip the file locally
+        os.system(f"unzip -oq {zip_file_path} -d {spline_path}")
+        # Remove the zip file locally
+        os.remove(zip_file_path)
+
         # Apply scaled theta to original optimal profile
         scaled_optimal_profile = unadjusted_profile.copy()
         scaled_optimal_profile.theta_2 = theta_2_scaled
-        scaled_profile_path = Path("./torque_profiles/scaled_simulation_profile.csv")
+        scaled_profile_path = Path(profile_dir.parent) / f"{profile_dir.stem}_scaled.csv"
         scaled_optimal_profile.to_csv(scaled_profile_path)
 
         os.system(f"scp {scaled_profile_path} macbook:{PROJECT_DIR_REMOTE / scaled_profile_path.parent}")
@@ -257,8 +266,10 @@ def calibrate_height(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, 
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
-def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, mode: Literal["TRIGGER", "ENTER"]):
-    spline_profiles_path = Path("./torque_profiles/spline_profiles/")
+def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, profile_dir: Path, mode: Literal["TRIGGER", "ENTER"]):
+    # This function currently only makes sense for the naming convention peak_time_"time"_peak_force_"force".csv
+    # Need to adapt, once I come up with a better naming convention
+    spline_profiles_path = Path(profile_dir.parent) / f"spline_profiles"
     spline_dict = dict()
 
     # Load spline profiles
@@ -377,116 +388,6 @@ def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
-def assist_multiple_profiles(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path):
-    spline_profiles_path = Path("./torque_profiles/spline_profiles/")
-    spline_dict = dict()
-
-    for path in spline_profiles_path.iterdir():
-        peak_time = int(path.stem.split("_")[2])
-        peak_force = int(path.stem.split("_")[5])
-
-        if peak_time not in spline_dict:
-            spline_dict[peak_time] = dict()
-
-        spline_dict[peak_time][peak_force] = pd.read_csv(path, index_col="Percentage")
-
-    try:
-        motor_1.send_torque(desired_torque=0, safety=True)
-        motor_2.send_torque(desired_torque=0, safety=True)
-
-        print('Choose mode:\n')
-        print('1 - Single profile')
-        print('2 - All profiles for a given peak time')
-        print('3 - All profiles for a given peak force')
-        print('4 - All profiles')
-
-        chosen_mode = input("\nChoose mode: ")
-
-        if chosen_mode == "1":
-            peak_times = sorted(list(spline_dict.keys()))
-            peak_forces = sorted(list(spline_dict[peak_times[0]].keys()))
-            print("Available peak times: [%]\n", peak_times)
-            print("Peak forces: [N]\n", peak_forces)
-
-            peak_time = int(input("Enter peak time: "))
-            peak_force = int(input("Enter peak force: "))
-            profile = spline_dict[peak_time][peak_force]
-
-            log_path, logger = get_logger(log_name=f"single_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
-            print(f"Recording to {log_path}")
-            print(f"\nUsing profile with:")
-            print(f"Peak time: {peak_time}%")
-            print(f"Peak force: {peak_force}N")
-
-            print("\nPress trigger to start recording P_EE...")
-            while not GPIO.input(17):
-                pass
-            print()
-            control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
-            save_log_or_delete(remote_dir=remote_dir, log_path=log_path) 
-
-        elif chosen_mode == "2":
-            peak_time = None
-            print("Available peak times: [%]\n", sorted(list(spline_dict.keys())))
-
-            # Check for valid entry
-            while not peak_time:
-                peak_time = int(input("Enter peak time: "))
-                if peak_time not in spline_dict:
-                    peak_time = None
-                    print("Invalid peak time. Try again.")
-            
-            profiles = spline_dict[peak_time]
-
-            print(f"Using following profiles for a peak time of {peak_time}%")
-            print(list(spline_dict[peak_force].keys()))
-            
-            for peak_force, profile in profiles.items():
-                # peak_time because we select a specific peak time and iterate over the peak forces
-                log_path, logger = get_logger(log_name=f"peak_time_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
-
-                print(f"\nCurrent profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
-                print(f"Recording to {log_path}")
-                input("Press Enter to start recording...")
-                countdown(duration=3)
-                print()
-                control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
-                save_log_or_delete(remote_dir=remote_dir, log_path=log_path) 
-
-        elif chosen_mode == '3':
-            peak_force = None
-            peak_times = sorted(list(spline_dict.keys()))
-            peak_forces = sorted(list(spline_dict[peak_times[0]].keys()))
-            print("Available peak forces: [N]\n", peak_forces)
-
-            # Check for valid entry
-            while not peak_force:
-                peak_force = int(input("Enter peak force: "))
-                if peak_force not in peak_forces:
-                    peak_force = None
-                    print("Peak force not in profile. Try again.")
-
-
-            print(f"Using following profiles for a peak force of {peak_force}N")
-            print(f"Peak times: \n",list(spline_dict.keys()))
-            
-            for peak_time in peak_times:
-                profile = spline_dict[peak_time][peak_force]
-                # peak_force because we select a specific peak force and iterate over the peak times
-                log_path, logger = get_logger(log_name=f"fixed_force_time_{peak_time}_force_{peak_force}", session_dir=session_dir)
-
-                print(f"Current profile: \nPeak time: {peak_time}% \nPeak force: {peak_force}N")
-                print(f"Recording to {log_path}")
-                print("\nPress trigger to start recording P_EE...")
-                while not GPIO.input(17):
-                    pass
-                print()
-                control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
-                save_log_or_delete(remote_dir=remote_dir, log_path=log_path)
-
-    except KeyboardInterrupt:
-        print("Keyboard interrupt detected. Shutting down...")
-
 
 def control_loop_and_log(
         motor_1: CubemarsMotor,
@@ -508,7 +409,7 @@ def control_loop_and_log(
 
     for t in loop:
         if mode == "TRIGGER":
-            if not GPIO.input(17):  # Detects if signal turns off (low signal)
+            if GPIO.input(17):  # Detects if stop signal is triggered
                 print("Stopped recording, exiting...")
                 break
         
@@ -532,15 +433,16 @@ def control_loop_and_log(
             motor_2.send_torque(desired_torque=0, safety=False)
 
         if t - print_time >= 0.05:
-            print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.torque:.3f}")
-            print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.torque:.3f}")
+            print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.measured_torque:.3f}")
+            print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.measured_torque:.3f}")
             print(f"Body height: {-P_EE[0]}")
             print(f"Movement: {index: .0f}%. tau_1: {tau_1}, tau_2: {tau_2}")
             sys.stdout.write(f"\x1b[4A\x1b[2K")
                     
             print_time = t
-
-        logger.writerow([cur_time - start_time, index, tau_1, motor_1.torque, motor_1.position, motor_1.velocity, tau_2, motor_2.torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
+        # ["Percentage", "target_tau_1", "measured_tau_1", "theta_1", "velocity_1", "target_tau_2", "measured_tau_2", "theta_2", "velocity_2", "EE_X", "EE_Y"]
+        # print(f"tau_1: {motor_1.measured_torque}, tau_2: {motor_2.measured_torque}")
+        logger.writerow([cur_time - start_time , index, tau_1, motor_1.measured_torque, motor_1.position, motor_1.velocity, tau_2, motor_2.measured_torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
     del loop
 
     motor_1.send_torque(desired_torque=0, safety=False)
@@ -555,21 +457,34 @@ def control_loop_and_log(
     return success
 
 
-def apply_simulation_profile(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path):
-    log_path, logger = get_logger(log_name="simulation_profile", session_dir=session_dir)
+def apply_simulation_profile(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, profile_dir: Path, mode: Literal["TRIGGER", "ENTER"]):
+    log_path, logger = get_logger(log_name=f"{profile_dir.stem}_scaled", session_dir=session_dir)
 
-    profile = pd.read_csv("./torque_profiles/scaled_simulation_profile.csv", index_col="Percentage")
+    adjusted_profile_dir = profile_dir.parent / f"{profile_dir.stem}_scaled.csv"
+    print(f"Using profile: {adjusted_profile_dir}")
 
-    input("\nPress Enter to start calibrating...")
+    # adjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille.csv")
+
+    # adjusted_profile_dir = Path(f"./torque_profiles/spline_profiles/peak_time_57_peak_force_62.csv")
+    
+    # Throw an error if the file does not exist
+    if not adjusted_profile_dir.exists():
+        raise FileNotFoundError(f"File {adjusted_profile_dir} does not exist, please calibrate the device first.")
+    
+    profile = pd.read_csv(adjusted_profile_dir, index_col="Percentage")
+
+    await_trigger_signal(mode=mode)
     countdown(duration=3)
 
     try:
-        control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq)
+        success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, mode=mode, apply_force=True)
+        save_log_or_delete(remote_dir=remote_dir, log_path=log_path, successful=success) 
 
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
-def collect_unpowered_data(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, mode: Literal["TRIGGER", "ENTER"]):
+
+def collect_unpowered_data(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, profile_dir: Path, mode: Literal["TRIGGER", "ENTER"]):
     """ Collect unpowered data for EMG synchronization.
 
     Args:
@@ -582,7 +497,8 @@ def collect_unpowered_data(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq:
     """
     iterations = 5
 
-    profile = pd.read_csv("./torque_profiles/scaled_simulation_profile.csv", index_col="Percentage")
+    adjusted_profile_dir = profile_dir.parent / f"{profile_dir.stem}_scaled.csv"
+    profile = pd.read_csv(adjusted_profile_dir, index_col="Percentage")
 
     # range from 1-5
     for i in range(1, iterations + 1):
@@ -592,10 +508,11 @@ def collect_unpowered_data(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq:
             try:
                 log_path, logger = get_logger(log_name=f"unpowered_device_{i}", session_dir=session_dir)
                 print(f"Recording to {log_path}")
-
                 await_trigger_signal(mode=mode)
+                # wait for 3 seconds
+                countdown(duration=3)
                 success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, apply_force=False, mode=mode)
-                save_log_or_delete(remote_dir=remote_dir, log_path=log_path, successful=not success)
+                save_log_or_delete(remote_dir=remote_dir, log_path=log_path, successful= success)
 
             except Exception as e:
                 print(e.with_traceback)
@@ -606,10 +523,23 @@ if __name__ == "__main__":
     logging = True
     freq = 200
 
-    subject_id = "Xabi"
+    subject_id = "Nathan"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
 
-    trigger_mode = "ENTER" # TRIGGER or ENTER
+
+    unadjusted_profile_dir = Path(f"./torque_profiles/spline_profiles/peak_time_57_peak_force_62.csv")
+    # unadjusted_profile_dir = Path(f"./torque_profiles/spline_profiles/peak_time_57_peak_force_62.csv")
+    # unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille.csv")
+    # unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille_scalex_scaley.csv")
+    # unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille_xy.csv")
+    # unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille_y.csv")
+    # Camille.csv
+    # Camille_scalex_scaley.csv
+    # Camille_xy.csv
+    # Camille_y.csv
+
+    trigger_mode = "TRIGGER" # TRIGGER or ENTER
+
 
     session_dir, session_remote_dir = set_up_logging_dir(subject_folder=subject_folder)
     try:
@@ -628,22 +558,22 @@ if __name__ == "__main__":
             if choice == States.CALIBRATING:
                 with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                        calibrate_height(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir)
+                        calibrate_height(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, profile_dir=unadjusted_profile_dir)
 
             elif choice ==States.UNPOWERED_COLLECTION:
                 with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                        collect_unpowered_data(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, mode=trigger_mode)
+                        collect_unpowered_data(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, profile_dir=unadjusted_profile_dir, mode=trigger_mode)
 
             elif choice == States.ASSISTING:
                 with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                        apply_simulation_profile(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, mode=trigger_mode)
+                        apply_simulation_profile(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, profile_dir=unadjusted_profile_dir, mode=trigger_mode)
 
             elif choice == States.ASSIST_PROFILES:
                 with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                        assist_multiple_profiles(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, mode=trigger_mode)
+                        assist_multiple_profiles(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, profile_dir=unadjusted_profile_dir, mode=trigger_mode)
 
             elif choice == States.EXIT:
                 print("Exiting...")
