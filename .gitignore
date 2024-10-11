@@ -1,3 +1,27 @@
+# Delsys folder
+Delsys-EMG-Real-Time/venv/
+Delsys-EMG-Real-Time/.idea/
+Delsys-EMG-Real-Time/*.pyc
+Delsys-EMG-Real-Time/*.xml
+Delsys-EMG-Real-Time/*/__pycache__/
+Delsys-EMG-Real-Time/*.vs
+Delsys-EMG-Real-Time/*.csv
+Delsys-EMG-Real-Time/*.mat
+Delsys-EMG-Real-Time/History/
+Delsys-EMG-Real-Time/Data/
+Delsys-EMG-Real-Time/*.m
+Delsys-EMG-Real-Time/GetPython.py
+Delsys-EMG-Real-Time/GetMatlab.py
+Delsys-EMG-Real-Time/GetFileAff.py
+Delsys-EMG-Real-Time/matlab_files.txt
+Delsys-EMG-Real-Time/python_files.txt
+Delsys-EMG-Real-Time/*.png
+
+# license
+Delsys-EMG-Real-Time/AeroPy/TrignoBase.py
+Delsys-EMG-Real-Time/lic/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
