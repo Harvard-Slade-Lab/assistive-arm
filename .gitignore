@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+# emg stuff
+EMG_Realtime/Data
+EMG_Realtime/lic
+EMG_realtime/resources
+EMG_Realtime/AeroPy/TrignoBase.py
+
 # Distribution / packaging
 .Python
 build/
