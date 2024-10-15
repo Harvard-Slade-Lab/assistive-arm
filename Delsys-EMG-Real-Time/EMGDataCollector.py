@@ -242,6 +242,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         print("Sensors configured.")
 
     def start_trial(self):
+        self.unassisted = False
         if not self.is_collecting:
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
