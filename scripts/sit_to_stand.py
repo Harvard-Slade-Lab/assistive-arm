@@ -19,6 +19,14 @@ from NeuroLocoMiddleware.SoftRealtimeLoop import SoftRealtimeLoop
 from assistive_arm.motor_control import CubemarsMotor
 from assistive_arm.robotic_arm import calculate_ee_pos, get_jacobian, get_target_torques
 
+# Network socket server
+import socket
+import threading
+
+# Configuration
+HOST = '0.0.0.0'  # Listen on all available interfaces
+PORT = 3000      # Arbitrary non-privileged port
+
 # Set options
 np.set_printoptions(precision=3, suppress=True)
 
@@ -42,17 +50,55 @@ class States(Enum):
             return False
     
 
-def await_trigger_signal(mode: Literal["TRIGGER", "ENTER"]):
+def await_trigger_signal(mode: Literal["TRIGGER", "ENTER", "SOCKET"], conn: socket.socket=None):
     """ Wait for trigger signal OR Enter to start recording """
     if mode == "ENTER": 
         input("\nPress Enter to start recording...")
 
-    
     if mode == "TRIGGER":
         print("\nPress trigger to start recording P_EE...")
         while not GPIO.input(17):
             pass
 
+    elif mode == "SOCKET":
+        print("\nWaiting for socket data to start recording")
+        if collect_flag == True:
+            print("Start recording")
+
+
+def start_server():
+    """ Start a TCP socket server and accept a connection. """
+    global collect_flag
+    collect_flag = False
+    global score
+    score = None
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind((HOST, PORT))
+        server_socket.listen()
+        print(f"Server listening on {HOST}:{PORT}")
+
+        conn, addr = server_socket.accept()
+        with conn:
+            print(f"Connected by {addr}")
+            while True:
+                data = conn.recv(1024)  # Buffer size of 1024 bytes
+
+                data_decoded = data.decode('utf-8', errors='replace')
+
+                if data_decoded == "Start":
+                    print("Start recording")
+                    collect_flag = True
+                elif data_decoded == "Stop":
+                    print("Stop recording")
+                    collect_flag = False
+                    break
+                elif not data:
+                    break
+                else:
+                    # Process the received data (print, save, etc.)
+                    print("Received score:", data_decoded)
+                    score = data_decoded
 
 def save_log_or_delete(remote_dir: Path, log_path: Path, successful: bool=False):
     print("\n\n\n\n")
@@ -395,7 +441,7 @@ def control_loop_and_log(
         logger: csv.writer,
         profile: pd.DataFrame,
         freq: int,
-        mode: Literal["TRIGGER", "ENTER"],
+        mode: Literal["TRIGGER", "ENTER", "SOCKET"],
         apply_force: bool=True):
 
     print("Recording started. Please perform the sit-to-stand motion.")
@@ -413,6 +459,11 @@ def control_loop_and_log(
                 print("Stopped recording, exiting...")
                 break
         
+        if mode == "SOCKET":
+            if not collect_flag:
+                print("Stopped recording, exiting...")
+                break
+            
         cur_time = time.time()
 
         if motor_1._emergency_stop or motor_2._emergency_stop:
@@ -462,10 +513,6 @@ def apply_simulation_profile(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
 
     adjusted_profile_dir = profile_dir.parent / f"{profile_dir.stem}_scaled.csv"
     print(f"Using profile: {adjusted_profile_dir}")
-
-    # adjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille.csv")
-
-    # adjusted_profile_dir = Path(f"./torque_profiles/spline_profiles/peak_time_57_peak_force_62.csv")
     
     # Throw an error if the file does not exist
     if not adjusted_profile_dir.exists():
@@ -538,8 +585,11 @@ if __name__ == "__main__":
     # Camille_xy.csv
     # Camille_y.csv
 
-    trigger_mode = "TRIGGER" # TRIGGER or ENTER
+    trigger_mode = "SOCKET" # TRIGGER, ENTER or SOCKET
 
+    if trigger_mode == "SOCKET":
+        client_thread = threading.Thread(target=start_server)
+        client_thread.start()
 
     session_dir, session_remote_dir = set_up_logging_dir(subject_folder=subject_folder)
     try:
@@ -560,7 +610,7 @@ if __name__ == "__main__":
                     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
                         calibrate_height(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, profile_dir=unadjusted_profile_dir)
 
-            elif choice ==States.UNPOWERED_COLLECTION:
+            elif choice == States.UNPOWERED_COLLECTION:
                 with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
                         collect_unpowered_data(motor_1, motor_2, freq=freq, session_dir=session_dir, remote_dir=session_remote_dir, profile_dir=unadjusted_profile_dir, mode=trigger_mode)
@@ -579,4 +629,5 @@ if __name__ == "__main__":
                 print("Exiting...")
                 break
     finally:
+        client_thread.join()
         GPIO.cleanup()
