@@ -1,3 +1,9 @@
+import os
+import pandas as pd
+from pathlib import Path
+from datetime import datetime
+PROJECT_DIR_REMOTE = Path("/Users/nathanirniger/Desktop/MA/Project/Code/assistive-arm")
+
 class DataExporter:
     def __init__(self, parent):
         self.parent = parent
@@ -71,3 +77,55 @@ class DataExporter:
                         else:
                             row.append("")
                 f_gyro.write(",".join(row) + '\n')
+
+        # Make remote copy of the exported files
+        current_date = datetime.now()
+        month = current_date.strftime("%B")
+        day = current_date.strftime("%d")
+
+        remote_dir_emg = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "Raw").as_posix()
+        remote_dir_log = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "Log").as_posix()
+        os.system(f"ssh macbook mkdir -p {remote_dir_emg}")
+        os.system(f"ssh macbook mkdir -p {remote_dir_log}")
+
+        # Export log data to CSV
+        print("Exporting log data...")
+        log_df = pd.DataFrame(self.parent.log_entries)
+        # Save log data to CSV in the local subject folder
+        subject_folder_log = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "Logs")
+        if not os.path.exists(subject_folder_log):
+            os.makedirs(subject_folder_log)
+        log_filename = os.path.join(subject_folder_log, f"{self.parent.current_date}_Log_Data_{self.parent.trial_number}.csv")
+        log_df.to_csv(log_filename, index=False)
+
+        os.system(f"scp {log_filename} macbook:{remote_dir_log}")
+        os.system(f"scp {filename_emg} macbook:{remote_dir_emg}")
+        os.system(f"scp {filename_acc} macbook:{remote_dir_emg}")
+        os.system(f"scp {filename_gyro} macbook:{remote_dir_emg}")
+        print("Data exported to Host.")
+
+
+
+    def export_sts_data_to_csv(self, emg_data, sensor_label):
+        print("Exporting STS emg data...")
+        filename_emg = f"{self.parent.current_date}_EMG_STS_Trial_{self.parent.trial_number}_Sensor_{sensor_label}.csv"
+
+        emg_data_df = pd.DataFrame(emg_data)
+
+        # Save EMG data to CSV in the local subject folder
+        subject_folder_sts = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "STS")
+        if not os.path.exists(subject_folder_sts):
+            os.makedirs(subject_folder_sts)
+        filepath_emg = os.path.join(subject_folder_sts, filename_emg)  
+        emg_data_df.to_csv(filepath_emg, index=False)
+
+
+        # Make remote copy of the exported files
+        current_date = datetime.now()
+        month = current_date.strftime("%B")
+        day = current_date.strftime("%d")
+        remote_dir_emg_sts = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "sts").as_posix()
+        os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
+
+        os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
+

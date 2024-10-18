@@ -8,7 +8,7 @@ import numpy as np
 import queue
 
 class DataKernel():
-    def __init__(self, trigno_base, host='10.250.176.251', port=65432):
+    def __init__(self, trigno_base, host='10.250.1.229', port=3000):
         self.TrigBase = trigno_base
         self.packetCount = 0
         self.sampleCount = 0
@@ -27,12 +27,17 @@ class DataKernel():
         """Send data to the Raspberry Pi."""
         try:
             if self.socket:
-                self.socket.sendall(data)
+                byte_data = data.encode('utf-8')
+                self.socket.sendall(byte_data)
         except BrokenPipeError:
             print("Connection closed by the server.")
+    
+    def close_connection(self):
+        """Close the connection to the server."""
+        if self.socket:
+            self.socket.close()
 
     def processData(self, data_queue):
-        """Processes the data from the DelsysAPI and sends it to the Raspberry Pi."""
         outArr = self.GetData()
         if outArr is not None:
             for i in range(len(outArr)):
@@ -45,18 +50,8 @@ class DataKernel():
                 self.packetCount += len(outArr[0])
                 self.sampleCount += len(outArr[0][0])
 
-                # Convert data to bytes and send to Raspberry Pi
-                byte_data = self.prepare_data_for_sending(data)
-                self.send_data(byte_data)
-
             except IndexError:
                 pass
-
-    def prepare_data_for_sending(self, data):
-        """Convert data to a byte format for sending."""
-        # Flatten and convert to string, then encode to bytes
-        flat_data = [str(d) for sublist in data for d in sublist]  # Flatten the data
-        return '\n'.join(flat_data).encode('utf-8')
 
     def GetData(self):
         """Check if data is ready from DelsysAPI."""
@@ -75,7 +70,3 @@ class DataKernel():
         else:
             return None
 
-    def close_connection(self):
-        """Close the connection to the server."""
-        if self.socket:
-            self.socket.close()

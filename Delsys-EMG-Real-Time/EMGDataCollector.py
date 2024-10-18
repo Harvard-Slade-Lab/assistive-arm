@@ -15,6 +15,7 @@ from AeroPy.TrignoBase import TrignoBase
 from AeroPy.DataManager import DataKernel
 
 from UI.UISetup import UISetup
+from UI.NoPlotUISetup import NoPlotUISetup
 from Plotting.Plotter import Plotter
 from DataProcessing.DataProcessor import DataProcessor
 from DataExport.DataExporter import DataExporter
@@ -31,17 +32,22 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Variables for data processing
         self.analysed_segments = 0
-        self.segment_start_idx = 0
-        self.segment_end_idx = 0
+        self.segment_start_idx_imu = 0
+        self.segment_end_idx_imu = 0
+        self.sts_start_idx_imu = 0
+        self.sts_end_idx_imu = 0
         self.count_peak = 0
         self.peak = False
 
+        self.log_entries = []
+
         # Variables to calculate reference scores
         self.unassisted = False
+        self.unassisted_counter = 0
         self.unassisted_mean = 0
 
         # Connect to the server
-        # self.data_handler.connect_to_server()
+        self.data_handler.connect_to_server()
 
         # Initialize attributes expected by TrignoBase
         self.EMGplot = None
@@ -78,13 +84,18 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Lock for synchronizing access to plot_data
         self.plot_data_lock = threading.Lock()
-
-        # **Initialize the Plotter BEFORE setting up the UI**
-        self.plotter = Plotter(self)
-
-        # Set up the UI
-        self.ui = UISetup(self)
-        self.ui.init_ui()
+        
+        # Flag to select if plots should be shown or not
+        self.plot = True
+        if self.plot:
+            # **Initialize the Plotter BEFORE setting up the UI**
+            self.plotter = Plotter(self)
+            # Set up the UI
+            self.ui = UISetup(self)
+            self.ui.init_ui()
+        else:
+            self.ui = NoPlotUISetup(self)
+            self.ui.init_ui()
 
         # Set up the DataProcessor
         self.data_processor = DataProcessor(self)
@@ -148,10 +159,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.subject_number = input("Enter subject number: ").strip()
 
         # Determine the next trial number
-        subject_folder = os.path.join(self.data_directory, f"Subject {self.subject_number}")
+        subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
         if os.path.exists(subject_folder):
             existing_trials = [fname for fname in os.listdir(subject_folder) if 'Trial' in fname]
-            trial_numbers = [int(fname.split('Trial ')[-1].split('.')[0]) for fname in existing_trials if 'Trial' in fname]
+            trial_numbers = [int(fname.split('Trial_')[-1].split('.')[0]) for fname in existing_trials if 'Trial' in fname]
             if trial_numbers:
                 self.trial_number = max(trial_numbers) + 1
             else:
@@ -165,7 +176,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Configure sensors and initialize plot
         self.configure_sensors()
-        self.plotter.initialize_plot()
+
+        if self.plot:
+            self.plotter.initialize_plot()
 
     def configure_sensors(self):
         print("Configuring sensors...")
@@ -242,8 +255,14 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         print("Sensors configured.")
 
     def start_trial(self):
-        self.unassisted = False
         if not self.is_collecting:
+            # Set unassisted flag to false to trigger score calculation
+            self.unassisted = False
+            self.count_unassisted = 0
+
+            # Send singal to socket server to start data collection
+            self.data_handler.send_data("Start")
+
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
             self.data_processor.reset_plot_data()
@@ -262,11 +281,15 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             print("A trial is already running.")
 
     def start_unassisted_trial(self):
-        self.unassisted = True
         if not self.is_collecting:
+            # Set unassisted flag to true to trigger unassisted data reference collection
+            self.unassisted = True
+            # Send singal to socket server to start data collection
+            self.data_handler.send_data("Start")
+
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
-            self.reset_plot_data()
+            self.data_processor.reset_plot_data()
             for sensor_label in self.complete_emg_data:
                 self.complete_emg_data[sensor_label] = []
             for sensor_label in self.complete_acc_data:
@@ -283,14 +306,16 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     def stop_trial(self):
         if self.is_collecting:
+            # Send signal to socket server to stop data collection
+            self.data_handler.send_data("Stop")
+
             print("Stopping trial...")
             self.stop_collection()
             time.sleep(10)  # Wait for last batch data
-
-            filename_emg = f"{self.current_date} EMG Trial {self.trial_number}.csv"
-            filename_acc = f"{self.current_date} ACC Trial {self.trial_number}.csv"
-            filename_gyro = f"{self.current_date} GYRO Trial {self.trial_number}.csv"
-            subject_folder = os.path.join(self.data_directory, f"Subject {self.subject_number}")
+            filename_emg = f"{self.current_date}_EMG_Trial_{self.trial_number}.csv"
+            filename_acc = f"{self.current_date}_ACC_Trial_{self.trial_number}.csv"
+            filename_gyro = f"{self.current_date}_GYRO_Trial_{self.trial_number}.csv"
+            subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
             if not os.path.exists(subject_folder):
                 os.makedirs(subject_folder)
             filepath_emg = os.path.join(subject_folder, filename_emg)
@@ -307,18 +332,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     def start_collection(self):
         print("Starting data collection...")
-        # Connect to the server (socket connection)
-        # try:
-        #     self.data_handler.connect_to_server()
-        #     print("Connected to the server.")
-        # except Exception as e:
-        #     print(f"Failed to connect to the server: {e}")
-        #     return  # Exit if the connection fails
         self.base.Start_Callback(start_trigger=False, stop_trigger=False)
         self.threadManager(start_trigger=False, stop_trigger=False)
 
     def stop_collection(self):
-        print("Stopping data collection...")
+        print("Stopping data collection1...")
         self.pauseFlag = True
         self.base.Stop_Callback()
         # Wait for threads to finish
@@ -351,19 +369,35 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         start_time (float): Time when the motion starts.
         end_time (float): Time when the motion ends.
         """
+        # Find the global minimum in X velocity
+        minimum = np.argmin(df['GYRO X (deg/s)'])
+
         # First derivative (rate of change) to detect where the acceleration starts decreasing
         acc_z_diff = np.diff(df['ACC Z (G)'])
-
         # Find all acceleration-change extremas
         maxima = argrelextrema(acc_z_diff, np.greater)[0]
-
-        # Find the global minimum
-        minimum = np.argmin(df['ACC Z (G)'])
-
         # Get the two maxima closest to the global minimum
         maxima.sort()
+
+        # Maximum in acc z diff before global minimum is a good way to detect the start of the motion
         start_idx = maxima[np.searchsorted(maxima, minimum) - 1]
-        end_idx = maxima[np.searchsorted(maxima, minimum)]
+
+        # More conservative (stops later)
+        # # We need to have at least three maxima to be able to detect the end of the motion, as sometimes people might sit down to quickly
+        # if len(maxima) > 2:
+        #     end_idx = maxima[np.searchsorted(maxima, minimum)]
+        # # If there is no maxima, there will still always be a change of signs in the jerk
+        # else:
+        #     acc_z_diff_diff = np.diff(acc_z_diff)
+        #     acc_z_diff_diff_minima = argrelextrema(acc_z_diff_diff, np.less)[0]
+        #     # Select the minimum closest to the global minimum (higher than the global minimum)
+        #     end_idx = acc_z_diff_diff_minima[np.searchsorted(acc_z_diff_diff_minima, minimum)]
+
+        # Less conservative (stops earlier)
+        gyro_x_diff = np.diff(df['GYRO X (deg/s)'])
+        gyro_x_diff_diff = np.diff(gyro_x_diff)
+        minima = argrelextrema(gyro_x_diff_diff, np.less)[0]
+        end_idx = minima[np.searchsorted(minima, minimum)]
 
         return start_idx, end_idx
 
@@ -384,21 +418,16 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Normalize the cutoff frequency with respect to Nyquist frequency
         nyquist_freq = sampling_freq / 2
         normalized_cutoff = cutoff_freq / nyquist_freq
-
         # Design a Butterworth low-pass filter
         b, a = sp.signal.butter(filter_order, normalized_cutoff, btype='low')
-
         # Create a copy of the DataFrame to hold the filtered data
         df_filtered = df.copy()
-
         # Apply the filter to data
         for col in df.columns:
             df_filtered[col] = sp.signal.filtfilt(b, a, df[col])
-
-
         return df_filtered
     
-    def filter_emg(unfiltered_df: pd.DataFrame, low_pass=4, sfreq=1259.2593, high_band=20, low_band=450) -> pd.DataFrame:
+    def filter_emg(self, unfiltered_df: pd.DataFrame, low_pass=4, sfreq=1259.2593, high_band=20, low_band=450) -> pd.DataFrame:
         """ Filter EMG signals
 
         Args:
@@ -452,6 +481,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
 
     def calculate_stuff(self):
+        # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
+        # The arrow of the sensor should be pointing towards the torso
         imu_sensor_label = 0
         gyro_axis = 'X'
         acc_axis = 'Z'
@@ -460,51 +491,99 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         peak_threshold = 50
 
         relevant_emg = []
+        assisted_mean = 0
 
         if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
-            # Get current Gyro X value
-            # gyro_x = self.complete_gyro_data[sensor_label][gyro_axis][-1]
-            # Get the mean of the past 10 Gyro X values
-            gyro_x = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
+            # Get the mean of the past 100 Gyro X values
+            gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
 
-            if gyro_x > peak_threshold and not self.peak:
+            if gyro_x_mean > peak_threshold and not self.peak:
                 self.peak = True
-                self.segment_end_idx = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
+                self.segment_end_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
                 self.count_peak += 1
 
             if self.count_peak > self.analysed_segments:
                 self.analysed_segments += 1
-                z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][self.segment_start_idx:self.segment_end_idx]
-                # Convert to DataFrame
+
+                #Extract the segment of the x-axis gyro data
+                gyro_x_segment = self.complete_gyro_data[imu_sensor_label][gyro_axis][self.segment_start_idx_imu:self.segment_end_idx_imu]
+                gyro_x_segment = pd.DataFrame(gyro_x_segment, columns=['GYRO X (deg/s)'])
+
+                # Extract the segment of the z-axis acceleration data
+                z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][self.segment_start_idx_imu:self.segment_end_idx_imu]
                 z_acc_segment = pd.DataFrame(z_acc_segment, columns=['ACC Z (G)'])
-                z_acc_segment_filtered = self.apply_lowpass_filter(z_acc_segment, 1, 148.1481)
+
+                # Concate the two segments
+                imu_data = pd.concat([gyro_x_segment, z_acc_segment], axis=1)
+                print(self.gyro_sample_rates[imu_sensor_label])
+                imu_filtered = self.apply_lowpass_filter(imu_data, 1, self.gyro_sample_rates[imu_sensor_label])   
 
                 # Extract time (start,end)
-                start_time, end_time = self.extract_time(z_acc_segment_filtered)
+                self.sts_start_idx_imu, self.sts_end_idx_imu = self.extract_time(imu_filtered)
 
-                # Extract relevant_emg data
-                for sensor_label in self.complete_emg_data:
-                    if relevant_emg:
-                        relevant_emg.append(self.complete_emg_data[sensor_label][start_time:end_time])
-                    else:
-                        relevant_emg = self.complete_emg_data[sensor_label][start_time:end_time]
+                if self.sts_start_idx_imu is None or self.sts_end_idx_imu is None or self.sts_start_idx_imu >= self.sts_end_idx_imu:
+                    print("Failed to extract start and end indices.")
 
-                # Filter relevant_emg data
-                relevant_emg_filtered, env_freq = self.filter_emg(relevant_emg)
+                else:
+                    # Convert start and end indices from imu to emg indices
+                    emg_start_idx = int(np.round(self.sts_start_idx_imu * self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]))
+                    emg_end_idx = int(np.round(self.sts_end_idx_imu * self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]))
 
-                # Get score
-                # Calculated reference score if unassisted
-                if self.unassisted:
-                    self.unassisted_mean = np.mean(relevant_emg)
+                    # Extract relevant_emg data
+                    for sensor_label in self.complete_emg_data.keys():
+                        # Log the extracted emg data
+                        self.data_exporter.export_sts_data_to_csv(self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx], sensor_label)
+                        if relevant_emg:
+                            # Append to existing data
+                            relevant_emg += self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
+                        else:
+                            relevant_emg = self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
 
-                # Compare score of assisted vs unassisted
+                    # Convert to DataFrame
+                    relevant_emg = pd.DataFrame(relevant_emg)
+                    # Filter relevant_emg data
+                    relevant_emg_filtered, env_freq = self.filter_emg(relevant_emg)
 
-                # Send comparison score to Raspi
+                    # Get score
+                    # Calculated reference score if unassisted
+                    if self.unassisted:
+                        self.unassisted_counter += 1
+                        if self.unassisted_counter == 1:
+                            self.unassisted_mean = np.mean(relevant_emg_filtered)
+                        else:
+                            self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered)) / self.unassisted_counter
+
+                        # Log the extracted variables
+                        log_entry = {
+                            'Segment Start Index': self.segment_start_idx_imu,
+                            'Segment End Index': self.segment_end_idx_imu,
+                            'Start Time': self.sts_start_idx_imu,
+                            'End Time': self.sts_end_idx_imu,
+                            'Unassisted Mean': self.unassisted_mean
+                        }
+                        self.log_entries.append(log_entry)
+
+                    else: 
+                        # Compare score of assisted vs unassisted
+                        assisted_mean = np.mean(relevant_emg_filtered)
+                        # Send comparison score to socket server
+                        self.data_handler.send_data(str(self.unassisted_mean - assisted_mean))
+
+                        # Log the extracted variables
+                        log_entry = {
+                            'Segment Start Index': self.segment_start_idx_imu,
+                            'Segment End Index': self.segment_end_idx_imu,
+                            'Start Time': self.sts_start_idx_imu,
+                            'End Time': self.sts_end_idx_imu,
+                            'Assisted Mean': assisted_mean,
+                        }
+                        self.log_entries.append(log_entry)
+
 
             if self.peak:
-                if gyro_x < 50:
+                if gyro_x_mean < peak_threshold:
                     self.peak = False
-                    self.segment_start_idx = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
+                    self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
 
 
     def stream_data(self):
@@ -519,4 +598,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def on_quit(self):
         print("Quitting application.")
         self.stop_collection()
+        # Close the socket connection
+        self.data_handler.close_connection()
         self.close()

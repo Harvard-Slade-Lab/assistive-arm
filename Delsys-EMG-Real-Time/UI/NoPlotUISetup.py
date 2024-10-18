@@ -1,6 +1,6 @@
 from PyQt5 import QtWidgets
 
-class UISetup:
+class NoPlotUISetup:
     def __init__(self, parent):
         self.parent = parent
 
@@ -32,7 +32,7 @@ class UISetup:
         self.parent.start_button.clicked.connect(self.parent.start_trial)
         self.parent.stop_button.clicked.connect(self.parent.stop_trial)
         # **Corrected connection: Connect to plotter's autoscale_plots method**
-        self.parent.autoscale_button.clicked.connect(self.parent.plotter.autoscale_plots)
+        # self.parent.autoscale_button.clicked.connect(self.parent.plotter.autoscale_plots)
         self.parent.quit_button.clicked.connect(self.parent.on_quit)
 
         button_layout.addWidget(self.parent.start_unassisted_button)
@@ -42,8 +42,9 @@ class UISetup:
         button_layout.addWidget(self.parent.quit_button)
 
         # PyQtGraph Plot Widget
-        self.parent.plot_widget = QtWidgets.QWidget()
-        main_layout.addWidget(self.parent.plot_widget)
+        # self.parent.plot_widget = QtWidgets.QWidget()
+        # main_layout.addWidget(self.parent.plot_widget)
         main_layout.addLayout(button_layout)
 
         self.parent.show()
+
