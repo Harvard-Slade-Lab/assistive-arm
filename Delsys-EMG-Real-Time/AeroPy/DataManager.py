@@ -38,19 +38,32 @@ class DataKernel():
             self.socket.close()
 
     def processData(self, data_queue):
+        """Processes the data from the DelsysAPI and places it in the data_queue argument"""
         outArr = self.GetData()
         if outArr is not None:
             for i in range(len(outArr)):
-                self.allcollectiondata[i].extend(outArr[i][0].tolist())
+                # Check for non-empty data and ensure the expected structure
+                if outArr[i] and len(outArr[i]) > 0 and isinstance(outArr[i][0], np.ndarray):
+                    try:
+                        self.allcollectiondata[i].extend(outArr[i][0].tolist())
+                    except IndexError:
+                        # print(f"Index {i} out of range for allcollectiondata with length {len(self.allcollectiondata)}")
+                        continue
+                else:
+                    print(f"Channel {i} has unexpected data structure or is empty.")
+                    continue
+
             try:
                 data = []
                 for idx in range(len(outArr)):
-                    data.append(outArr[idx][0].tolist())
-                data_queue.put(data)
-                self.packetCount += len(outArr[0])
-                self.sampleCount += len(outArr[0][0])
-
+                    if outArr[idx] and isinstance(outArr[idx][0], np.ndarray):
+                        data.append(outArr[idx][0].tolist())
+                if data:
+                    data_queue.put(data)
+                    self.packetCount += len(outArr[0])
+                    self.sampleCount += len(outArr[0][0])
             except IndexError:
+                print("IndexError encountered while putting data into queue.")
                 pass
 
     def GetData(self):

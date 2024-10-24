@@ -7,8 +7,13 @@ def main():
     window_duration = 5  # Duration in seconds
     data_directory = "Data"
 
+    # Flag for plotting
+    plot = False
+    # Flag for Socket connection
+    socket = False
+
     appQt = QtWidgets.QApplication(sys.argv)
-    collector = EMGDataCollector(window_duration=window_duration, data_directory=data_directory)
+    collector = EMGDataCollector(plot, socket, window_duration=window_duration, data_directory=data_directory)
     collector.connect_base()
     collector.scan_and_pair_sensors()
     sys.exit(appQt.exec_())

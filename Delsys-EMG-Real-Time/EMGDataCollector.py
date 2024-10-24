@@ -5,6 +5,7 @@ import numpy as np
 import os
 import datetime
 import queue
+import re
 import scipy as sp
 from scipy.signal import find_peaks, argrelextrema
 import pandas as pd
@@ -21,7 +22,7 @@ from DataProcessing.DataProcessor import DataProcessor
 from DataExport.DataExporter import DataExporter
 
 class EMGDataCollector(QtWidgets.QMainWindow):
-    def __init__(self, window_duration=5, data_directory="Data"):
+    def __init__(self, plot=False, socket=False, window_duration=5, data_directory="Data"):
         super().__init__()
         self.window_duration = window_duration
         self.data_directory = data_directory
@@ -46,8 +47,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.unassisted_counter = 0
         self.unassisted_mean = 0
 
-        # Connect to the server
-        self.data_handler.connect_to_server()
+        # Flag to have socket connection or not
+        self.socket = socket
+        if self.socket:
+            # Connect to the server
+            self.data_handler.connect_to_server()
 
         # Initialize attributes expected by TrignoBase
         self.EMGplot = None
@@ -76,6 +80,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Initialize trial variables
         self.current_date = datetime.datetime.now().strftime('%Y%m%d')
         self.subject_number = ''
+        self.assistive_profile_name = ''
         self.trial_number = 1
 
         # Ensure data directory exists
@@ -84,9 +89,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Lock for synchronizing access to plot_data
         self.plot_data_lock = threading.Lock()
-        
+
         # Flag to select if plots should be shown or not
-        self.plot = True
+        self.plot = plot
         if self.plot:
             # **Initialize the Plotter BEFORE setting up the UI**
             self.plotter = Plotter(self)
@@ -120,43 +125,79 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             else:
                 print("Invalid input. Please enter 'y', 'n'.")
 
-        rename_input = input("Rename sensors? (y/n): ").strip().lower()
-        if rename_input == 'y':
-            for sensor in self.base.all_scanned_sensors:
-                label = sensor.PairNumber
-                new_name = input(f"Type name for sensor '{label}': ").strip()
-                self.sensor_names[label] = new_name
-        else:
-            for sensor in self.base.all_scanned_sensors:
-                label = sensor.PairNumber
-                self.sensor_names[label] = f"Sensor {label}"
-        print("Sensor renaming complete.")
+        project_name = input("Enter project name (any key if no project defined): ").strip()
 
-        # Build a mapping from sensor label to index
-        self.sensor_label_to_index = {}
-        for idx, sensor in enumerate(self.base.all_scanned_sensors):
-            label = sensor.PairNumber
-            self.sensor_label_to_index[label] = idx
+        if project_name == '0':
+            rename_input = input("Rename sensors? (y/n): ").strip().lower()
+            if rename_input == 'y':
+                for sensor in self.base.all_scanned_sensors:
+                    label = sensor.PairNumber
+                    new_name = input(f"Type name for sensor '{label}': ").strip()
+                    self.sensor_names[label] = new_name
+            else:
+                for sensor in self.base.all_scanned_sensors:
+                    label = sensor.PairNumber
+                    self.sensor_names[label] = f"Sensor {label}"
+            print("Sensor renaming complete.")
 
-        # Mode selection for each sensor
-        default_mode = None  # Set your default mode here as a string, or keep None to prompt
-        if default_mode is None:
+            # Build a mapping from sensor label to index
+            self.sensor_label_to_index = {}
+            for idx, sensor in enumerate(self.base.all_scanned_sensors):
+                label = sensor.PairNumber
+                self.sensor_label_to_index[label] = idx
+
+            # Mode selection for each sensor
+            default_mode = None  # Set your default mode here as a string, or keep None to prompt
+            if default_mode is None:
+                for label, sensor_index in self.sensor_label_to_index.items():
+                    modes = self.base.getSampleModes(sensor_index)
+                    print(f"Available modes for sensor {label}:")
+                    for idx, mode in enumerate(modes):
+                        print(f"{idx}: {mode}")
+                    mode_index = int(input(f"Select mode index for sensor {label}: "))
+                    selected_mode = modes[mode_index]
+                    self.base.setSampleMode(sensor_index, selected_mode)
+                    print(f"Set mode '{selected_mode}' for sensor {label}")
+            else:
+                for label, sensor_index in self.sensor_label_to_index.items():
+                    self.base.setSampleMode(sensor_index, default_mode)
+                    print(f"Set mode '{default_mode}' for sensor {label}")
+
+        if project_name == 'sts':
+            sensor_names = {1: "IMU", 2: "RF_R", 3: "VM_R", 4: "BF_R", 5: "G_R", 6: "RF_L", 7: "VM_L", 8: "BF_L", 9: "G_L"}
+
+            self.sensor_label_to_index = {}
+            for idx, sensor in enumerate(self.base.all_scanned_sensors):
+                label = sensor.PairNumber
+                self.sensor_label_to_index[label] = idx
+
             for label, sensor_index in self.sensor_label_to_index.items():
+                self.sensor_names[label] = sensor_names[sensor_index+1]
                 modes = self.base.getSampleModes(sensor_index)
-                print(f"Available modes for sensor {label}:")
-                for idx, mode in enumerate(modes):
-                    print(f"{idx}: {mode}")
-                mode_index = int(input(f"Select mode index for sensor {label}: "))
-                selected_mode = modes[mode_index]
-                self.base.setSampleMode(sensor_index, selected_mode)
-                print(f"Set mode '{selected_mode}' for sensor {label}")
-        else:
+                if self.sensor_names[label] == 'IMU':
+                    self.base.setSampleMode(sensor_index, modes[110])
+                else:
+                    self.base.setSampleMode(sensor_index, modes[2])
+
+        if project_name == 'sts_2':
+            sensor_names = {1: "IMU", 2: "RF_R", 3: "VM_R", 4: "BF_R", 5: "G_R", 6: "RF_L", 7: "VM_L", 8: "BF_L", 9: "G_L", 10: "GL_R", 11: "SO_R", 12: "TA_R"}
+
+            self.sensor_label_to_index = {}
+            for idx, sensor in enumerate(self.base.all_scanned_sensors):
+                label = sensor.PairNumber
+                self.sensor_label_to_index[label] = idx
+
             for label, sensor_index in self.sensor_label_to_index.items():
-                self.base.setSampleMode(sensor_index, default_mode)
-                print(f"Set mode '{default_mode}' for sensor {label}")
+                self.sensor_names[label] = sensor_names[sensor_index+1]
+                modes = self.base.getSampleModes(sensor_index)
+                if self.sensor_names[label] == 'IMU':
+                    self.base.setSampleMode(sensor_index, modes[110])
+                else:
+                    self.base.setSampleMode(sensor_index, modes[2])
 
         # Get subject number
         self.subject_number = input("Enter subject number: ").strip()
+        self.assistive_profile_name = input("Enter assistive profile name: ").strip()
 
         # Determine the next trial number
         subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
@@ -258,10 +299,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if not self.is_collecting:
             # Set unassisted flag to false to trigger score calculation
             self.unassisted = False
+            # Reset counter and mean for unassisted runs
             self.count_unassisted = 0
+            self.unassisted_mean = 0
 
             # Send singal to socket server to start data collection
-            self.data_handler.send_data("Start")
+            if self.socket:
+                self.data_handler.send_data("Start")
 
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
@@ -285,7 +329,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Set unassisted flag to true to trigger unassisted data reference collection
             self.unassisted = True
             # Send singal to socket server to start data collection
-            self.data_handler.send_data("Start")
+            if self.socket:
+                self.data_handler.send_data("Start")
 
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
@@ -307,14 +352,15 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def stop_trial(self):
         if self.is_collecting:
             # Send signal to socket server to stop data collection
-            self.data_handler.send_data("Stop")
+            if self.socket:
+                self.data_handler.send_data("Stop")
 
             print("Stopping trial...")
             self.stop_collection()
             time.sleep(10)  # Wait for last batch data
-            filename_emg = f"{self.current_date}_EMG_Trial_{self.trial_number}.csv"
-            filename_acc = f"{self.current_date}_ACC_Trial_{self.trial_number}.csv"
-            filename_gyro = f"{self.current_date}_GYRO_Trial_{self.trial_number}.csv"
+            filename_emg = f"{self.current_date}_EMG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
+            filename_acc = f"{self.current_date}_ACC_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
+            filename_gyro = f"{self.current_date}_GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
             if not os.path.exists(subject_folder):
                 os.makedirs(subject_folder)
@@ -325,7 +371,15 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Export collected data
             self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro)
             print(f"Trial {self.trial_number} data saved as: {filename_emg}, {filename_acc}, and {filename_gyro}")
+
+            # Reset data logger
+            self.log_entries = []
             self.trial_number += 1
+
+        assistive_profile_name, ok = QtWidgets.QInputDialog.getText(self, 'Assistive Profile Name', 'Enter new assistive profile name or cancel:')
+        if ok:
+            self.trial_number = 1
+            self.assistive_profile_name = assistive_profile_name
 
         else:
             print("No trial is currently running.")
@@ -379,25 +433,30 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Get the two maxima closest to the global minimum
         maxima.sort()
 
-        # Maximum in acc z diff before global minimum is a good way to detect the start of the motion
-        start_idx = maxima[np.searchsorted(maxima, minimum) - 1]
+        try:
+            # Maximum in acc z diff before global minimum is a good way to detect the start of the motion
+            start_idx = maxima[np.searchsorted(maxima, minimum) - 1]
 
-        # More conservative (stops later)
-        # # We need to have at least three maxima to be able to detect the end of the motion, as sometimes people might sit down to quickly
-        # if len(maxima) > 2:
-        #     end_idx = maxima[np.searchsorted(maxima, minimum)]
-        # # If there is no maxima, there will still always be a change of signs in the jerk
-        # else:
-        #     acc_z_diff_diff = np.diff(acc_z_diff)
-        #     acc_z_diff_diff_minima = argrelextrema(acc_z_diff_diff, np.less)[0]
-        #     # Select the minimum closest to the global minimum (higher than the global minimum)
-        #     end_idx = acc_z_diff_diff_minima[np.searchsorted(acc_z_diff_diff_minima, minimum)]
+            # More conservative (stops later)
+            # # We need to have at least three maxima to be able to detect the end of the motion, as sometimes people might sit down to quickly
+            # if len(maxima) > 2:
+            #     end_idx = maxima[np.searchsorted(maxima, minimum)]
+            # # If there is no maxima, there will still always be a change of signs in the jerk
+            # else:
+            #     acc_z_diff_diff = np.diff(acc_z_diff)
+            #     acc_z_diff_diff_minima = argrelextrema(acc_z_diff_diff, np.less)[0]
+            #     # Select the minimum closest to the global minimum (higher than the global minimum)
+            #     end_idx = acc_z_diff_diff_minima[np.searchsorted(acc_z_diff_diff_minima, minimum)]
 
-        # Less conservative (stops earlier)
-        gyro_x_diff = np.diff(df['GYRO X (deg/s)'])
-        gyro_x_diff_diff = np.diff(gyro_x_diff)
-        minima = argrelextrema(gyro_x_diff_diff, np.less)[0]
-        end_idx = minima[np.searchsorted(minima, minimum)]
+            # Less conservative (stops earlier)
+            gyro_x_diff = np.diff(df['GYRO X (deg/s)'])
+            gyro_x_diff_diff = np.diff(gyro_x_diff)
+            minima = argrelextrema(gyro_x_diff_diff, np.less)[0]
+            end_idx = minima[np.searchsorted(minima, minimum)]
+        except Exception as e:
+            print(e)
+            start_idx = None
+            end_idx = None
 
         return start_idx, end_idx
 
@@ -523,6 +582,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
                 if self.sts_start_idx_imu is None or self.sts_end_idx_imu is None or self.sts_start_idx_imu >= self.sts_end_idx_imu:
                     print("Failed to extract start and end indices.")
+                    # TODO: Write a function, that takes a larger segment of data into account and tries to extract the start and end indices again and compares them with the previously found indeces to avoid taking the same segment twice
 
                 else:
                     # Convert start and end indices from imu to emg indices
@@ -567,7 +627,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                         # Compare score of assisted vs unassisted
                         assisted_mean = np.mean(relevant_emg_filtered)
                         # Send comparison score to socket server
-                        self.data_handler.send_data(str(self.unassisted_mean - assisted_mean))
+                        if self.socket:
+                            self.data_handler.send_data(str(self.unassisted_mean - assisted_mean))
 
                         # Log the extracted variables
                         log_entry = {
@@ -599,5 +660,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         print("Quitting application.")
         self.stop_collection()
         # Close the socket connection
-        self.data_handler.close_connection()
+        if self.socket:
+            self.data_handler.send_data("Kill")
+            self.data_handler.close_connection()
         self.close()

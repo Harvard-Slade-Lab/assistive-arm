@@ -17,6 +17,9 @@ Delsys-EMG-Real-Time/matlab_files.txt
 Delsys-EMG-Real-Time/python_files.txt
 Delsys-EMG-Real-Time/*.png
 
+# Data
+Data/
+
 # license
 Delsys-EMG-Real-Time/AeroPy/TrignoBase.py
 Delsys-EMG-Real-Time/lic/

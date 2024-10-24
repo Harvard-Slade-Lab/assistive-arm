@@ -95,7 +95,7 @@ class DataExporter:
         subject_folder_log = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "Logs")
         if not os.path.exists(subject_folder_log):
             os.makedirs(subject_folder_log)
-        log_filename = os.path.join(subject_folder_log, f"{self.parent.current_date}_Log_Data_{self.parent.trial_number}.csv")
+        log_filename = os.path.join(subject_folder_log, f"{self.parent.current_date}_Log_Data_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}.csv")
         log_df.to_csv(log_filename, index=False)
 
         os.system(f"scp {log_filename} macbook:{remote_dir_log}")
@@ -108,8 +108,8 @@ class DataExporter:
 
     def export_sts_data_to_csv(self, emg_data, sensor_label):
         print("Exporting STS emg data...")
-        filename_emg = f"{self.parent.current_date}_EMG_STS_Trial_{self.parent.trial_number}_Sensor_{sensor_label}.csv"
-
+        filename_emg = f"{self.parent.current_date}_EMG_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_Sensor_{sensor_label}_stsnumber{len(self.parent.log_entries)+1}.csv"
+        # print(len(self.parent.log_entries))
         emg_data_df = pd.DataFrame(emg_data)
 
         # Save EMG data to CSV in the local subject folder
