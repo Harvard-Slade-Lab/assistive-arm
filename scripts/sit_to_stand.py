@@ -25,7 +25,7 @@ import threading
 
 # Configuration
 HOST = '0.0.0.0'  # Listen on all available interfaces
-PORT = 3000      # Arbitrary non-privileged port
+PORT = 3003      # Arbitrary non-privileged port
 
 # Set options
 np.set_printoptions(precision=3, suppress=True)
@@ -62,8 +62,12 @@ def await_trigger_signal(mode: Literal["TRIGGER", "ENTER", "SOCKET"], conn: sock
 
     elif mode == "SOCKET":
         print("\nWaiting for socket data to start recording")
-        if collect_flag == True:
-            print("Start recording")
+        while True:
+            if collect_flag == True:
+                print("Start recording")
+                break
+            else:
+                time.sleep(0.1)
 
 
 def start_server():
@@ -72,6 +76,10 @@ def start_server():
     collect_flag = False
     global score
     score = None
+    global profile_name
+    profile_name = None
+    global conn
+    conn = None
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         server_socket.bind((HOST, PORT))
@@ -87,12 +95,18 @@ def start_server():
                 data_decoded = data.decode('utf-8', errors='replace')
 
                 if data_decoded == "Start":
-                    print("Start recording")
                     collect_flag = True
                 elif data_decoded == "Stop":
-                    print("Stop recording")
                     collect_flag = False
+                elif data_decoded == "Kill":
+                    print("Closing connection...")
+                    conn.close()
+                    # Quit other threads
+                    sys.exit()
                     break
+                # If data contains the word "Profile"
+                elif "Profile" in data_decoded:
+                    profile_name = data_decoded.split(":")[1]
                 elif not data:
                     break
                 else:
@@ -127,7 +141,7 @@ def get_logger(log_name: str, session_dir: Path, profile_details: list=None) -> 
     logged_vars = ["Percentage", "target_tau_1", "measured_tau_1", "theta_1", "velocity_1", "target_tau_2", "measured_tau_2", "theta_2", "velocity_2", "EE_X", "EE_Y"]
 
     sample_num = get_next_sample_number(session_dir=session_dir, log_name=log_name)
-    log_file = f"{log_name}_{sample_num:02}.csv"
+    log_file = f"{log_name}_{profile_name}_{sample_num:02}.csv"
     log_path = session_dir / log_file
     log_path.touch(exist_ok=True)
 
@@ -188,7 +202,7 @@ def set_up_logging_dir(subject_folder: Path) -> tuple:
     month_name = current_date.strftime("%B")
     day = current_date.strftime("%d")
 
-    session_dir = subject_folder / f"{month_name}_{day}"
+    session_dir = subject_folder / f"{month_name}_{day}" / "Motor"
     session_dir.mkdir(parents=True, exist_ok=True)
 
     session_remote_dir = Path(f"{PROJECT_DIR_REMOTE}/subject_logs/") / session_dir.relative_to("subject_logs")
@@ -491,8 +505,6 @@ def control_loop_and_log(
             sys.stdout.write(f"\x1b[4A\x1b[2K")
                     
             print_time = t
-        # ["Percentage", "target_tau_1", "measured_tau_1", "theta_1", "velocity_1", "target_tau_2", "measured_tau_2", "theta_2", "velocity_2", "EE_X", "EE_Y"]
-        # print(f"tau_1: {motor_1.measured_torque}, tau_2: {motor_2.measured_torque}")
         logger.writerow([cur_time - start_time , index, tau_1, motor_1.measured_torque, motor_1.position, motor_1.velocity, tau_2, motor_2.measured_torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
     del loop
 
@@ -509,8 +521,6 @@ def control_loop_and_log(
 
 
 def apply_simulation_profile(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, profile_dir: Path, mode: Literal["TRIGGER", "ENTER"]):
-    log_path, logger = get_logger(log_name=f"{profile_dir.stem}_scaled", session_dir=session_dir)
-
     adjusted_profile_dir = profile_dir.parent / f"{profile_dir.stem}_scaled.csv"
     print(f"Using profile: {adjusted_profile_dir}")
     
@@ -520,15 +530,18 @@ def apply_simulation_profile(motor_1: CubemarsMotor, motor_2: CubemarsMotor, fre
     
     profile = pd.read_csv(adjusted_profile_dir, index_col="Percentage")
 
-    await_trigger_signal(mode=mode)
-    countdown(duration=3)
 
-    try:
-        success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, mode=mode, apply_force=True)
-        save_log_or_delete(remote_dir=remote_dir, log_path=log_path, successful=success) 
+    for i in range(5):
+        await_trigger_signal(mode=mode)
+        log_path, logger = get_logger(log_name=f"{profile_dir.stem}_scaled_{i}", session_dir=session_dir)
+        countdown(duration=3)
 
-    except KeyboardInterrupt:
-        print("Keyboard interrupt detected. Shutting down...")
+        try:
+            success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, mode=mode, apply_force=True)
+            save_log_or_delete(remote_dir=remote_dir, log_path=log_path, successful=success) 
+
+        except KeyboardInterrupt:
+            print("Keyboard interrupt detected. Shutting down...")
 
 
 def collect_unpowered_data(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq: int, session_dir: Path, remote_dir: Path, profile_dir: Path, mode: Literal["TRIGGER", "ENTER"]):
@@ -553,10 +566,10 @@ def collect_unpowered_data(motor_1: CubemarsMotor, motor_2: CubemarsMotor, freq:
         success = False
         while not success:
             try:
-                log_path, logger = get_logger(log_name=f"unpowered_device_{i}", session_dir=session_dir)
-                print(f"Recording to {log_path}")
                 await_trigger_signal(mode=mode)
                 # wait for 3 seconds
+                log_path, logger = get_logger(log_name=f"unpowered_device_{i}", session_dir=session_dir)
+                print(f"Recording to {log_path}")
                 countdown(duration=3)
                 success = control_loop_and_log(motor_1=motor_1, motor_2=motor_2, logger=logger, profile=profile, freq=freq, apply_force=False, mode=mode)
                 save_log_or_delete(remote_dir=remote_dir, log_path=log_path, successful= success)
@@ -573,17 +586,19 @@ if __name__ == "__main__":
     subject_id = "Nathan"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
 
-
-    unadjusted_profile_dir = Path(f"./torque_profiles/spline_profiles/peak_time_57_peak_force_62.csv")
     # unadjusted_profile_dir = Path(f"./torque_profiles/spline_profiles/peak_time_57_peak_force_62.csv")
-    # unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille.csv")
+    unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille_xy_fitted.csv")
     # unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille_scalex_scaley.csv")
     # unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille_xy.csv")
     # unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille_y.csv")
-    # Camille.csv
-    # Camille_scalex_scaley.csv
-    # Camille_xy.csv
-    # Camille_y.csv
+    # ./torque_profiles/simulation_profile_Camille.csv
+    # ./torque_profiles/simulation_profile_Camille_scalex_scaley.csv
+    # ./torque_profiles/simulation_profile_Camille_xy.csv
+    # ./torque_profiles/simulation_profile_Camille_y.csv
+    # ./torque_profiles/Camille_fitted.csv
+    # ./torque_profiles/simulation_profile_Camille_scalex_scaley_fitted.csv
+    # ./torque_profiles/simulation_profile_Camille_xy_fitted.csv
+    # ./torque_profiles/Camille_y_fitted.csv
 
     trigger_mode = "SOCKET" # TRIGGER, ENTER or SOCKET
 
@@ -628,6 +643,26 @@ if __name__ == "__main__":
             elif choice == States.EXIT:
                 print("Exiting...")
                 break
+            
+            while True:
+                load_new_profile = input("Do you want to load a different profile? (y/any key to skip): ")
+
+                if load_new_profile.lower() != "y":
+                    print("Exiting without loading a new profile.")
+                    break
+
+                profile_path = Path(input("Enter the path to the new profile: "))
+                
+                try:
+                    profile = pd.read_csv(profile_path, index_col="Percentage")
+                    print("Valid directory")
+                    unadjusted_profile_dir = profile_path
+                    break
+                except FileNotFoundError:
+                    print("File not found. Please try again.")
+
     finally:
+        if conn:
+            conn.close()
         client_thread.join()
         GPIO.cleanup()

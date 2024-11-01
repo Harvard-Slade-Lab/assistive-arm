@@ -1,3 +1,4 @@
+# Test script to start a TCP socket server and accept a connection.
 import socket
 import threading
 import logging
@@ -37,6 +38,7 @@ def start_server():
                 elif data_decoded == "Stop":
                     print("Stop recording")
                     control_flag = False
+                elif data_decoded == "Kill":
                     break
                 elif not data:
                     break
@@ -49,12 +51,12 @@ def main():
     client_thread = threading.Thread(target=start_server)
     client_thread.start()
 
-    time.sleep(2)
+    time.sleep(6000)
 
     if control_flag:
         for i in range(100):
             print("Iteration:", i, "score:", score)
-            time.sleep(0.1)
+            time.sleep(3)
             if not control_flag:
                 break
 
@@ -65,7 +67,7 @@ if __name__ == "__main__":
 
 
 
-######################TRY#WITHOUT#THREADING############################################
+######################TEST#WITHOUT#THREADING############################################
 
 # def await_trigger_signal(mode: Literal["ENTER", "SOCKET"], conn: socket.socket = None):
 #     """ Wait for trigger signal OR Enter to start recording """
