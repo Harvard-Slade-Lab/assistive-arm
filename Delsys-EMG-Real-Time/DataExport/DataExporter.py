@@ -107,7 +107,7 @@ class DataExporter:
 
 
     def export_sts_data_to_csv(self, emg_data, sensor_label):
-        print("Exporting STS emg data...")
+        # print("Exporting STS emg data...")
         filename_emg = f"{self.parent.current_date}_EMG_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_Sensor_{sensor_label}_stsnumber{len(self.parent.log_entries)+1}.csv"
         # print(len(self.parent.log_entries))
         emg_data_df = pd.DataFrame(emg_data)
@@ -129,3 +129,50 @@ class DataExporter:
 
         os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
 
+
+    
+    def export_all_sts_data_to_csv(self, emg_data):
+        print("Exporting STS emg data...")
+        filename_emg = f"{self.parent.current_date}_EMG_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_all_Sensors_stsnumber{len(self.parent.log_entries)+1}.csv"
+
+        # Save EMG data to CSV in the local subject folder
+        subject_folder_sts = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "STS")
+        if not os.path.exists(subject_folder_sts):
+            os.makedirs(subject_folder_sts)
+        filepath_emg = os.path.join(subject_folder_sts, filename_emg)  
+        emg_data.to_csv(filepath_emg, index=False)
+
+        # Make remote copy of the exported files
+        current_date = datetime.now()
+        month = current_date.strftime("%B")
+        day = current_date.strftime("%d")
+        remote_dir_emg_sts = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "sts").as_posix()
+        os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
+
+        os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
+
+
+    def export_unassisted_mean_to_csv(self, unassisted_mean):
+        # Save unassisted mean as a single-value CSV file locally
+        filename_unassisted_mean = "most_recent_unassisted_mean.csv"
+        
+        # Ensure subject folder exists
+        subject_folder_unassisted = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}")
+        if not os.path.exists(subject_folder_unassisted):
+            os.makedirs(subject_folder_unassisted)
+        
+        # Write the unassisted mean to a CSV file
+        filepath_unassisted = os.path.join(subject_folder_unassisted, filename_unassisted_mean)
+        with open(filepath_unassisted, 'w') as file:
+            file.write(f"unassisted_mean\n{unassisted_mean}")
+            
+
+    def load_unassisted_mean_from_csv(self):
+        filename_unassisted_mean = "most_recent_unassisted_mean.csv"
+        filepath_unassisted = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", filename_unassisted_mean)
+        
+        # Load unassisted mean from CSV if it exists
+        if os.path.exists(filepath_unassisted):
+            unassisted_mean_df = pd.read_csv(filepath_unassisted)
+            return unassisted_mean_df.iloc[0, 0]  # Return the float value
+        return None

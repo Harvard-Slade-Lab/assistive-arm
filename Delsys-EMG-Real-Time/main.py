@@ -10,10 +10,12 @@ def main():
     # Flag for plotting
     plot = False
     # Flag for Socket connection
-    socket = False
+    socket = True
+    # Flag for realtime processing
+    real_time = True
 
     appQt = QtWidgets.QApplication(sys.argv)
-    collector = EMGDataCollector(plot, socket, window_duration=window_duration, data_directory=data_directory)
+    collector = EMGDataCollector(plot, socket, real_time, window_duration=window_duration, data_directory=data_directory)
     collector.connect_base()
     collector.scan_and_pair_sensors()
     sys.exit(appQt.exec_())

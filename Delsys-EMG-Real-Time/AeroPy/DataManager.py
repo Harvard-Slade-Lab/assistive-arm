@@ -8,7 +8,7 @@ import numpy as np
 import queue
 
 class DataKernel():
-    def __init__(self, trigno_base, host='10.250.1.229', port=3000):
+    def __init__(self, trigno_base, host='10.250.116.137', port=3003):
         self.TrigBase = trigno_base
         self.packetCount = 0
         self.sampleCount = 0
@@ -40,7 +40,7 @@ class DataKernel():
     def processData(self, data_queue):
         """Processes the data from the DelsysAPI and places it in the data_queue argument"""
         outArr = self.GetData()
-        if outArr is not None:
+        if outArr and any(outArr):
             for i in range(len(outArr)):
                 # Check for non-empty data and ensure the expected structure
                 if outArr[i] and len(outArr[i]) > 0 and isinstance(outArr[i][0], np.ndarray):

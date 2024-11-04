@@ -21,8 +21,10 @@ from Plotting.Plotter import Plotter
 from DataProcessing.DataProcessor import DataProcessor
 from DataExport.DataExporter import DataExporter
 
+from concurrent.futures import ThreadPoolExecutor
+
 class EMGDataCollector(QtWidgets.QMainWindow):
-    def __init__(self, plot=False, socket=False, window_duration=5, data_directory="Data"):
+    def __init__(self, plot=False, socket=False, real_time=False, window_duration=5, data_directory="Data"):
         super().__init__()
         self.window_duration = window_duration
         self.data_directory = data_directory
@@ -45,7 +47,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Variables to calculate reference scores
         self.unassisted = False
         self.unassisted_counter = 0
-        self.unassisted_mean = 0
+        self.unassisted_mean = None
+
+        # Flag to select if data should be processed in real-time or not
+        self.real_time = real_time
 
         # Flag to have socket connection or not
         self.socket = socket
@@ -108,6 +113,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Set up the DataExporter
         self.data_exporter = DataExporter(self)
 
+        # New thread stuff
+        self.executor = ThreadPoolExecutor(max_workers=4)
+        self.last_submission_time = None
+        self.start_time = None
+
 
     def connect_base(self):
         print("Connecting to Trigno base...")
@@ -125,7 +135,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             else:
                 print("Invalid input. Please enter 'y', 'n'.")
 
-        project_name = input("Enter project name (any key if no project defined): ").strip()
+        while True:
+            project_name = input("Enter project name (0 if no project defined): ").strip()
+            if project_name in ['0', 'sts', 'sts_2']:
+                break  # Exit the loop if a valid name is entered
+            else:
+                print("Invalid project name. Please enter a valid project name.")
+
 
         if project_name == '0':
             rename_input = input("Rename sensors? (y/n): ").strip().lower()
@@ -164,36 +180,46 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     print(f"Set mode '{default_mode}' for sensor {label}")
 
         if project_name == 'sts':
-            sensor_names = {1: "IMU", 2: "RF_R", 3: "VM_R", 4: "BF_R", 5: "G_R", 6: "RF_L", 7: "VM_L", 8: "BF_L", 9: "G_L"}
+            id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "RF_L", "000140e9": "VM_L", "00014174": "BF_L", "00013f2a": "G_L"}
+            # sensor_names = {1: "IMU", 2: "RF_R", 3: "VM_R", 4: "BF_R", 5: "G_R", 6: "RF_L", 7: "VM_L", 8: "BF_L", 9: "G_L"}
 
             self.sensor_label_to_index = {}
             for idx, sensor in enumerate(self.base.all_scanned_sensors):
                 label = sensor.PairNumber
                 self.sensor_label_to_index[label] = idx
+                # Extract first 8 characters of the sensor ID
+                sensor_id = str(sensor.Id)[:8]
+                if sensor_id in id_to_name:
+                    self.sensor_names[label] = id_to_name[sensor_id]
 
             for label, sensor_index in self.sensor_label_to_index.items():
-                self.sensor_names[label] = sensor_names[sensor_index+1]
+                # self.sensor_names[label] = sensor_names[sensor_index+1]
                 modes = self.base.getSampleModes(sensor_index)
                 if self.sensor_names[label] == 'IMU':
                     self.base.setSampleMode(sensor_index, modes[110])
                 else:
-                    self.base.setSampleMode(sensor_index, modes[2])
+                    self.base.setSampleMode(sensor_index, modes[4])
 
         if project_name == 'sts_2':
-            sensor_names = {1: "IMU", 2: "RF_R", 3: "VM_R", 4: "BF_R", 5: "G_R", 6: "RF_L", 7: "VM_L", 8: "BF_L", 9: "G_L", 10: "GL_R", 11: "SO_R", 12: "TA_R"}
+            id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "RF_L", "000140e9": "VM_L", "00014174": "BF_L", "00013f2a": "G_L", "00014178": "SO_R", "00014111": "TA_R"}
 
             self.sensor_label_to_index = {}
             for idx, sensor in enumerate(self.base.all_scanned_sensors):
                 label = sensor.PairNumber
                 self.sensor_label_to_index[label] = idx
+                # Extract first 8 characters of the sensor ID
+                sensor_id = str(sensor.Id)[:8]
+                if sensor_id in id_to_name:
+                    self.sensor_names[label] = id_to_name[sensor_id]
+
 
             for label, sensor_index in self.sensor_label_to_index.items():
-                self.sensor_names[label] = sensor_names[sensor_index+1]
+                # self.sensor_names[label] = sensor_names[sensor_index+1]
                 modes = self.base.getSampleModes(sensor_index)
                 if self.sensor_names[label] == 'IMU':
                     self.base.setSampleMode(sensor_index, modes[110])
                 else:
-                    self.base.setSampleMode(sensor_index, modes[2])
+                    self.base.setSampleMode(sensor_index, modes[4])
 
         # Get subject number
         self.subject_number = input("Enter subject number: ").strip()
@@ -297,15 +323,25 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     def start_trial(self):
         if not self.is_collecting:
+            self.start_time = time.time()
+
+            # Reset the start index
+            self.segment_start_idx_imu = 0
+
+            # Reinitialize the executor if it was shutdown
+            if self.executor is None or self.executor._shutdown:
+                self.executor = ThreadPoolExecutor(max_workers=4)
+
             # Set unassisted flag to false to trigger score calculation
             self.unassisted = False
             # Reset counter and mean for unassisted runs
             self.count_unassisted = 0
-            self.unassisted_mean = 0
+            self.unassisted_mean = None
 
             # Send singal to socket server to start data collection
             if self.socket:
                 self.data_handler.send_data("Start")
+                self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
 
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
@@ -326,11 +362,21 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     def start_unassisted_trial(self):
         if not self.is_collecting:
+            self.start_time = time.time()
+
+            # Reset the start index
+            self.segment_start_idx_imu = 0
+
+            # Reinitialize the executor if it was shutdown
+            if self.executor is None or self.executor._shutdown:
+                self.executor = ThreadPoolExecutor(max_workers=4)
+
             # Set unassisted flag to true to trigger unassisted data reference collection
             self.unassisted = True
             # Send singal to socket server to start data collection
             if self.socket:
                 self.data_handler.send_data("Start")
+                self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
 
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
@@ -351,13 +397,22 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     def stop_trial(self):
         if self.is_collecting:
-            # Send signal to socket server to stop data collection
+            # Send signal to socket server to stop data collection and assistance
             if self.socket:
                 self.data_handler.send_data("Stop")
 
+            # This is used if single profiles are run and only one sts is performed
+            if self.count_peak == 0 and self.real_time:
+                current_segment_start_idx_imu = self.segment_start_idx_imu
+                self.calculate_stuff(current_segment_start_idx_imu, len(self.complete_gyro_data[0]["X"]))
+
+            if hasattr(self, "executor") and self.executor:
+                self.executor.shutdown(wait=True)  # Gracefully wait for all tasks to complete
+                self.executor = None
+
             print("Stopping trial...")
             self.stop_collection()
-            time.sleep(10)  # Wait for last batch data
+            time.sleep(2)  # Wait for last batch data
             filename_emg = f"{self.current_date}_EMG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             filename_acc = f"{self.current_date}_ACC_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             filename_gyro = f"{self.current_date}_GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
@@ -376,6 +431,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.log_entries = []
             self.trial_number += 1
 
+        # Ask for new assistive profile name
         assistive_profile_name, ok = QtWidgets.QInputDialog.getText(self, 'Assistive Profile Name', 'Enter new assistive profile name or cancel:')
         if ok:
             self.trial_number = 1
@@ -539,18 +595,133 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         return envelopes, env_freq
 
 
-    def calculate_stuff(self):
+    def calculate_stuff(self, current_segmen_start_idx_imu, current_segment_end_idx_imu):
         # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
         # The arrow of the sensor should be pointing towards the torso
         imu_sensor_label = 0
         gyro_axis = 'X'
         acc_axis = 'Z'
 
+        relevant_emg = []
+        assisted_mean = 0
+
+        self.analysed_segments += 1
+
+        # Extract the segment of the x-axis gyro data
+        gyro_x_segment = self.complete_gyro_data[imu_sensor_label][gyro_axis][current_segmen_start_idx_imu:current_segment_end_idx_imu]
+        gyro_x_segment = pd.DataFrame(gyro_x_segment, columns=['GYRO X (deg/s)'])
+
+        # Extract the segment of the z-axis acceleration data
+        z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][current_segmen_start_idx_imu:current_segment_end_idx_imu]
+        z_acc_segment = pd.DataFrame(z_acc_segment, columns=['ACC Z (G)'])
+
+        # Concate the two segments
+        imu_data = pd.concat([gyro_x_segment, z_acc_segment], axis=1)
+        imu_filtered = self.apply_lowpass_filter(imu_data, 1, self.gyro_sample_rates[imu_sensor_label])   
+
+        # Extract time (start,end)
+        self.sts_start_idx_imu, self.sts_end_idx_imu = self.extract_time(imu_filtered)
+
+        if self.sts_start_idx_imu is None or self.sts_end_idx_imu is None or self.sts_start_idx_imu >= self.sts_end_idx_imu:
+            print("Failed to extract start and end indices.")
+            # TODO: Write a function, that takes a larger segment of data into account and tries to extract the start and end indices again and compares them with the previously found indeces to avoid taking the same segment twice
+
+        else:
+            # Convert start and end indices from imu to emg indices
+            emg_start_idx = int(np.round(self.sts_start_idx_imu * self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]))
+            emg_end_idx = int(np.round(self.sts_end_idx_imu * self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]))
+
+            complete_emg_data = pd.DataFrame()
+            # Extract relevant_emg data
+            for sensor_label in self.complete_emg_data.keys():
+                # Log the extracted emg data as separate files
+                # self.data_exporter.export_sts_data_to_csv(self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx], self.sensor_names[sensor_label])
+
+                complete_emg_data[self.sensor_names[sensor_label]] = self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
+                if self.sensor_names[sensor_label] in ['IMU', 'SO_R', 'TA_R']:
+                    print(f"skipped {self.sensor_names[sensor_label]}")
+                else:
+                    if relevant_emg:
+                        # Append to existing data
+                        relevant_emg += self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
+                    else:
+                        relevant_emg = self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
+            # Log the extracted emg data as a single file
+            self.data_exporter.export_all_sts_data_to_csv(complete_emg_data)
+
+            # Convert to DataFrame
+            relevant_emg = pd.DataFrame(relevant_emg)
+            # Filter relevant_emg data
+            relevant_emg_filtered, env_freq = self.filter_emg(relevant_emg, sfreq=self.emg_sampling_frequencies[2])
+
+            # Get score
+            # Calculated reference score if unassisted
+            if self.unassisted:
+                self.unassisted_counter += 1
+                if self.unassisted_counter == 1:
+                    self.unassisted_mean = np.mean(relevant_emg_filtered)
+                else:
+                    self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered)) / self.unassisted_counter
+
+                # Save the unassisted mean to a file
+                self.data_exporter.export_unassisted_mean_to_csv(self.unassisted_mean)
+
+                # Log the extracted variables
+                log_entry = {
+                    'Segment Start Index': current_segmen_start_idx_imu,
+                    'Segment End Index': current_segment_end_idx_imu,
+                    'Start Time': self.sts_start_idx_imu,
+                    'End Time': self.sts_end_idx_imu,
+                    'Unassisted Mean': self.unassisted_mean,
+                    'Assisted Mean': 0,
+                }
+                self.log_entries.append(log_entry)
+
+            else: 
+                # Compare score of assisted vs unassisted
+                assisted_mean = np.mean(relevant_emg_filtered)
+
+                # If the unassisted_mean is None (currently redundant), load the unassisted mean from the file
+                if self.unassisted_mean is None:
+                    try:
+                        self.unassisted_mean = self.data_exporter.load_unassisted_mean_from_csv()
+                        # Send comparison score to socket server
+                        if self.socket:
+                            self.data_handler.send_data(str(self.unassisted_mean - assisted_mean))
+                    except:
+                        print("No unassisted mean found.")
+
+                if self.unassisted_mean is not None:
+                    # Send comparison score to socket server
+                    if self.socket:
+                        self.data_handler.send_data(str(self.unassisted_mean - assisted_mean))
+
+                # Log the extracted variables
+                log_entry = {
+                    'Segment Start Index': current_segmen_start_idx_imu,
+                    'Segment End Index': current_segment_end_idx_imu,
+                    'Start Time': self.sts_start_idx_imu,
+                    'End Time': self.sts_end_idx_imu,
+                    'Unassisted Mean': self.unassisted_mean,
+                    'Assisted Mean': assisted_mean,
+                }
+                self.log_entries.append(log_entry)
+
+    
+    def detect_peak_and_calculate(self):
+        # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
+        # The arrow of the sensor should be pointing towards the torso
+        imu_sensor_label = 0
+        gyro_axis = 'X'
+
         # Hyperparameters
         peak_threshold = 50
 
-        relevant_emg = []
-        assisted_mean = 0
+        # Terminate if over time limit ---> doesn't work
+        # if time.time() - self.start_time > 7 and self.count_peak == 0:
+        #     current_segment_start_idx_imu = self.segment_start_idx_imu
+        #     self.calculate_stuff(current_segment_start_idx_imu, len(self.complete_gyro_data[imu_sensor_label][gyro_axis]))
+        #     self.stop_trial()
 
         if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
             # Get the mean of the past 100 Gyro X values
@@ -562,96 +733,24 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 self.count_peak += 1
 
             if self.count_peak > self.analysed_segments:
-                self.analysed_segments += 1
-
-                #Extract the segment of the x-axis gyro data
-                gyro_x_segment = self.complete_gyro_data[imu_sensor_label][gyro_axis][self.segment_start_idx_imu:self.segment_end_idx_imu]
-                gyro_x_segment = pd.DataFrame(gyro_x_segment, columns=['GYRO X (deg/s)'])
-
-                # Extract the segment of the z-axis acceleration data
-                z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][self.segment_start_idx_imu:self.segment_end_idx_imu]
-                z_acc_segment = pd.DataFrame(z_acc_segment, columns=['ACC Z (G)'])
-
-                # Concate the two segments
-                imu_data = pd.concat([gyro_x_segment, z_acc_segment], axis=1)
-                print(self.gyro_sample_rates[imu_sensor_label])
-                imu_filtered = self.apply_lowpass_filter(imu_data, 1, self.gyro_sample_rates[imu_sensor_label])   
-
-                # Extract time (start,end)
-                self.sts_start_idx_imu, self.sts_end_idx_imu = self.extract_time(imu_filtered)
-
-                if self.sts_start_idx_imu is None or self.sts_end_idx_imu is None or self.sts_start_idx_imu >= self.sts_end_idx_imu:
-                    print("Failed to extract start and end indices.")
-                    # TODO: Write a function, that takes a larger segment of data into account and tries to extract the start and end indices again and compares them with the previously found indeces to avoid taking the same segment twice
-
-                else:
-                    # Convert start and end indices from imu to emg indices
-                    emg_start_idx = int(np.round(self.sts_start_idx_imu * self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]))
-                    emg_end_idx = int(np.round(self.sts_end_idx_imu * self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]))
-
-                    # Extract relevant_emg data
-                    for sensor_label in self.complete_emg_data.keys():
-                        # Log the extracted emg data
-                        self.data_exporter.export_sts_data_to_csv(self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx], sensor_label)
-                        if relevant_emg:
-                            # Append to existing data
-                            relevant_emg += self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
-                        else:
-                            relevant_emg = self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
-
-                    # Convert to DataFrame
-                    relevant_emg = pd.DataFrame(relevant_emg)
-                    # Filter relevant_emg data
-                    relevant_emg_filtered, env_freq = self.filter_emg(relevant_emg)
-
-                    # Get score
-                    # Calculated reference score if unassisted
-                    if self.unassisted:
-                        self.unassisted_counter += 1
-                        if self.unassisted_counter == 1:
-                            self.unassisted_mean = np.mean(relevant_emg_filtered)
-                        else:
-                            self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered)) / self.unassisted_counter
-
-                        # Log the extracted variables
-                        log_entry = {
-                            'Segment Start Index': self.segment_start_idx_imu,
-                            'Segment End Index': self.segment_end_idx_imu,
-                            'Start Time': self.sts_start_idx_imu,
-                            'End Time': self.sts_end_idx_imu,
-                            'Unassisted Mean': self.unassisted_mean
-                        }
-                        self.log_entries.append(log_entry)
-
-                    else: 
-                        # Compare score of assisted vs unassisted
-                        assisted_mean = np.mean(relevant_emg_filtered)
-                        # Send comparison score to socket server
-                        if self.socket:
-                            self.data_handler.send_data(str(self.unassisted_mean - assisted_mean))
-
-                        # Log the extracted variables
-                        log_entry = {
-                            'Segment Start Index': self.segment_start_idx_imu,
-                            'Segment End Index': self.segment_end_idx_imu,
-                            'Start Time': self.sts_start_idx_imu,
-                            'End Time': self.sts_end_idx_imu,
-                            'Assisted Mean': assisted_mean,
-                        }
-                        self.log_entries.append(log_entry)
-
+                if self.last_submission_time is None or time.time() - self.last_submission_time > 1:
+                    self.last_submission_time = time.time()
+                    # Get current segment indices, so they cannot get overwritten
+                    current_segment_start_idx_imu = self.segment_start_idx_imu
+                    current_segment_end_idx_imu = self.segment_end_idx_imu
+                    self.executor.submit(self.calculate_stuff(current_segment_start_idx_imu, current_segment_end_idx_imu))
 
             if self.peak:
                 if gyro_x_mean < peak_threshold:
                     self.peak = False
                     self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
 
-
     def stream_data(self):
         """Collect data from sensors and put it into the queue."""
         while not self.pauseFlag:
             self.data_handler.processData(self.data_queue)
-            self.calculate_stuff()
+            if self.real_time:
+                self.detect_peak_and_calculate()
 
         # Process any remaining data after stopping
         self.data_processor.process_remaining_data()
