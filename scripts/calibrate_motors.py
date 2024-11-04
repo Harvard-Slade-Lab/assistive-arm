@@ -109,6 +109,7 @@ if __name__ == "__main__":
         if choice == '1':
             with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                 print(f"Calibrating {motor_1.type}... Do not touch.")
+                time.sleep(1)
                 limit_tracking(motor_1, direction="right", velocity=3)
                 print(f"Setting origin at 0º...")
                 print("Sleeping...")
@@ -120,6 +121,7 @@ if __name__ == "__main__":
         elif choice == '2':
             with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
                 print("Calibrating motor... Do not touch.")
+                time.sleep(1)
                 limit_tracking(motor_2, direction='right', velocity=3)
                 print("Sleeping...")
                 time.sleep(2)
