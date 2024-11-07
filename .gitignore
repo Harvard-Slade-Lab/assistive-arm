@@ -17,6 +17,9 @@ Delsys-EMG-Real-Time/matlab_files.txt
 Delsys-EMG-Real-Time/python_files.txt
 Delsys-EMG-Real-Time/*.png
 
+# Get Python
+GetPython.py
+
 # Data
 Data/
 
