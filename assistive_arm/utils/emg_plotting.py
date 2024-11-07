@@ -53,7 +53,7 @@ def plot_every_muscle(title: str, muscles: list, dfs: list[pd.DataFrame], freq: 
 
 def plot_muscle_emg(
         title: str,
-        target_muscle: Literal["RF", "VM", "BF"],
+        target_muscle: Literal["RF", "VM", "BF", "G"],
         unfiltered_dfs: list[pd.DataFrame],
         filtered_dfs: list[pd.DataFrame],
         freq: float=6,

@@ -49,17 +49,19 @@ class CubemarsMotor:
         self.velocity = 0
         self.csv_file_name = None
 
+        self.measured_torque = 0
+
         self.buffer_index = 0
         self.buffer_size = int(0.1 * self.frequency)  # Buffer size for X secs
 
         self.position_buffer = [0] * self.buffer_size
         self.velocity_buffer = [0] * self.buffer_size
+        self.torque_buffer = [0] * self.buffer_size
 
         self._emergency_stop = False
         self._first_run = True
 
     def __enter__(self):
-
         self._init_can_ports()
         self.can_bus = can.interface.Bus(
             channel=self.params["CAN"], bustype="socketcan"
@@ -67,7 +69,6 @@ class CubemarsMotor:
         self._connect_motor()
         self._start_time = time.time()
         self._last_update_time = self._start_time
-
         return self
 
     def __exit__(self, exc_type: None, exc_value: None, trb: None):
@@ -100,22 +101,26 @@ class CubemarsMotor:
 
         while not starting:
             print("\nSending starting command...")
-
-            self.can_bus.send(self._send_message(data=start_motor_mode))
-            print(
-                "Waiting for response...",
-            )
-            time.sleep(0.1)
-            response = self.can_bus.recv(delay)  # time
-
             try:
-                P, V, T = self._read_motor_msg(response.data)
-                print(f"Motor {self.type} connected successfully")
-                starting = True
-                if zero:
-                    self.send_zero_position()
-            except AttributeError:
-                print("Received no response")
+                self.can_bus.send(self._send_message(data=start_motor_mode))
+                print("Waiting for response...")
+                time.sleep(0.1)
+                response = self.can_bus.recv(delay)
+
+                if response:
+                    P, V, T = self._read_motor_msg(response.data)
+                    print(f"Motor {self.type} connected successfully")
+                    starting = True
+                    if zero:
+                        self.send_zero_position()
+                else:
+                    raise AttributeError("No response from motor")
+
+            except (can.CanError, AttributeError) as e:
+                print(f"Error: {e}, reinitializing CAN interface...")
+                # Try moving this to line 115
+                self._init_can_ports()  # Reinitialize the CAN interface
+                time.sleep(1)  # Wait before retrying
 
     def _stop_motor(self) -> None:
         """Stop motor"""
@@ -232,6 +237,7 @@ class CubemarsMotor:
             # Update the circular buffers
             self.position_buffer[self.buffer_index] = p
             self.velocity_buffer[self.buffer_index] = v
+            self.torque_buffer[self.buffer_index] = t
 
             self.buffer_index = (self.buffer_index + 1) % self.buffer_size
 
@@ -242,6 +248,7 @@ class CubemarsMotor:
             if self._first_run: 
                 self.position_buffer = [p] * self.buffer_size
                 self.velocity_buffer = [v] * self.buffer_size
+                self.torque_buffer = [t] * self.buffer_size
                 self._first_run = False
             
             avg_position = sum(self.position_buffer) / self.buffer_size
@@ -249,7 +256,7 @@ class CubemarsMotor:
 
             self.position = avg_position
             self.velocity = avg_velocity
-            self.torque = t
+            self.measured_torque = t
 
             
         except AttributeError as e:

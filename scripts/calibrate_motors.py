@@ -10,6 +10,11 @@ from NeuroLocoMiddleware.SoftRealtimeLoop import SoftRealtimeLoop
 from assistive_arm.motor_control import CubemarsMotor
 import os
 
+
+# export PYTHONPATH=/home/xabier/Documents/assistive-arm:$PYTHONPATH
+# sudo ip link set can1 down
+# sudo ip link set can1 up type can bitrate 1000000
+
 # CHANGE THESE TO MATCH YOUR DEVICE!
 dt = 0.005
 print_every = 0.05  # seconds
@@ -33,7 +38,7 @@ def set_dh_origin(motor: CubemarsMotor, origin: float):
         if t - start_time >= print_every:
             sys.stdout.write("\x1b[1A\x1b[2K")
             print(
-                f"Diff: {np.rad2deg(target_diff): .3f} Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.torque: .3f}"
+                f"Diff: {np.rad2deg(target_diff): .3f} Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.measured_torque: .3f}"
             )
             start_time = t
 
@@ -70,7 +75,7 @@ def limit_tracking(motor: CubemarsMotor, direction="right", velocity=1):
         if t - start_time >= print_every:
             sys.stdout.write("\x1b[1A\x1b[2K")
             print(
-                f"Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.torque: .3f}"
+                f"Angle: {np.rad2deg(motor.position): .3f} Velocity: {motor.velocity: .3f} Torque: {motor.measured_torque: .3f}"
             )
             start_time = t
 
@@ -104,6 +109,7 @@ if __name__ == "__main__":
         if choice == '1':
             with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                 print(f"Calibrating {motor_1.type}... Do not touch.")
+                time.sleep(1)
                 limit_tracking(motor_1, direction="right", velocity=3)
                 print(f"Setting origin at 0º...")
                 print("Sleeping...")
@@ -115,6 +121,7 @@ if __name__ == "__main__":
         elif choice == '2':
             with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
                 print("Calibrating motor... Do not touch.")
+                time.sleep(1)
                 limit_tracking(motor_2, direction='right', velocity=3)
                 print("Sleeping...")
                 time.sleep(2)
