@@ -1,5 +1,5 @@
 import pandas as pd
-import numpy as np
+import os
 
 from typing import Literal
 from pathlib import Path
@@ -125,4 +125,61 @@ def plot_muscle_emg(
 
     if show:
         plt.show()
+
+
+
+def plot_collected_and_calculated_imu_data(imu_df, emg_df, log_df, plot_path, start, end, profile, iteration):
+    # Plotting
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+
+    # Subplot for angular accelerations (ACC X, ACC Y, ACC Z)
+    ax1.plot(imu_df.index, imu_df['ACC IMU X'], label='ACC X (G)')
+    ax1.plot(imu_df.index, imu_df['ACC IMU Y'], label='ACC Y (G)')
+    ax1.plot(imu_df.index, imu_df['ACC IMU Z'], label='ACC Z (G)')
+    if start is not None and end is not None:
+        ax1.axvline(x=start, color='r', linestyle='solid', label='Start')
+        ax1.axvline(x=end, color='g', linestyle='solid', label='End')
+    if not log_df.empty:
+        for _, row in log_df.iterrows():
+            ax1.axvline(x=row['Start Time'], color='b', linestyle='--', label='LOG Start')
+            ax1.axvline(x=row['End Time'], color='y', linestyle='--', label='LOG End')
+    ax1.set_ylabel('Angular Acceleration (G)')
+    ax1.set_title('Angular Accelerations')
+    ax1.legend()
+    ax1.grid(True)
+
+    # Subplot for angular velocities (GYRO X, GYRO Y, GYRO Z)
+    ax2.plot(imu_df.index, imu_df['GYRO IMU X'], label='GYRO X (deg/s)')
+    ax2.plot(imu_df.index, imu_df['GYRO IMU Y'], label='GYRO Y (deg/s)')
+    ax2.plot(imu_df.index, imu_df['GYRO IMU Z'], label='GYRO Z (deg/s)')
+    if start is not None and end is not None:
+        ax2.axvline(x=start, color='r', linestyle='solid', label='Start')
+        ax2.axvline(x=end, color='g', linestyle='solid', label='End')
+    if not log_df.empty:
+        for _, row in log_df.iterrows():
+            ax2.axvline(x=row['Start Time'], color='b', linestyle='--', label='LOG Start')
+            ax2.axvline(x=row['End Time'], color='y', linestyle='--', label='LOG End')
+    ax2.set_xlabel('Time (s)')
+    ax2.set_ylabel('Angular Velocity (deg/s)')
+    ax2.set_title('Angular Velocities')
+    ax2.legend()
+    ax2.grid(True)
+
+    # Subplot for EMG data
+    ax3.plot(emg_df.index, emg_df['RF_LEFT'], label='RF_LEFT')
+    if start is not None and end is not None:
+        ax3.axvline(x=start, color='r', linestyle='solid', label='Start')
+        ax3.axvline(x=end, color='g', linestyle='solid', label='End')
+    if not log_df.empty:
+        for _, row in log_df.iterrows():
+            ax3.axvline(x=row['Start Time'], color='b', linestyle='--', label='LOG Start')
+            ax3.axvline(x=row['End Time'], color='y', linestyle='--', label='LOG End')
+    ax3.set_ylabel('EMG (mV)')
+    ax3.set_title('EMG Data')
+    ax3.legend()
+    ax3.grid(True)
+    
+    plt.tight_layout()
+    # save the plot as a file
+    plt.savefig(os.path.join(f"{plot_path}/{profile}_{iteration}.png"))
     
