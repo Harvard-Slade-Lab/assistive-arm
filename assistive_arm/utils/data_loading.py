@@ -65,10 +65,10 @@ def setup_datastructure():
 
                 subject_data[subject_name][session.name]["emg_config"] = emg_config
 
-    return subject_data, subject_dirs, subjects
+    return subject_data, subject_dirs, subjects, motor_config
 
 
-def muscle_mapping(emg_config):
+def get_muscle_mapping(emg_config):
     # The mapping converts the col name from the csv. output file to a muscle name
     mapping = {}
     for channel in emg_config["CHANNEL_NAMES"][0].split(','):
@@ -114,6 +114,8 @@ def write_emg_config_yaml(subject_data, subject_dirs, mapping):
 
             subject_data[subject][session]["angle_calibration"] = angle_calibration
 
+    return subject_data
+
 
 def load_motor_data(subject_data, subject_dirs, subjects):
     # LOAD MOTOR DATA
@@ -156,16 +158,15 @@ def load_motor_data(subject_data, subject_dirs, subjects):
                     if "unassisted" in file_path.stem:
                         df = pd.read_csv(file_path, index_col="time").loc[skip_first:]
                         
-                        match = re.search(r'unpowered_device_(\d+)', file_path.stem)
-                        if match:
-                            num = match.group(1)
+                        # match = re.search(r'unpowered_device_(\d+)', file_path.stem)
+                        # if match:
+                        #     num = match.group(1)
                         if "before" in file_path.stem:
                             session_data["UNPOWERED"]["BEFORE"]["MOTOR_DATA"].append(df)
                             # if not isinstance(session_data["UNPOWERED"]["BEFORE"]["MOTOR_DATA"], dict):
                             #     session_data["UNPOWERED"]["BEFORE"]["MOTOR_DATA"] = {}
                             # session_data["UNPOWERED"]["BEFORE"]["MOTOR_DATA"][num] = df
                         else:
-                            remove_unpowered_after = False
                             session_data["UNPOWERED"]["AFTER"]["MOTOR_DATA"].append(df)
                             # if not isinstance(session_data["UNPOWERED"]["AFTER"]["MOTOR_DATA"], dict):
                             #     session_data["UNPOWERED"]["AFTER"]["MOTOR_DATA"] = {}
@@ -173,7 +174,7 @@ def load_motor_data(subject_data, subject_dirs, subjects):
 
 
 
-                    elif "scaled" or "no_counter" in file_path.stem:
+                    elif "scaled" in file_path.stem:
                         df = pd.read_csv(file_path, index_col="time").loc[skip_first:]
 
                         match = re.search(r'scaled_(\d+)_([^_]+)_', file_path.stem)
@@ -193,14 +194,14 @@ def load_motor_data(subject_data, subject_dirs, subjects):
 
             subject_data[subject.name][session.name]["session_data"] = session_data
 
-    return subject_data, subject_dirs, subjects
+    return subject_data, subject_dirs, subjects, data_dict
 
 
 
 def load_emg_data(subject_data, subject_dirs, subjects):
 
     # LOAD EMG DATA
-    sampling_freq =  emg_config["FREQUENCY"]  # Frequency in Hz
+    sampling_freq =  float(2148.259)  # Frequency in Hz
     sampling_interval = 1 / sampling_freq  # Time interval between samples
 
     IMU_sampling_freq = 518.519  # Frequency in Hz
@@ -420,7 +421,6 @@ def load_imu_data(subject_data, subject_dirs, subjects):
                                 session_data["UNPOWERED"]["AFTER"]["LOG"].append(df)
 
                         else:
-                            print(df)
                             df = pd.read_csv(file_path)
                             match = re.search(r'Profile_(.*?)_Trial', file_path.stem)
                             if match:
