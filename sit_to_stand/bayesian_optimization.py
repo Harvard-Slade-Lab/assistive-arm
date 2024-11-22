@@ -49,8 +49,13 @@ from scipy.optimize import NonlinearConstraint
 import bayes_opt.acquisition
 
 
+
+
 class ForceProfileOptimizer:
-    def __init__(self, calibration_path, save_path, kappa, max_force=65, max_time=360):
+    def __init__(self, motor_1, motor_2, calibration_path, save_path, kappa, max_force=65, max_time=360):
+        self.motor_1 = motor_1
+        self.motor_2 = motor_2
+
         self.calibration_path = calibration_path
         self.save_path = save_path
         self.max_force = max_force
@@ -133,7 +138,17 @@ class ForceProfileOptimizer:
 
         base_profile = self.get_profile(force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time)
 
-        
+
+        score = apply_simulation_profile(
+                    motor_1=self.motor_1,
+                    motor_2=self.motor_2,
+                    freq=freq,
+                    session_manager=session_manager,
+                    profile_dir=unadjusted_profile_dir,
+                    mode=trigger_mode,
+                    server=socket_server
+                )
+
         # score = easy_score(force1_end_time_p, force1_peak_force_p, force2_start_time_p, force2_peak_time_p, force2_peak_force_p, force2_end_time_p)
 
         self.score_history.append(score)

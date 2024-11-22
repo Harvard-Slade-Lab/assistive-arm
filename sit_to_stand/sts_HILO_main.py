@@ -103,31 +103,51 @@ if __name__ == "__main__":
                 elif choice == States.HILO and session_manager.load_device_height_calibration() is not None:
                     with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                         with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                            # Get assistive profile from optimizer
                             optimizer = ForceProfileOptimizer(
-                                calibration_path=session_manager.calibration_path,
-                                save_path=session_manager.session_dir,
-                                kappa=kappa,
-                                max_force=max_force,
-                                max_time=max_time
-                            )
-                            # Adjust the profile to the height of the subject
+                                    motor_1=motor_1,
+                                    motor_2=motor_2,
+                                    calibration_path=session_manager.calibration_path,
+                                    save_path=session_manager.session_dir,
+                                    kappa=kappa,
+                                    max_force=max_force,
+                                    max_time=max_time,
+                                )
+                            
                             for exploration_iteration in range(exploration_iterations):
                                 optimizer.explorate()
-                                # Potentially need to inegrate everything in optimihzer class, not sure yet what is best
-                                try:
-                                    apply_simulation_profile(
-                                        motor_1=motor_1,
-                                        motor_2=motor_2,
-                                        freq=freq,
-                                        session_manager=session_manager,
-                                        profile_dir=unadjusted_profile_dir,
-                                        mode=trigger_mode,
-                                        server=socket_server
-                                    )
-                                except FileNotFoundError as e:
-                                    print(e)
-                                    print("Returning to the main menu...")
+                            
+                            while True:
+                                optimizer.optimize()
+
+
+
+                    # with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
+                    #     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
+                    #         # Get assistive profile from optimizer
+                    #         optimizer = ForceProfileOptimizer(
+                    #             calibration_path=session_manager.calibration_path,
+                    #             save_path=session_manager.session_dir,
+                    #             kappa=kappa,
+                    #             max_force=max_force,
+                    #             max_time=max_time
+                    #         )
+                    #         # Adjust the profile to the height of the subject
+                    #         for exploration_iteration in range(exploration_iterations):
+                    #             optimizer.explorate()
+                    #             # Potentially need to inegrate everything in optimihzer class, not sure yet what is best
+                    #             try:
+                    #                 apply_simulation_profile(
+                    #                     motor_1=motor_1,
+                    #                     motor_2=motor_2,
+                    #                     freq=freq,
+                    #                     session_manager=session_manager,
+                    #                     profile_dir=unadjusted_profile_dir,
+                    #                     mode=trigger_mode,
+                    #                     server=socket_server
+                    #                 )
+                    #             except FileNotFoundError as e:
+                    #                 print(e)
+                    #                 print("Returning to the main menu...")
 
                 elif choice == States.EXIT:
                     print("Exiting...")
