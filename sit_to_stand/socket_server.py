@@ -1,5 +1,3 @@
-from pathlib import Path
-
 # Network socket server
 import socket
 import threading

@@ -132,6 +132,8 @@ class ForceProfileOptimizer:
             return -1  # Penalize invalid constraints
 
         base_profile = self.get_profile(force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time)
+
+        
         # score = easy_score(force1_end_time_p, force1_peak_force_p, force2_start_time_p, force2_peak_time_p, force2_peak_force_p, force2_end_time_p)
 
         self.score_history.append(score)
@@ -157,7 +159,7 @@ class ForceProfileOptimizer:
         logger = JSONLogger(path=self.save_path)
         optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
 
-    def explorate(self, optimizer, init_points=10, n_iter=0):
+    def explorate(self, optimizer, init_points=1, n_iter=0):
         optimizer.maximize(init_points=init_points, n_iter=n_iter)
 
     def optimize(self, optimizer, init_points=0, n_iter=1):

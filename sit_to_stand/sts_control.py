@@ -90,9 +90,10 @@ def calibrate_height(
 
         # Store calibration data
         calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
-        calibration_data["theta_2_values"] = [float(angle) for angle in theta_2]
+        calibration_data["theta_2_values"] = [float(angle) for angle in theta_2_scaled]
 
-        # Save calibrated theta 
+        remote_path = session_manager.session_remote_dir / "calibrated"
+
         # Save calibration data in YAML and sync with the remote directory
         with open(yaml_path, "w") as f:
             yaml.dump(calibration_data, f)
@@ -101,7 +102,6 @@ def calibrate_height(
         except Exception as e:
             print(f"Error transferring YAML file: {e}")
         
-
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 

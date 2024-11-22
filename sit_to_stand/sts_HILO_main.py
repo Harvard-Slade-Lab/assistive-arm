@@ -114,6 +114,7 @@ if __name__ == "__main__":
                             # Adjust the profile to the height of the subject
                             for exploration_iteration in range(exploration_iterations):
                                 optimizer.explorate()
+                                # Potentially need to inegrate everything in optimihzer class, not sure yet what is best
                                 try:
                                     apply_simulation_profile(
                                         motor_1=motor_1,

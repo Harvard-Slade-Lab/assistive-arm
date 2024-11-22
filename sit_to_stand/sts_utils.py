@@ -1,10 +1,8 @@
 from datetime import datetime
 import time
-
-from typing import Literal
-
 import RPi.GPIO as GPIO
 
+from typing import Literal
 from sit_to_stand.socket_server import SocketServer
 
             
