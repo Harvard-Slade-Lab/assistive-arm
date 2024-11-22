@@ -9,9 +9,8 @@ from socket_server import SocketServer
 from pathlib import Path
 from datetime import datetime
 
-# Remote project directory
+# Directory to directly save the logs to remote host (laptop used for data analysis), also need to add Host in ~/.ssh/config
 PROJECT_DIR_REMOTE = Path("/Users/nathanirniger/Desktop/MA/Project/Code/assistive-arm")
-
 
 class SessionManager:
     """Handles session logging and data storage."""
@@ -19,7 +18,8 @@ class SessionManager:
     def __init__(self, subject_id):
         self.subject_folder = Path(f"./subject_logs/subject_{subject_id}")
         self.session_dir, self.session_remote_dir = self.set_up_logging_dir()
-        self.theta_2_scaled = self.load_device_height_calibration()
+        self.theta_2_scaled = None
+        self.load_device_height_calibration()
 
     def set_up_logging_dir(self):
         """Set up directories for logging."""
@@ -54,7 +54,8 @@ class SessionManager:
         if calibration_path.exists():
             with open(calibration_path, "r") as f:
                 calibration_data = yaml.safe_load(f)
-            return calibration_data["theta_2_scaled"]
+            self.theta_2_scaled = calibration_data["theta_2_scaled"]
+            return 1
         else:
             print("No calibration data found.")
             return None
