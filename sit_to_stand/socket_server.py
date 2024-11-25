@@ -14,6 +14,7 @@ class SocketServer:
         self.port = port
         self.collect_flag = False
         self.profile_name = None
+        self.score = None
         self.stop_server = False
         self.conn = None
         self.server_thread = threading.Thread(target=self.start_server)
@@ -50,11 +51,14 @@ class SocketServer:
             self.collect_flag = False
         elif data == "Kill":
             print("Closing connection...")
-            if self.conn:
-                self.conn.close()
-            self.server_thread.join()
+            self.stop()
+            # if self.conn:
+            #     self.conn.close()
+            # self.server_thread.join()
         elif "Profile" in data:
             self.profile_name = data.split(":")[1]
+        elif "Score" in data:
+            self.score = float(data.split(":")[1])
 
     def stop(self):
         """Stop the server."""

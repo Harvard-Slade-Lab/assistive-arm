@@ -1,41 +1,3 @@
-
-
-
-
-# def save_optimization_results(base_profile, score, force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time):
-#     try:
-#         os.makedirs("/Users/nathanirniger/Desktop/profiles/optim/plots", exist_ok=True)
-#     except Exception as e:
-#         print(f"Error creating directories: {e}")
-
-#     # Save the profile as CSV
-#     profile_path = f"/Users/nathanirniger/Desktop/profiles/optim/score_{score}_profile.csv"
-#     base_profile.to_csv(profile_path, index=False)
-
-#     # Plot the profile and save the figure
-#     target_profile = pd.read_csv("/Users/nathanirniger/Desktop/profiles/reference_profile_3.csv")
-#     plt.figure(figsize=(10, 6))
-#     plt.plot(base_profile["force_X"], label="Optimized Profile X Force")
-#     plt.plot(base_profile["force_Y"], label="Optimized Profile Y Force")
-#     plt.plot(target_profile["force_X"], label="Target Profile X Force", linestyle="--")
-#     plt.plot(target_profile["force_Y"], label="Target Profile Y Force", linestyle="--")
-#     plt.legend()
-#     plt.title(f"Score: {score}")
-#     plt.savefig(f"/Users/nathanirniger/Desktop/profiles/optim/plots/score_{score}_profile_t11_{force1_end_time}_f1_{force1_peak_force}_t21_{force2_start_time}_t22_{force2_peak_time}_f21_{force2_peak_force}_t23_{force2_end_time}.png")
-#     plt.close()
-
-# def plot_scores():
-#     plt.figure(figsize=(10, 6))
-#     plt.plot(score_history, label="Score History")
-#     plt.xlabel("Iteration")
-#     plt.ylabel("Score")
-#     plt.title("Optimization Score Trend")
-#     plt.legend()
-#     plt.show()
-
-
-
-
 import numpy as np
 import pandas as pd
 import yaml
@@ -48,20 +10,24 @@ from bayes_opt.util import load_logs
 from scipy.optimize import NonlinearConstraint
 import bayes_opt.acquisition
 
+from sts_control import apply_simulation_profile
 
 
 
 class ForceProfileOptimizer:
-    def __init__(self, motor_1, motor_2, calibration_path, save_path, kappa, max_force=65, max_time=360):
+    def __init__(self, motor_1, motor_2, kappa, freq, session_manager, trigger_mode, socket_server, max_force=65, max_time=360):
         self.motor_1 = motor_1
         self.motor_2 = motor_2
+        self.session_manager = session_manager
+        self.trigger_mode = trigger_mode
+        self.socket_server = socket_server
 
-        self.calibration_path = calibration_path
-        self.save_path = save_path
         self.max_force = max_force
         self.max_time = max_time
         self.score_history = []
+
         self.kappa = kappa
+        self.freq = freq
         self.pbounds = {
             "force1_end_time_p": (0.0, 1.0),        # End time for force1
             "force1_peak_force_p": (0.0, 1.0),      # Ratio for force1 peak time
@@ -70,9 +36,17 @@ class ForceProfileOptimizer:
             "force2_peak_force_p": (0.0, 1.0),      # Peak force for force2
             "force2_end_time_p": (0.0, 1.0)         # End time for force2
         }
+
         self.optimizer = None
-        
         self.load_optimizer()
+
+        # Set up logging directories
+        self.profile_dir = session_manager.session_dir / "profiles"
+        if not os.path.exists(self.profile_dir):
+            os.makedirs(self.profile_dir)
+        self.remote_profile_dir = session_manager.session_remote_dir / "profiles"
+        if not os.path.exists(self.remote_profile_dir):
+            os.system(f"ssh macbook 'mkdir -p {self.remote_profile_dir}'")
 
     @staticmethod
     def cubic_hermite_spline(points):
@@ -90,7 +64,7 @@ class ForceProfileOptimizer:
         )
 
     def get_profile(self, force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time):
-        with open(self.calibration_path, 'r') as file:
+        with open(self.session_manager.calibration_path, 'r') as file:
             data = yaml.safe_load(file)
 
         length = len(data['theta_2_values'])
@@ -120,6 +94,8 @@ class ForceProfileOptimizer:
         # force2_peak_time = force2_peak_time_p * self.max_time
         # force2_peak_force = force2_peak_force_p * self.max_force
         # force2_end_time = force2_end_time_p * self.max_time
+        # if not self.validate_constraints(force2_start_time, force2_peak_time, force2_end_time):
+        #     return -0.1  # Penalize invalid constraints
 
         # Constrain the time values to be within the range of 0.25 to 0.75 of the max time
         # force2_start_time = force2_start_time_p * self.max_time * 0.25
@@ -133,28 +109,33 @@ class ForceProfileOptimizer:
         force2_end_time = force2_peak_time + force2_end_time_p * (self.max_time - force2_peak_time)
         force2_peak_force = force2_peak_force_p * self.max_force
 
+        # Just a sanity check
         if not self.validate_constraints(force2_start_time, force2_peak_time, force2_end_time):
-            return -1  # Penalize invalid constraints
-
+            print("violated constraints")
+        
         base_profile = self.get_profile(force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time)
 
+        profile_name = f"t11_{force1_end_time}_f11_{force1_peak_force}_t21_{force2_start_time}_t22_{force2_peak_time}_t23_{force2_end_time}_f21_{force2_peak_force}"
 
-        score = apply_simulation_profile(
-                    motor_1=self.motor_1,
-                    motor_2=self.motor_2,
-                    freq=freq,
-                    session_manager=session_manager,
-                    profile_dir=unadjusted_profile_dir,
-                    mode=trigger_mode,
-                    server=socket_server
-                )
+        # Save the profile as CSV
+        profile_path = self.profile_dir / f"profile_{profile_name}.csv"
+        base_profile.to_csv(profile_path, index=False)
+        # Send to remote host
+        os.system(f"scp {profile_path} macbook:{self.remote_profile_dir}")
 
-        # score = easy_score(force1_end_time_p, force1_peak_force_p, force2_start_time_p, force2_peak_time_p, force2_peak_force_p, force2_end_time_p)
-
-        self.score_history.append(score)
-        # if score > -0.05:
-        #     save_optimization_results(base_profile, score, force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time)
-
+        for _ in range(5):
+            apply_simulation_profile(
+                motor_1=self.motor_1,
+                motor_2=self.motor_2,
+                freq=self.freq,
+                session_manager=self.session_manager,
+                profile = base_profile,
+                profile_name = profile_name,
+                mode=self.trigger_mode,
+                server=self.socket_server
+            )
+            score = self.socket_server.score
+            self.score_history.append(score)
         return score
 
     def load_optimizer(self):
@@ -169,10 +150,14 @@ class ForceProfileOptimizer:
         if os.path.exists(self.save_path):
             load_logs(optimizer, logs=[self.save_path])
         self.optimizer = optimizer
+        self.save_progress()
 
-    def save_progress(self, optimizer):
+    def save_progress(self):
         logger = JSONLogger(path=self.save_path)
-        optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
+        self.optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
+
+    def log_to_remote(self):
+        os.system(f"scp {self.save_path} macbook:{self.session_manager.session_remote_dir}")
 
     def explorate(self, optimizer, init_points=1, n_iter=0):
         optimizer.maximize(init_points=init_points, n_iter=n_iter)

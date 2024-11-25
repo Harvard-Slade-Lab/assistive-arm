@@ -237,7 +237,8 @@ def apply_simulation_profile(
         motor_2: CubemarsMotor,
         freq: int,
         session_manager: SessionManager,
-        profile_dir: Path,
+        profile: pd.DataFrame,
+        profile_name: str,
         mode: Literal["TRIGGER", "ENTER", "SOCKET"],
         server: SocketServer):
     """
@@ -248,51 +249,41 @@ def apply_simulation_profile(
         motor_2 (CubemarsMotor): Second motor in the assistive arm.
         freq (int): Control loop frequency (Hz).
         session_manager (SessionManager): Manages session and logging paths.
-        profile_dir (Path): Directory path to the calibrated profile.
+        profile: Most recent profile.
+        profile_name (str): Name of the profile to apply.
         mode (Literal["TRIGGER", "ENTER", "SOCKET"]): Start trigger mode.
         server (SocketServer): Socket server instance for communication.
     """
-    adjusted_profile_dir = profile_dir.parent / f"calibrated/{profile_dir.stem}_calibrated.csv"
-    print(f"Using profile: {adjusted_profile_dir}")
+
+    # Wait for trigger signal and start recording based on mode
+    await_trigger_signal(mode=mode, server=server)
     
-    # Check if the calibrated profile exists before proceeding
-    if not adjusted_profile_dir.exists():
-        raise FileNotFoundError(f"File {adjusted_profile_dir} does not exist. Please calibrate the device first.")
+    # Set up logging for this iteration
+    log_path, logger = get_logger(log_name=f"{profile_name}", session_manager=session_manager, server=server)
+    
+    # Countdown before starting
+    countdown(duration=3)
 
-    profile = pd.read_csv(adjusted_profile_dir, index_col="Percentage")
+    try:
+        # Run the control loop, passing session_manager and server
+        success = control_loop_and_log(
+            motor_1=motor_1,
+            motor_2=motor_2,
+            logger=logger,
+            profile=profile,
+            freq=freq,
+            mode=mode,
+            apply_force=True,
+            log_path=log_path,
+            server=server,
+            session_manager=session_manager
+        )
 
-    # Loop through multiple iterations of profile application
-    for i in range(5):
-        # Wait for trigger signal and start recording based on mode
-        await_trigger_signal(mode=mode, server=server)
-        
-        # Set up logging for this iteration
-        log_path, logger = get_logger(log_name=f"{profile_dir.stem}", session_manager=session_manager, server=server)
-        
-        # Countdown before starting
-        countdown(duration=3)
+        # Save or delete the log based on success
+        session_manager.save_log_or_delete(log_path=log_path, successful=success)
 
-        try:
-            # Run the control loop, passing session_manager and server
-            success = control_loop_and_log(
-                motor_1=motor_1,
-                motor_2=motor_2,
-                logger=logger,
-                profile=profile,
-                freq=freq,
-                mode=mode,
-                apply_force=True,
-                log_path=log_path,
-                server=server,
-                session_manager=session_manager
-            )
-
-            # Save or delete the log based on success
-            session_manager.save_log_or_delete(log_path=log_path, successful=success)
-
-        except KeyboardInterrupt:
-            print("Keyboard interrupt detected. Shutting down...")
-            break
+    except KeyboardInterrupt:
+        print("Keyboard interrupt detected. Stopping...")
 
 
 def collect_unpowered_data(

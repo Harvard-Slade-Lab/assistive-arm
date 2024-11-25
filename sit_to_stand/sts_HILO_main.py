@@ -30,6 +30,13 @@ class States(Enum):
 
 
 if __name__ == "__main__":
+
+    subject_id = "P"
+    subject_folder = Path(f"./subject_logs/subject_{subject_id}")
+    session_manager = SessionManager(subject_id=subject_id)
+
+    trigger_mode = "SOCKET" # TRIGGER, ENTER or SOCKET
+
     # HYPERPARMAETERS
     kappa = 2.5
     exploration_iterations = 5
@@ -43,18 +50,13 @@ if __name__ == "__main__":
     logging = True
     freq = 200
 
-    subject_id = "P"
-    subject_folder = Path(f"./subject_logs/subject_{subject_id}")
-    session_manager = SessionManager(subject_id=subject_id)
-
-    trigger_mode = "SOCKET" # TRIGGER, ENTER or SOCKET
-
     if trigger_mode == "SOCKET":
         socket_server = SocketServer()
     else:
         socket_server = None
 
-    unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille_xy.csv")
+    # This profile is just used in the calibration process to map the new height to the theta_2_values
+    unadjusted_profile_dir = Path(f"./torque_profiles/reference/reference_profile.csv")
 
 
     # Start the main interaction loop
@@ -106,48 +108,24 @@ if __name__ == "__main__":
                             optimizer = ForceProfileOptimizer(
                                     motor_1=motor_1,
                                     motor_2=motor_2,
-                                    calibration_path=session_manager.calibration_path,
-                                    save_path=session_manager.session_dir,
                                     kappa=kappa,
+                                    freq = freq, 
+                                    session_manager = session_manager, 
+                                    trigger_mode = trigger_mode, 
+                                    socket_server = socket_server, 
                                     max_force=max_force,
                                     max_time=max_time,
                                 )
                             
+                            # Explorate the space
                             for exploration_iteration in range(exploration_iterations):
                                 optimizer.explorate()
                             
-                            while True:
+                            # Optimize until the server stops (Kill command is sent)
+                            while not socket_server.stop_server:
                                 optimizer.optimize()
 
-
-
-                    # with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
-                    #     with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                    #         # Get assistive profile from optimizer
-                    #         optimizer = ForceProfileOptimizer(
-                    #             calibration_path=session_manager.calibration_path,
-                    #             save_path=session_manager.session_dir,
-                    #             kappa=kappa,
-                    #             max_force=max_force,
-                    #             max_time=max_time
-                    #         )
-                    #         # Adjust the profile to the height of the subject
-                    #         for exploration_iteration in range(exploration_iterations):
-                    #             optimizer.explorate()
-                    #             # Potentially need to inegrate everything in optimihzer class, not sure yet what is best
-                    #             try:
-                    #                 apply_simulation_profile(
-                    #                     motor_1=motor_1,
-                    #                     motor_2=motor_2,
-                    #                     freq=freq,
-                    #                     session_manager=session_manager,
-                    #                     profile_dir=unadjusted_profile_dir,
-                    #                     mode=trigger_mode,
-                    #                     server=socket_server
-                    #                 )
-                    #             except FileNotFoundError as e:
-                    #                 print(e)
-                    #                 print("Returning to the main menu...")
+                            optimizer.log_to_remote()
 
                 elif choice == States.EXIT:
                     print("Exiting...")
