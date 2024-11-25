@@ -223,7 +223,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Get subject number
         self.subject_number = input("Enter subject number: ").strip()
-        self.assistive_profile_name = input("Enter assistive profile name: ").strip()
+        # self.assistive_profile_name = input("Enter assistive profile name: ").strip()
 
         # Determine the next trial number
         subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
@@ -246,6 +246,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         if self.plot:
             self.plotter.initialize_plot()
+
+        # Send profile label to socket server
+        if self.socket:
+            self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
 
     def configure_sensors(self):
         print("Configuring sensors...")
@@ -340,8 +345,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             # Send singal to socket server to start data collection
             if self.socket:
+                # self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
                 self.data_handler.send_data("Start")
-                self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
 
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
@@ -375,8 +380,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.unassisted = True
             # Send singal to socket server to start data collection
             if self.socket:
+                # self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
                 self.data_handler.send_data("Start")
-                self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
 
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
@@ -403,8 +408,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             # This is used if single profiles are run and only one sts is performed
             if self.count_peak == 0 and self.real_time:
-                current_segment_start_idx_imu = self.segment_start_idx_imu
-                self.calculate_stuff(current_segment_start_idx_imu, len(self.complete_gyro_data[0]["X"]))
+                self.calculate_stuff(0, len(self.complete_gyro_data[0]["X"]))
 
             if hasattr(self, "executor") and self.executor:
                 self.executor.shutdown(wait=True)  # Gracefully wait for all tasks to complete
@@ -432,13 +436,16 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.trial_number += 1
 
         # Ask for new assistive profile name
-        assistive_profile_name, ok = QtWidgets.QInputDialog.getText(self, 'Assistive Profile Name', 'Enter new assistive profile name or cancel:')
-        if ok:
-            self.trial_number = 1
-            self.assistive_profile_name = assistive_profile_name
+        # assistive_profile_name, ok = QtWidgets.QInputDialog.getText(self, 'Assistive Profile Name', 'Enter new assistive profile name or cancel:')
+        # if ok:
+        #     self.trial_number = 1
+        #     self.assistive_profile_name = assistive_profile_name
 
-        else:
-            print("No trial is currently running.")
+        # Send profile label to socket server for next profile
+        if self.socket:
+            self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
+
 
     def start_collection(self):
         print("Starting data collection...")
@@ -615,7 +622,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][current_segmen_start_idx_imu:current_segment_end_idx_imu]
         z_acc_segment = pd.DataFrame(z_acc_segment, columns=['ACC Z (G)'])
 
-        # Concate the two segments
+        # Concatenate the two segments
         imu_data = pd.concat([gyro_x_segment, z_acc_segment], axis=1)
         imu_filtered = self.apply_lowpass_filter(imu_data, 1, self.gyro_sample_rates[imu_sensor_label])   
 
@@ -687,14 +694,14 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                         self.unassisted_mean = self.data_exporter.load_unassisted_mean_from_csv()
                         # Send comparison score to socket server
                         if self.socket:
-                            self.data_handler.send_data(str(self.unassisted_mean - assisted_mean))
+                            self.data_handler.send_data(f"Score:{self.unassisted_mean - assisted_mean}")
                     except:
                         print("No unassisted mean found.")
 
                 if self.unassisted_mean is not None:
                     # Send comparison score to socket server
                     if self.socket:
-                        self.data_handler.send_data(str(self.unassisted_mean - assisted_mean))
+                        self.data_handler.send_data(f"Score:{self.unassisted_mean - assisted_mean}")
 
                 # Log the extracted variables
                 log_entry = {
@@ -727,6 +734,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Get the mean of the past 100 Gyro X values
             gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
 
+            # Detect peak to see if a sts has ended
             if gyro_x_mean > peak_threshold and not self.peak:
                 self.peak = True
                 self.segment_end_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
@@ -738,6 +746,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     # Get current segment indices, so they cannot get overwritten
                     current_segment_start_idx_imu = self.segment_start_idx_imu
                     current_segment_end_idx_imu = self.segment_end_idx_imu
+                    # Process the data in a separate thread
                     self.executor.submit(self.calculate_stuff(current_segment_start_idx_imu, current_segment_end_idx_imu))
 
             if self.peak:
