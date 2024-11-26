@@ -205,6 +205,14 @@ class CubemarsMotor:
 
         self._update_motor(cmd=cmd)
 
+    def clear_buffers(self):
+        """
+        Clear the circular buffers, so that the next call to update_motor will not use old data
+        """
+        self.position_buffer = [0] * self.buffer_size
+        self.velocity_buffer = [0] * self.buffer_size
+        self.torque_buffer = [0] * self.buffer_size
+
     def _update_motor(self, cmd: list[hex], wait_time: float = 0.001) -> bool:
         if len(cmd) != 5:
             print("Too many or too few arguments")

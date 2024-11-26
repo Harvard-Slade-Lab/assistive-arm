@@ -7,17 +7,17 @@ from sit_to_stand.socket_server import SocketServer
 
             
 def await_trigger_signal(mode: Literal["TRIGGER", "ENTER", "SOCKET"], server: SocketServer=None):
-    """ Wait for trigger signal OR Enter to start recording """
+    """ Wait for trigger signal OR Enter to start Trial """
     if mode == "ENTER": 
-        input("\nPress Enter to start recording...")
+        input("\nPress Enter to start Trial...")
 
     if mode == "TRIGGER":
-        print("\nPress trigger to start recording P_EE...")
+        print("\nPress trigger to start Trial")
         while not GPIO.input(17):
             pass
 
     elif mode == "SOCKET" and server:
-        print("\nWaiting for socket data to start recording")
+        print("\nWaiting for socket start signal to start Trial")
         while not server.collect_flag:
             time.sleep(0.1)
 

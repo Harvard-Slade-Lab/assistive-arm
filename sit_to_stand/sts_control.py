@@ -37,7 +37,7 @@ def calibrate_height(
         profile_dir (Path): Path to the unadjusted profile file.
     """
     # Use session_manager to retrieve the YAML path for calibration data
-    yaml_path = session_manager.get_yaml_path(yaml_name="device_height_calibration")
+    yaml_path = session_manager.yaml_path
 
     # Load unadjusted profile data
     unadjusted_profile = pd.read_csv(profile_dir, index_col="Percentage")
@@ -92,7 +92,7 @@ def calibrate_height(
         calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
         calibration_data["theta_2_values"] = [float(angle) for angle in theta_2_scaled]
 
-        remote_path = session_manager.session_remote_dir / "calibrated"
+        remote_path = session_manager.session_remote_dir
 
         # Save calibration data in YAML and sync with the remote directory
         with open(yaml_path, "w") as f:
@@ -105,61 +105,6 @@ def calibrate_height(
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
-
-# def save_calibrated_profiles(theta_2_scaled, profile_dir, session_manager, yaml_path, calibration_data):
-#     """
-#     Save the calibrated profiles to both local and remote directories.
-
-#     Args:
-#         theta_2_scaled (pd.Series): Scaled theta_2 values.
-#         profile_dir (Path): Directory where the profiles are stored.
-#         session_manager (SessionManager): Instance for handling session directory and remote sync.
-#         yaml_path (Path): Path to the YAML file for calibration data.
-#         calibration_data (dict): Calibration data to save in YAML.
-#     """
-#     spline_path = Path("./torque_profiles")
-#     calibrated_dir = spline_path / "calibrated"
-#     calibrated_dir.mkdir(parents=True, exist_ok=True)
-
-#     # Zip and prepare for transfer
-#     zip_file_path = calibrated_dir / "calibrated_profiles.zip"
-#     with zipfile.ZipFile(zip_file_path, "w") as zip_file:
-#         for profile in spline_path.iterdir():
-#             if profile.suffix == ".csv" and "calibrated" not in profile.stem:
-#                 # Read and calibrate profile data
-#                 spline_profile = pd.read_csv(profile, index_col="Percentage")
-#                 spline_profile['theta_2'] = theta_2_scaled
-                
-#                 # Save calibrated profile in the target directory
-#                 calibrated_profile_path = calibrated_dir / f"{profile.stem}_calibrated.csv"
-#                 spline_profile.to_csv(calibrated_profile_path, index=True)
-
-#                 # Add calibrated profile to zip
-#                 zip_file.write(calibrated_profile_path, calibrated_profile_path.name)
-
-#     # Transfer to remote host
-#     remote_path = session_manager.session_remote_dir / "calibrated"
-#     try:
-#         os.system(f"ssh macbook 'mkdir -p {remote_path}'")
-#     except Exception as e:
-#         print(f"Error creating remote directory: {e}")
-        
-#     try:
-#         os.system(f"scp {zip_file_path} macbook:{remote_path}")
-#         os.system(f"ssh macbook 'unzip -oq {remote_path / zip_file_path.name} -d {remote_path}'")
-#         os.remove(zip_file_path)
-#     except Exception as e:
-#         print(f"Error transferring file: {e}")
-
-#     # Save calibration data in YAML and sync with the remote directory
-#     with open(yaml_path, "w") as f:
-#         yaml.dump(calibration_data, f)
-#     try:
-#         os.system(f"scp {yaml_path} macbook:{remote_path}")
-#     except Exception as e:
-#         print(f"Error transferring YAML file: {e}")
-
-
 def control_loop_and_log(
         motor_1: CubemarsMotor,
         motor_2: CubemarsMotor,
@@ -171,6 +116,10 @@ def control_loop_and_log(
         log_path: Path,
         server: SocketServer,
         session_manager: SessionManager):
+    
+    # Clear motor buffers
+    motor_1.clear_buffers()
+    motor_2.clear_buffers()
 
     print("Recording started. Please perform the sit-to-stand motion.")
     print("Press Ctrl + C or trigger to stop recording.\n")
@@ -200,12 +149,12 @@ def control_loop_and_log(
             profiles=profile
         )
         
-        if apply_force and t >= 0.1:
-            motor_1.send_torque(desired_torque=tau_1, safety=False)
-            motor_2.send_torque(desired_torque=tau_2, safety=False)
-        else:
-            motor_1.send_torque(desired_torque=0, safety=False) 
-            motor_2.send_torque(desired_torque=0, safety=False)
+        # if apply_force and t >= 0.1:
+        #     motor_1.send_torque(desired_torque=tau_1, safety=False)
+        #     motor_2.send_torque(desired_torque=tau_2, safety=False)
+        # else:
+        motor_1.send_torque(desired_torque=0, safety=False) 
+        motor_2.send_torque(desired_torque=0, safety=False)
 
         if t - print_time >= 0.05:
             print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.measured_torque:.3f}")
@@ -306,7 +255,7 @@ def collect_unpowered_data(
         mode (Literal["TRIGGER", "ENTER"]): Start trigger mode.
         server (SocketServer): Socket server instance for connection control.
     """
-    adjusted_profile_dir = profile_dir.parent / f"calibrated/{profile_dir.stem}_calibrated.csv"
+    adjusted_profile_dir = profile_dir.parent / f"{profile_dir.stem}.csv"
     
     if not adjusted_profile_dir.exists():
         raise FileNotFoundError(f"File {adjusted_profile_dir} does not exist. Please calibrate the device first.")

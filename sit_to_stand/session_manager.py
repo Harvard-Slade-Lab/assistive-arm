@@ -19,6 +19,9 @@ class SessionManager:
         self.subject_folder = Path(f"./subject_logs/subject_{subject_id}")
         self.session_dir, self.session_remote_dir = self.set_up_logging_dir()
         self.theta_2_scaled = None
+        self.yaml_path = None
+
+        self.get_yaml_path("device_height_calibration")
         self.load_device_height_calibration()
 
     def set_up_logging_dir(self):
@@ -49,19 +52,20 @@ class SessionManager:
 
     def load_device_height_calibration(self) -> pd.Series:
         """Load the device height calibration data."""
-        calibration_path = Path("./calibration_data/device_height_calibration.yaml")
         # If the file exists, load the calibration data
-        if calibration_path.exists():
-            with open(calibration_path, "r") as f:
-                calibration_data = yaml.safe_load(f)
-            self.theta_2_scaled = calibration_data["theta_2_scaled"]
-            return 1
-        else:
-            print("No calibration data found.")
-            return None
+        if self.yaml_path is not None:
+            if self.yaml_path.exists():
+                with open(self.yaml_path, "r") as f:
+                    calibration_data = yaml.safe_load(f)
+                self.theta_2_scaled = calibration_data["theta_2_values"]
+                return 1
+            else:
+                print("No calibration data found.")
+                return None
 
     def get_yaml_path(self, yaml_name: str) -> Path:
         yaml_file = f"{yaml_name}.yaml"
+        self.yaml_path = self.session_dir / yaml_file
         return self.session_dir / yaml_file
     
 
@@ -106,13 +110,14 @@ def get_logger(log_name: str, session_manager: SessionManager, server: SocketSer
     with open(log_path, "w") as fd:
         writer = csv.writer(fd)
         
-        # Add profile details force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time
-        writer.writerow(["force1_end_time", numbers[0]])
-        writer.writerow(["force1_peak_force", numbers[1]])
-        writer.writerow(["force2_start_time", numbers[2]])
-        writer.writerow(["force2_peak_time", numbers[3]])
-        writer.writerow(["force2_peak_force", numbers[4]])
-        writer.writerow(["force2_end_time", numbers[5]])
+        if numbers:
+            # Add profile details force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time
+            writer.writerow(["force1_end_time", numbers[0]])
+            writer.writerow(["force1_peak_force", numbers[1]])
+            writer.writerow(["force2_start_time", numbers[2]])
+            writer.writerow(["force2_peak_time", numbers[3]])
+            writer.writerow(["force2_peak_force", numbers[4]])
+            writer.writerow(["force2_end_time", numbers[5]])
         
         # Write headers
         writer.writerow(["time"] + logged_vars)

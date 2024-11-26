@@ -50,7 +50,7 @@ class SocketServer:
         elif data == "Stop":
             self.collect_flag = False
         elif data == "Kill":
-            print("Closing connection...")
+            print("\nClosing connection and exiting...")
             self.stop()
             # if self.conn:
             #     self.conn.close()

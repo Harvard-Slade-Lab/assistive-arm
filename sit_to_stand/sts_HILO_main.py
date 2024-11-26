@@ -31,7 +31,7 @@ class States(Enum):
 
 if __name__ == "__main__":
 
-    subject_id = "P"
+    subject_id = "TEST"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
     session_manager = SessionManager(subject_id=subject_id)
 
@@ -105,7 +105,7 @@ if __name__ == "__main__":
                 elif choice == States.HILO and session_manager.load_device_height_calibration() is not None:
                     with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                         with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                            optimizer = ForceProfileOptimizer(
+                            profile_optimizer = ForceProfileOptimizer(
                                     motor_1=motor_1,
                                     motor_2=motor_2,
                                     kappa=kappa,
@@ -119,13 +119,13 @@ if __name__ == "__main__":
                             
                             # Explorate the space
                             for exploration_iteration in range(exploration_iterations):
-                                optimizer.explorate()
+                                profile_optimizer.explorate()
                             
                             # Optimize until the server stops (Kill command is sent)
                             while not socket_server.stop_server:
-                                optimizer.optimize()
+                                profile_optimizer.optimize()
 
-                            optimizer.log_to_remote()
+                            profile_optimizer.log_to_remote()
 
                 elif choice == States.EXIT:
                     print("Exiting...")
