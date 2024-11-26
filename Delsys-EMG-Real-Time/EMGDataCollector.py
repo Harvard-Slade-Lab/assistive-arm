@@ -247,9 +247,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if self.plot:
             self.plotter.initialize_plot()
 
+        self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+
         # Send profile label to socket server
         if self.socket:
-            self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
 
     def configure_sensors(self):
@@ -441,9 +442,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         #     self.trial_number = 1
         #     self.assistive_profile_name = assistive_profile_name
 
+        self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         # Send profile label to socket server for next profile
         if self.socket:
-            self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
 
 
@@ -715,51 +716,51 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 self.log_entries.append(log_entry)
 
     
-    def detect_peak_and_calculate(self):
-        # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
-        # The arrow of the sensor should be pointing towards the torso
-        imu_sensor_label = 0
-        gyro_axis = 'X'
+    # def detect_peak_and_calculate(self):
+    #     # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
+    #     # The arrow of the sensor should be pointing towards the torso
+    #     imu_sensor_label = 0
+    #     gyro_axis = 'X'
 
-        # Hyperparameters
-        peak_threshold = 50
+    #     # Hyperparameters
+    #     peak_threshold = 50
 
-        # Terminate if over time limit ---> doesn't work
-        # if time.time() - self.start_time > 7 and self.count_peak == 0:
-        #     current_segment_start_idx_imu = self.segment_start_idx_imu
-        #     self.calculate_stuff(current_segment_start_idx_imu, len(self.complete_gyro_data[imu_sensor_label][gyro_axis]))
-        #     self.stop_trial()
+    #     # Terminate if over time limit ---> doesn't work
+    #     # if time.time() - self.start_time > 7 and self.count_peak == 0:
+    #     #     current_segment_start_idx_imu = self.segment_start_idx_imu
+    #     #     self.calculate_stuff(current_segment_start_idx_imu, len(self.complete_gyro_data[imu_sensor_label][gyro_axis]))
+    #     #     self.stop_trial()
 
-        if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
-            # Get the mean of the past 100 Gyro X values
-            gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
+    #     if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
+    #         # Get the mean of the past 100 Gyro X values
+    #         gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
 
-            # Detect peak to see if a sts has ended
-            if gyro_x_mean > peak_threshold and not self.peak:
-                self.peak = True
-                self.segment_end_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
-                self.count_peak += 1
+    #         # Detect peak to see if a sts has ended
+    #         if gyro_x_mean > peak_threshold and not self.peak:
+    #             self.peak = True
+    #             self.segment_end_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
+    #             self.count_peak += 1
 
-            if self.count_peak > self.analysed_segments:
-                if self.last_submission_time is None or time.time() - self.last_submission_time > 1:
-                    self.last_submission_time = time.time()
-                    # Get current segment indices, so they cannot get overwritten
-                    current_segment_start_idx_imu = self.segment_start_idx_imu
-                    current_segment_end_idx_imu = self.segment_end_idx_imu
-                    # Process the data in a separate thread
-                    self.executor.submit(self.calculate_stuff(current_segment_start_idx_imu, current_segment_end_idx_imu))
+    #         if self.count_peak > self.analysed_segments:
+    #             if self.last_submission_time is None or time.time() - self.last_submission_time > 1:
+    #                 self.last_submission_time = time.time()
+    #                 # Get current segment indices, so they cannot get overwritten
+    #                 current_segment_start_idx_imu = self.segment_start_idx_imu
+    #                 current_segment_end_idx_imu = self.segment_end_idx_imu
+    #                 # Process the data in a separate thread
+    #                 self.executor.submit(self.calculate_stuff(current_segment_start_idx_imu, current_segment_end_idx_imu))
 
-            if self.peak:
-                if gyro_x_mean < peak_threshold:
-                    self.peak = False
-                    self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
+    #         if self.peak:
+    #             if gyro_x_mean < peak_threshold:
+    #                 self.peak = False
+    #                 self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
 
     def stream_data(self):
         """Collect data from sensors and put it into the queue."""
         while not self.pauseFlag:
             self.data_handler.processData(self.data_queue)
-            if self.real_time:
-                self.detect_peak_and_calculate()
+            # if self.real_time:
+            #     self.detect_peak_and_calculate()
 
         # Process any remaining data after stopping
         self.data_processor.process_remaining_data()

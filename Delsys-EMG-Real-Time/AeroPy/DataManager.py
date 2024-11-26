@@ -8,7 +8,7 @@ import numpy as np
 import queue
 
 class DataKernel():
-    def __init__(self, trigno_base, host='10.250.116.137', port=3003):
+    def __init__(self, trigno_base, host='10.250.113.245', port=3003):
         self.TrigBase = trigno_base
         self.packetCount = 0
         self.sampleCount = 0

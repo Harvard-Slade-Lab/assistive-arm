@@ -10,7 +10,7 @@ def main():
     # Flag for plotting
     plot = False
     # Flag for Socket connection
-    socket = False
+    socket = True
     # Flag for realtime processing
     real_time = True
 
