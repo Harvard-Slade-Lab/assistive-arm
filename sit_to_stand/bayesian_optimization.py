@@ -16,13 +16,14 @@ from sts_control import apply_simulation_profile
 
 
 class ForceProfileOptimizer:
-    def __init__(self, motor_1, motor_2, kappa, freq, session_manager, trigger_mode, socket_server, max_force=65, max_time=360, minimum_width_p=0.1):   
+    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, max_force=65, max_time=360, minimum_width_p=0.1):   
         self.motor_1 = motor_1
         self.motor_2 = motor_2
         self.session_manager = session_manager
         self.trigger_mode = trigger_mode
         self.socket_server = socket_server
 
+        self.iterations = iterations
         self.max_force = max_force
         self.max_time = max_time
         self.minimum_width_p = minimum_width_p
@@ -126,7 +127,8 @@ class ForceProfileOptimizer:
         # Send to remote host
         os.system(f"scp {profile_path} macbook:{self.remote_profile_dir}")
 
-        for i in range(5):
+        scores = []
+        for i in range(self.iterations):
             print("\nReady to apply profile, iteration: ", i+1)
 
             apply_simulation_profile(
@@ -145,14 +147,19 @@ class ForceProfileOptimizer:
             # while self.socket_server.score_receival_time is None or (time.time() - self.socket_server.score_receival_time) > 1:
             #     time.sleep(0.1)
 
-            # Check if the score's tag is the same as the most recent profile
+            # Check if the score's tag is the same as the most recent profile -> tested
             while not self.socket_server.profile_name == self.socket_server.score_tag:
                 time.sleep(0.1)
 
             score = self.socket_server.score
             self.score_history.append(score)
+            scores.append(score)
             print(f"Score: {score}")
-        return score
+
+        # Get mean score over last 5 iterations
+        mean_score = np.mean(scores)
+
+        return mean_score
 
     def load_optimizer(self):
         acquisition = bayes_opt.acquisition.UpperConfidenceBound(kappa=self.kappa)
@@ -225,33 +232,3 @@ class ForceProfileOptimizer:
 
     def optimize(self, init_points=0, n_iter=1):
         self.optimizer.maximize(init_points=init_points, n_iter=n_iter)
-
-
-
-
-
-
-# Sim proflie information
-# profile_reference_profile_force_Y_fmax_63.79933415313509_start_80_max_idx_106_end_254
-
-# profile_simulation_profile_Camille_force_Y_fmax_63.79933415313509_start_64_max_idx_122_end_265
-
-# profile_simulation_profile_Camille_xy_force_Y_fmax_63.79933415313509_start_64_max_idx_122_end_265
-
-# profile_simulation_profile_Camille_scalex_scaley_fitted_force_X_fmax_17.403562682388543_end_140
-# profile_simulation_profile_Camille_scalex_scaley_fitted_force_Y_fmax_85.56774268113895_start_84_max_idx_102_end_260
-
-# profile_simulation_profile_Camille_scalex_scaley_force_X_fmax_17.403562682388543_end_162
-# profile_simulation_profile_Camille_scalex_scaley_force_Y_fmax_85.56774268113895_start_70_max_idx_116_end_270
-
-# profile_peak_time_57_peak_force_62_scaled_force_Y_fmax_61.92935701912673_start_21_max_idx_137_end_251
-
-# profile_simulation_profile_Camille_y_force_Y_fmax_63.79933415313509_start_64_max_idx_122_end_265
-
-# profile_simulation_profile_Camille_y_fitted_force_Y_fmax_63.79933415313509_start_80_max_idx_106_end_254
-
-# profile_peak_time_57_peak_force_62_scaled_fitted_force_Y_fmax_61.92935701912673_start_40_max_idx_118_end_238
-
-# profile_simulation_profile_Camille_fitted_force_Y_fmax_63.79933415313509_start_80_max_idx_106_end_254
-
-# profile_simulation_profile_Camille_xy_fitted_force_Y_fmax_63.79933415313509_start_80_max_idx_106_end_254

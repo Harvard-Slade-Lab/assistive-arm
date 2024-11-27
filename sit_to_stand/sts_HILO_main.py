@@ -40,6 +40,7 @@ if __name__ == "__main__":
     # HYPERPARMAETERS
     kappa = 2.5
     exploration_iterations = 5
+    iterations_per_parameter_set = 5
     # Currently F_y is getting scaled by 2/3
     max_force = 65
     max_time = 360
@@ -99,6 +100,7 @@ if __name__ == "__main__":
                                     motor_1=motor_1,
                                     motor_2=motor_2,
                                     freq=freq,
+                                    iterations_per_parameter_set=iterations_per_parameter_set,
                                     session_manager=session_manager,
                                     profile_dir=unadjusted_profile_dir,
                                     mode=trigger_mode,
@@ -116,6 +118,7 @@ if __name__ == "__main__":
                                     motor_2=motor_2,
                                     kappa=kappa,
                                     freq = freq, 
+                                    iterations_per_parameter_set = iterations_per_parameter_set,
                                     session_manager = session_manager, 
                                     trigger_mode = trigger_mode, 
                                     socket_server = socket_server, 
@@ -124,14 +127,14 @@ if __name__ == "__main__":
                                     minimum_width_p=minimum_width_p,
                                 )
                             
-                            # Run informed optimization
-                            if informed:
-                                profile_optimizer.informed_optimization()
-                                
                             # Explorate the space
                             for exploration_iteration in range(exploration_iterations):
                                 profile_optimizer.explorate()
                             
+                            # Run informed optimization
+                            if informed:
+                                profile_optimizer.informed_optimization()
+                                
                             # Optimize until the server stops (Kill command is sent)
                             while not socket_server.stop_server:
                                 profile_optimizer.optimize()

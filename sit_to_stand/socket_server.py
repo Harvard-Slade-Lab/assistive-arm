@@ -55,9 +55,6 @@ class SocketServer:
         elif data == "Kill":
             print("\nClosing connection and exiting...")
             self.stop()
-            # if self.conn:
-            #     self.conn.close()
-            # self.server_thread.join()
         elif "Profile" in data:
             self.profile_name = data.split(":")[1]
         elif "Score" in data:
@@ -71,6 +68,7 @@ class SocketServer:
         """Stop the server."""
         self.stop_server = True
         self.collect_flag = False
+        # Close the connection 
         if self.conn:
             self.conn.close()
         if self.server_thread.is_alive():
