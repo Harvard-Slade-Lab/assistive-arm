@@ -248,7 +248,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.plotter.initialize_plot()
 
         self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-
         # Send profile label to socket server
         if self.socket:
             self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
@@ -689,20 +688,21 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 # Compare score of assisted vs unassisted
                 assisted_mean = np.mean(relevant_emg_filtered)
 
-                # If the unassisted_mean is None (currently redundant), load the unassisted mean from the file
+                # If the unassisted_mean is None (check is currently redundant), load the unassisted mean from the file
                 if self.unassisted_mean is None:
                     try:
                         self.unassisted_mean = self.data_exporter.load_unassisted_mean_from_csv()
                         # Send comparison score to socket server
                         if self.socket:
-                            self.data_handler.send_data(f"Score:{self.unassisted_mean - assisted_mean}")
+                            self.data_handler.send_data(f"Score_{self.unassisted_mean - assisted_mean}_Tag_{self.assistive_profile_name}")
                     except:
                         print("No unassisted mean found.")
 
-                if self.unassisted_mean is not None:
-                    # Send comparison score to socket server
-                    if self.socket:
-                        self.data_handler.send_data(f"Score:{self.unassisted_mean - assisted_mean}")
+                # Currently redunandt, as the unassisted mean is always set to None
+                # if self.unassisted_mean is not None:
+                #     # Send comparison score to socket server
+                #     if self.socket:
+                #         self.data_handler.send_data(f"Score:{self.unassisted_mean - assisted_mean}")
 
                 # Log the extracted variables
                 log_entry = {
