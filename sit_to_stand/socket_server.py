@@ -1,6 +1,7 @@
 # Network socket server
 import socket
 import threading
+# import time
 
 # Configuration
 HOST = '0.0.0.0'  # Listen on all available interfaces
@@ -15,6 +16,8 @@ class SocketServer:
         self.collect_flag = False
         self.profile_name = None
         self.score = None
+        # self.score_receival_time = None
+        self.score_tag = None
         self.stop_server = False
         self.conn = None
         self.server_thread = threading.Thread(target=self.start_server)
@@ -58,7 +61,11 @@ class SocketServer:
         elif "Profile" in data:
             self.profile_name = data.split(":")[1]
         elif "Score" in data:
-            self.score = float(data.split(":")[1])
+            # self.score = float(data.split(":")[1])
+            # self.score_receival_time = time.time()
+            parts = data.split("_")
+            self.score = float(parts[1])
+            self.score_tag = parts[3]
 
     def stop(self):
         """Stop the server."""

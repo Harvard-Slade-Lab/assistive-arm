@@ -40,8 +40,14 @@ if __name__ == "__main__":
     # HYPERPARMAETERS
     kappa = 2.5
     exploration_iterations = 5
+    # Currently F_y is getting scaled by 2/3
     max_force = 65
     max_time = 360
+    # Minimum width of the profile in percentage of the total time
+    minimum_width_p = 0.1
+
+    # Parameter to select, if the Gaussian Process should be informed by a parameter set, based on the simulation
+    informed = True
 
     # Use Broadcom SOC Pin numbers
     GPIO.setmode(GPIO.BCM)
@@ -115,8 +121,13 @@ if __name__ == "__main__":
                                     socket_server = socket_server, 
                                     max_force=max_force,
                                     max_time=max_time,
+                                    minimum_width_p=minimum_width_p,
                                 )
                             
+                            # Run informed optimization
+                            if informed:
+                                profile_optimizer.informed_optimization()
+                                
                             # Explorate the space
                             for exploration_iteration in range(exploration_iterations):
                                 profile_optimizer.explorate()
