@@ -14,6 +14,8 @@ class SocketServer:
         self.host = host
         self.port = port
         self.collect_flag = False
+        self.mode_flag = False
+        self.kill_flag = False
         self.profile_name = None
         self.score = None
         # self.score_receival_time = None
@@ -52,8 +54,11 @@ class SocketServer:
             self.collect_flag = True
         elif data == "Stop":
             self.collect_flag = False
+        elif data == "Mode":
+            self.mode_flag = True
         elif data == "Kill":
             print("\nClosing connection and exiting...")
+            self.kill_flag = True
             self.stop()
         elif "Profile" in data:
             self.profile_name = data.split(":")[1]

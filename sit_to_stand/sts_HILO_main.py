@@ -65,10 +65,13 @@ if __name__ == "__main__":
     # This profile is just used in the calibration process to map the new height to the theta_2_values
     unadjusted_profile_dir = Path(f"./torque_profiles/reference/reference_profile.csv")
 
-
     # Start the main interaction loop
     try:
         while True:
+            # Reset the mode flag for the socket server
+            if trigger_mode == "SOCKET":
+                socket_server.mode_flag = False
+
             # Display menu for user input
             print("\nOptions:")
             print("1 - Calibrate Height")
@@ -100,7 +103,7 @@ if __name__ == "__main__":
                                     motor_1=motor_1,
                                     motor_2=motor_2,
                                     freq=freq,
-                                    iterations_per_parameter_set=iterations_per_parameter_set,
+                                    iterations=iterations_per_parameter_set,
                                     session_manager=session_manager,
                                     profile_dir=unadjusted_profile_dir,
                                     mode=trigger_mode,
@@ -118,7 +121,7 @@ if __name__ == "__main__":
                                     motor_2=motor_2,
                                     kappa=kappa,
                                     freq = freq, 
-                                    iterations_per_parameter_set = iterations_per_parameter_set,
+                                    iterations = iterations_per_parameter_set,
                                     session_manager = session_manager, 
                                     trigger_mode = trigger_mode, 
                                     socket_server = socket_server, 
@@ -141,7 +144,7 @@ if __name__ == "__main__":
 
                             profile_optimizer.log_to_remote()
 
-                elif choice == States.EXIT:
+                elif choice == States.EXIT or socket_server.kill_flag:
                     print("Exiting...")
                     if trigger_mode == "SOCKET":
                         socket_server.stop()

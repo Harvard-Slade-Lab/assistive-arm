@@ -129,6 +129,9 @@ class ForceProfileOptimizer:
 
         scores = []
         for i in range(self.iterations):
+            # TODO find a better way to exit, if the mode flag is set
+            if self.socket_server.mode_flag or self.socket_server.kill_flag:
+                break
             print("\nReady to apply profile, iteration: ", i+1)
 
             apply_simulation_profile(
@@ -156,9 +159,9 @@ class ForceProfileOptimizer:
             scores.append(score)
             print(f"Score: {score}")
 
-        # Get mean score over last 5 iterations
+        # Get mean score over last iterations
         mean_score = np.mean(scores)
-
+        
         return mean_score
 
     def load_optimizer(self):

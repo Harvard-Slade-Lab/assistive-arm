@@ -97,8 +97,8 @@ def get_logger(log_name: str, session_manager: SessionManager, server: SocketSer
         log_file = f"{log_name}_{sample_num:02}.csv"
         # log_file = f"{log_name}.csv"
     else:
-        # log_file = f"{log_name}_{server.profile_name}_{sample_num:02}.csv"  # session_manager.profile_name
-        log_file = f"{log_name}_Profile_{server.profile_name}.csv"  # session_manager.profile_name
+        log_file = f"{log_name}_{server.profile_name}_{sample_num:02}.csv"  # session_manager.profile_name
+        # log_file = f"{log_name}_Profile_{server.profile_name}.csv"  # session_manager.profile_name
     log_path = session_manager.session_dir / log_file
     log_path.touch(exist_ok=True)  # Ensure the file is created
 

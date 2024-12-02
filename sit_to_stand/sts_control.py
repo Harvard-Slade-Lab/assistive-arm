@@ -130,6 +130,9 @@ def control_loop_and_log(
     success = True
 
     for t in loop:
+        if server.mode_flag or server.kill_flag:
+            print("Stopped recording, exiting...")
+            break
         if mode == "TRIGGER" and GPIO.input(17):
             print("Stopped recording, exiting...")
             break
@@ -211,7 +214,7 @@ def apply_simulation_profile(
     log_path, logger = get_logger(log_name=f"{profile_name}", session_manager=session_manager, server=server)
     
     # Countdown before starting
-    countdown(duration=3)
+    countdown(duration=1)
 
     try:
         # Run the control loop, passing session_manager and server
@@ -239,6 +242,7 @@ def collect_unpowered_data(
         motor_1: CubemarsMotor,
         motor_2: CubemarsMotor,
         freq: int,
+        iterations: int,
         session_manager: SessionManager,
         profile_dir: Path,
         mode: Literal["TRIGGER", "ENTER"],
@@ -263,12 +267,14 @@ def collect_unpowered_data(
     profile = pd.read_csv(adjusted_profile_dir, index_col="Percentage")
 
     # Loop over the number of iterations for unpowered data collection
-    for i in range(1, 6):  # Collect data across 5 iterations
-        print(f"\nIteration number: {i}")
+    for i in range(iterations):  # Collect data across 5 iterations
+        print(f"\nIteration number: {i+1}")
         success = False
         
         # Wait until successful data collection
         while not success:
+            if server.mode_flag or server.kill_flag:
+                return
             try:
                 # Wait for trigger signal to start based on the selected mode
                 await_trigger_signal(mode=mode, server=server)
@@ -281,7 +287,7 @@ def collect_unpowered_data(
                 )
 
                 # Start countdown before data collection
-                countdown(duration=3)
+                countdown(duration=1)
                 print(f"Recording to {log_path}")
 
                 # Start the control loop for data collection without force application

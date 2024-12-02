@@ -19,6 +19,9 @@ def await_trigger_signal(mode: Literal["TRIGGER", "ENTER", "SOCKET"], server: So
     elif mode == "SOCKET" and server:
         print("\nWaiting for socket start signal to start Trial")
         while not server.collect_flag:
+            if server.kill_flag or server.mode_flag:
+                server.stop()
+                break
             time.sleep(0.1)
 
 def countdown(duration: int=3):
