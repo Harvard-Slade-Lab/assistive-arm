@@ -5,14 +5,14 @@ from EMGDataCollector import EMGDataCollector
 def main():
     # Set main parameters here
     window_duration = 5  # Duration in seconds
-    data_directory = "Data"
 
-    # Flag for plotting
+    data_directory = "Data"
+    # Flag for real time plots
     plot = False
     # Flag for Socket connection
-    socket = False
+    socket = True
     # Flag for realtime processing
-    real_time = False
+    real_time = True
 
     appQt = QtWidgets.QApplication(sys.argv)
     collector = EMGDataCollector(plot, socket, real_time, window_duration=window_duration, data_directory=data_directory)
