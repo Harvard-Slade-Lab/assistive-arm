@@ -128,7 +128,8 @@ class ForceProfileOptimizer:
         os.system(f"scp {profile_path} macbook:{self.remote_profile_dir}")
 
         scores = []
-        for i in range(self.iterations):
+        i = 1
+        while i <= self.iterations:
             # TODO find a better way to exit, if the mode flag is set
             if self.socket_server.mode_flag or self.socket_server.kill_flag:
                 break
@@ -150,14 +151,19 @@ class ForceProfileOptimizer:
             # while self.socket_server.score_receival_time is None or (time.time() - self.socket_server.score_receival_time) > 1:
             #     time.sleep(0.1)
 
-            # Check if the score's tag is the same as the most recent profile -> tested
+            # Check if the score's tag is the same as the most recent profile -> tested (can also be set by repeat command)
             while not self.socket_server.profile_name == self.socket_server.score_tag:
                 time.sleep(0.1)
 
-            score = self.socket_server.score
-            self.score_history.append(score)
-            scores.append(score)
-            print(f"Score: {score}")
+            if self.socket_server.repeat_flag:
+                print("Iteration has to be repeated.")
+                self.socket_server.repeat_flag = False
+            else:
+                i += 1
+                score = self.socket_server.score
+                self.score_history.append(score)
+                scores.append(score)
+                print(f"Score: {score}")
 
         # Get mean score over last iterations
         mean_score = np.mean(scores)

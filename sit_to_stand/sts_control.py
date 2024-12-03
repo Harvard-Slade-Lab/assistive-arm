@@ -266,9 +266,10 @@ def collect_unpowered_data(
     
     profile = pd.read_csv(adjusted_profile_dir, index_col="Percentage")
 
+    i = 1
     # Loop over the number of iterations for unpowered data collection
-    for i in range(iterations):  # Collect data across 5 iterations
-        print(f"\nIteration number: {i+1}")
+    while i <= iterations:  # Collect data across 5 iterations
+        print(f"\nIteration number: {i}")
         success = False
         
         # Wait until successful data collection
@@ -313,3 +314,9 @@ def collect_unpowered_data(
             except KeyboardInterrupt:
                 print("Keyboard interrupt detected. Exiting...")
                 return
+        # Will miss repetition if last iteration fails (maybe add getting the profile tag)
+        if server.repeat_flag:
+            print("Iteration has to be repeated.")
+            server.repeat_flag = False
+        else:
+            i += 1

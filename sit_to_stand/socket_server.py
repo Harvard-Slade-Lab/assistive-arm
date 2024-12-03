@@ -15,6 +15,7 @@ class SocketServer:
         self.port = port
         self.collect_flag = False
         self.mode_flag = False
+        self.repeat_flag = False
         self.kill_flag = False
         self.profile_name = None
         self.score = None
@@ -60,6 +61,11 @@ class SocketServer:
             print("\nClosing connection and exiting...")
             self.kill_flag = True
             self.stop()
+        elif "Repeat" in data:
+            parts = data.split("_")
+            self.repeat_flag = True
+            # This is needed to verify, that the repeat command is received for the current iteration
+            self.score_tag = parts[1]
         elif "Profile" in data:
             self.profile_name = data.split(":")[1]
         elif "Score" in data:
