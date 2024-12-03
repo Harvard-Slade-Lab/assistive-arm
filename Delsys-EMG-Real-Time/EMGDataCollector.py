@@ -411,7 +411,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if self.is_collecting:
             # This is used if single profiles are run and only one sts is performed
             if self.count_peak == 0 and self.real_time:
-                self.calculate_stuff(0, len(self.complete_gyro_data[0]["X"]))
+                self.calculate_score(0, len(self.complete_gyro_data[0]["X"]))
 
             if hasattr(self, "executor") and self.executor:
                 self.executor.shutdown(wait=True)  # Gracefully wait for all tasks to complete
@@ -419,16 +419,17 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             print("Stopping trial...")
             self.stop_collection()
-            time.sleep(2)  # Wait for last batch data
+            # time.sleep(2)  # Wait for last batch data
             filename_emg = f"{self.current_date}_EMG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             filename_acc = f"{self.current_date}_ACC_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             filename_gyro = f"{self.current_date}_GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
-            if not os.path.exists(subject_folder):
-                os.makedirs(subject_folder)
-            filepath_emg = os.path.join(subject_folder, filename_emg)
-            filepath_acc = os.path.join(subject_folder, filename_acc)
-            filepath_gyro = os.path.join(subject_folder, filename_gyro)
+            emg_folder = os.path.join(subject_folder, "Raw")
+            if not os.path.exists(emg_folder):
+                os.makedirs(emg_folder)
+            filepath_emg = os.path.join(emg_folder, filename_emg)
+            filepath_acc = os.path.join(emg_folder, filename_acc)
+            filepath_gyro = os.path.join(emg_folder, filename_gyro)
 
             # Export collected data
             self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro)
@@ -466,6 +467,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.processing_thread.join()
         print("Data collection stopped.")
         self.is_collecting = False  # Reset collecting flag
+    
+    def export_to_host(self):
+        self.data_exporter.export_to_host()
 
     def threadManager(self, start_trigger, stop_trigger):
         self.start_trigger = start_trigger
@@ -604,14 +608,14 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         return envelopes, env_freq
 
 
-    def calculate_stuff(self, current_segment_start_idx_imu, current_segment_end_idx_imu):
+    def calculate_score(self, current_segment_start_idx_imu, current_segment_end_idx_imu):
         # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
         # The arrow of the sensor should be pointing towards the torso
         imu_sensor_label = 0
         gyro_axis = 'X'
         acc_axis = 'Z'
 
-        relevant_emg = []
+        relevant_emg = np.array([])  
         assisted_mean = 0
 
         self.analysed_segments += 1
@@ -629,7 +633,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Concatenate the two segments maybe better to input directly without concatenation to avoid nans
         imu_filtered = pd.concat([gyro_x_filtered, z_acc_filtered], axis=1)
-        print(imu_filtered)
+
 
         # Extract time (start,end)
         self.sts_start_idx_imu, self.sts_end_idx_imu = self.extract_time(imu_filtered)
@@ -644,27 +648,32 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             emg_end_idx = int(np.round(self.sts_end_idx_imu * self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]))
 
             complete_emg_data = pd.DataFrame()
-            # Extract relevant_emg data
+            # Extract relevant_emg data, one sensor at a time
             for sensor_label in self.complete_emg_data.keys():
                 # Log the extracted emg data as separate files
                 # self.data_exporter.export_sts_data_to_csv(self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx], self.sensor_names[sensor_label])
 
-                complete_emg_data[self.sensor_names[sensor_label]] = self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
-                if self.sensor_names[sensor_label] in ['IMU', 'SO_R', 'TA_R']:
+                sensor_data = self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
+
+                # Log the extracted EMG data as a single file
+                complete_emg_data[self.sensor_names[sensor_label]] = sensor_data
+                
+                if self.sensor_names[sensor_label] in ['IMU']:
                     print(f"skipped {self.sensor_names[sensor_label]}")
                 else:
-                    if relevant_emg:
-                        # Append to existing data
-                        relevant_emg += self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
+                    # Use numpy to append data more efficiently
+                    if len(relevant_emg) == 0:
+                        relevant_emg = sensor_data
                     else:
-                        relevant_emg = self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
+                        relevant_emg = np.concatenate((relevant_emg, sensor_data))
+            
             # Log the extracted emg data as a single file
             self.data_exporter.export_all_sts_data_to_csv(complete_emg_data)
 
             # Convert to DataFrame
-            relevant_emg = pd.DataFrame(relevant_emg)
+            relevant_emg_df = pd.DataFrame(relevant_emg)
             # Filter relevant_emg data
-            relevant_emg_filtered, env_freq = self.filter_emg(relevant_emg, sfreq=self.emg_sampling_frequencies[2])
+            relevant_emg_filtered, env_freq = self.filter_emg(relevant_emg_df, sfreq=self.emg_sampling_frequencies[2])
 
             # Calculated reference score if unassisted
             if self.unassisted:
@@ -728,7 +737,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Terminate if over time limit ---> doesn't work
         # if time.time() - self.start_time > 7 and self.count_peak == 0:
         #     current_segment_start_idx_imu = self.segment_start_idx_imu
-        #     self.calculate_stuff(current_segment_start_idx_imu, len(self.complete_gyro_data[imu_sensor_label][gyro_axis]))
+        #     self.calculate_score(current_segment_start_idx_imu, len(self.complete_gyro_data[imu_sensor_label][gyro_axis]))
         #     self.stop_trial()
 
         if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
@@ -748,7 +757,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     current_segment_start_idx_imu = self.segment_start_idx_imu
                     current_segment_end_idx_imu = self.segment_end_idx_imu
                     # Process the data in a separate thread
-                    self.executor.submit(self.calculate_stuff(current_segment_start_idx_imu, current_segment_end_idx_imu))
+                    self.executor.submit(self.calculate_score(current_segment_start_idx_imu, current_segment_end_idx_imu))
 
             if self.peak:
                 if gyro_x_mean < peak_threshold:

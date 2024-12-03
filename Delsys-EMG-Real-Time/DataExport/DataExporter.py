@@ -78,32 +78,68 @@ class DataExporter:
                             row.append("")
                 f_gyro.write(",".join(row) + '\n')
 
+        ################Removed to safe time####################
         # Make remote copy of the exported files
-        current_date = datetime.now()
-        month = current_date.strftime("%B")
-        day = current_date.strftime("%d")
+        # current_date = datetime.now()
+        # month = current_date.strftime("%B")
+        # day = current_date.strftime("%d")
 
-        remote_dir_emg = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "Raw").as_posix()
-        remote_dir_log = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "Log").as_posix()
-        os.system(f"ssh macbook mkdir -p {remote_dir_emg}")
-        os.system(f"ssh macbook mkdir -p {remote_dir_log}")
+        # remote_dir_emg = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "Raw").as_posix()
+        # remote_dir_log = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "Log").as_posix()
+        # try:
+        #     os.system(f"ssh macbook mkdir -p {remote_dir_emg}")
+        #     os.system(f"ssh macbook mkdir -p {remote_dir_log}")
+        # except Exception as e:
+        #     print(f"Error creating remote directories: {e}")
 
         # Export log data to CSV
         print("Exporting log data...")
         log_df = pd.DataFrame(self.parent.log_entries)
         # Save log data to CSV in the local subject folder
-        subject_folder_log = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "Logs")
+        subject_folder_log = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "Log")
         if not os.path.exists(subject_folder_log):
             os.makedirs(subject_folder_log)
         log_filename = os.path.join(subject_folder_log, f"{self.parent.current_date}_Log_Data_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}.csv")
         log_df.to_csv(log_filename, index=False)
 
-        os.system(f"scp {log_filename} macbook:{remote_dir_log}")
-        os.system(f"scp {filename_emg} macbook:{remote_dir_emg}")
-        os.system(f"scp {filename_acc} macbook:{remote_dir_emg}")
-        os.system(f"scp {filename_gyro} macbook:{remote_dir_emg}")
-        print("Data exported to Host.")
+        # try:
+        #     os.system(f"scp {log_filename} macbook:{remote_dir_log}")
+        #     os.system(f"scp {filename_emg} macbook:{remote_dir_emg}")
+        #     os.system(f"scp {filename_acc} macbook:{remote_dir_emg}")
+        #     os.system(f"scp {filename_gyro} macbook:{remote_dir_emg}")
+        # except Exception as e:
+        #     print(f"Error exporting data to remote host: {e}")
+        # print("Data exported to Host.")
 
+    def export_to_host(self):
+        current_date = datetime.now()
+        month = current_date.strftime("%B")
+        day = current_date.strftime("%d")
+
+        # Create remote directories
+        remote_dir_emg = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG").as_posix()
+        remote_dir_log = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}").as_posix()
+        try:
+            os.system(f"ssh macbook mkdir -p {remote_dir_emg}")
+            os.system(f"ssh macbook mkdir -p {remote_dir_log}")
+        except Exception as e:
+            print(f"Error creating remote directories: {e}")
+
+        # Export complete log folder to remote host
+        local_log_folder = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "Log")
+        try:
+            os.system(f"scp -r {local_log_folder} macbook:{remote_dir_log}")
+        except Exception as e:
+            print(f"Error exporting log folder to remote host: {e}")
+        print("Log folder exported to Host.")
+
+        # Export complete Raw EMG folder to remote host
+        local_emg_folder = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "Raw")
+        try:
+            os.system(f"scp -r {local_emg_folder} macbook:{remote_dir_emg}")
+        except Exception as e:
+            print(f"Error exporting EMG folder to remote host: {e}")
+        print("EMG folder exported to Host.")
 
 
     def export_sts_data_to_csv(self, emg_data, sensor_label):
@@ -125,10 +161,11 @@ class DataExporter:
         month = current_date.strftime("%B")
         day = current_date.strftime("%d")
         remote_dir_emg_sts = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "sts").as_posix()
-        os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
-
-        os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
-
+        try:
+            os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
+            os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
+        except Exception as e:
+            print(f"Error exporting STS data to remote host: {e}")
 
     
     def export_all_sts_data_to_csv(self, emg_data):
@@ -139,6 +176,7 @@ class DataExporter:
         subject_folder_sts = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "STS")
         if not os.path.exists(subject_folder_sts):
             os.makedirs(subject_folder_sts)
+
         filepath_emg = os.path.join(subject_folder_sts, filename_emg)  
         emg_data.to_csv(filepath_emg, index=False)
 
@@ -147,9 +185,11 @@ class DataExporter:
         month = current_date.strftime("%B")
         day = current_date.strftime("%d")
         remote_dir_emg_sts = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "sts").as_posix()
-        os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
-
-        os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
+        try:
+            os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
+            os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
+        except Exception as e:
+            print(f"Error exporting STS data to remote host: {e}")
 
 
     def export_unassisted_mean_to_csv(self, unassisted_mean):

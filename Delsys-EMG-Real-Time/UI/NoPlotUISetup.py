@@ -28,16 +28,19 @@ class NoPlotUISetup:
         self.start_unassisted_button = QtWidgets.QPushButton("Start Unassisted Trial")
         self.start_button = QtWidgets.QPushButton("Start Trial")
         self.select_mode_button = QtWidgets.QPushButton("Select Mode on Raspi")
+        self.scp_button = QtWidgets.QPushButton("Export collected data to Host")
         self.quit_button = QtWidgets.QPushButton("Quit")
 
         self.start_unassisted_button.clicked.connect(self.start_unassisted_trial)
         self.start_button.clicked.connect(self.start_trial)
         self.select_mode_button.clicked.connect(self.select_mode)
+        self.scp_button.clicked.connect(self.parent.export_to_host)
         self.quit_button.clicked.connect(self.parent.on_quit)
 
         first_page_layout.addWidget(self.start_unassisted_button)
         first_page_layout.addWidget(self.start_button)
         first_page_layout.addWidget(self.select_mode_button)
+        first_page_layout.addWidget(self.scp_button)
         first_page_layout.addWidget(self.quit_button)
 
         # Second Page Buttons
