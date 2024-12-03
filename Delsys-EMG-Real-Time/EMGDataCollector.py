@@ -640,7 +640,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         if self.sts_start_idx_imu is None or self.sts_end_idx_imu is None or self.sts_start_idx_imu >= self.sts_end_idx_imu:
             print("Failed to extract start and end indices.")
-            # TODO: Write a function, that takes a larger segment of data into account and tries to extract the start and end indices again and compares them with the previously found indeces to avoid taking the same segment twice
+            # Send message to raspi to repeat iteration and add identification tag
+            self.data_handler.send_data(f"Repeat_{self.assistive_profile_name}")
 
         else:
             # Convert start and end indices from imu to emg indices
