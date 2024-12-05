@@ -5,6 +5,7 @@ import numpy as np
 import os
 import datetime
 import queue
+import json
 import re
 import scipy as sp
 from scipy.signal import find_peaks, argrelextrema
@@ -20,6 +21,7 @@ from UI.NoPlotUISetup import NoPlotUISetup
 from Plotting.Plotter import Plotter
 from DataProcessing.DataProcessor import DataProcessor
 from DataExport.DataExporter import DataExporter
+from EMGutils.EMGfilter import apply_lowpass_filter, filter_emg
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -120,6 +122,16 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.executor = ThreadPoolExecutor(max_workers=4)
         self.last_submission_time = None
         self.start_time = None
+
+        # Simulation activation means
+        self.simulation_means = None
+
+        self.load_activation_means()
+
+    def load_activation_means(self):
+        # means = pd.read_csv("EMGutils/means.csv")
+        with open('C:/Users/patty/Desktop/Nate_3rd_arm/code/assistive-arm/Delsys-EMG-Real-Time/EMGutils/means.json', 'r') as f:
+            self.simulation_means = json.load(f)
 
 
     def connect_base(self):
@@ -342,9 +354,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             # Set unassisted flag to false to trigger score calculation
             self.unassisted = False
-            # Reset counter and mean for unassisted runs
+            # Reset counter and for unassisted runs
             self.count_unassisted = 0
-            self.unassisted_mean = None
+            self.unassisted_mean = self.data_exporter.load_unassisted_mean_from_csv()
 
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
@@ -529,111 +541,28 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         return start_idx, end_idx
 
-
-    def apply_lowpass_filter(self, df: pd.DataFrame, cutoff_freq: float, sampling_freq: float, filter_order=4) -> pd.DataFrame:
-        """
-        Apply a low-pass filter to the first 7 columns of the given DataFrame.
-
-        Parameters:
-        - df: pandas.DataFrame with the data to be filtered.
-        - cutoff_freq: The cutoff frequency for the low-pass filter (in Hz).
-        - sampling_freq: The sampling frequency of the data (in Hz).
-        - filter_order: The order of the Butterworth filter (default is 4).
-
-        Returns:
-        - df_filtered: DataFrame with the low-pass filtered values.
-        """
-        # Normalize the cutoff frequency with respect to Nyquist frequency
-        nyquist_freq = sampling_freq / 2
-        normalized_cutoff = cutoff_freq / nyquist_freq
-        # Design a Butterworth low-pass filter
-        b, a = sp.signal.butter(filter_order, normalized_cutoff, btype='low')
-        # Create a copy of the DataFrame to hold the filtered data
-        df_filtered = df.copy()
-        # Apply the filter to data
-        for col in df.columns:
-            df_filtered[col] = sp.signal.filtfilt(b, a, df[col])
-        return df_filtered
-    
-    def filter_emg(self, unfiltered_df: pd.DataFrame, low_pass=4, sfreq=1259.2593, high_band=20, low_band=450) -> pd.DataFrame:
-        """ Filter EMG signals
-
-        Args:
-            unfiltered_df (pd.DataFrame): DataFrame containing the EMG data and time
-            low_pass (int, optional): Low-pass cut off frequency. Defaults to 4.
-            sfreq (int, optional): Sampling frequency. Defaults to 1259.2593.
-            high_band (int, optional): High-band frequency for bandpass filter. Defaults to 20.
-            low_band (int, optional): Low-band frequency for bandpass filter. Defaults to 450.
-
-        Returns:
-            pd.DataFrame: filtered dataframe
-        """
-        emg_data = unfiltered_df.copy()
-
-        # Normalize cut-off frequencies to sampling frequency
-        high_band_normalized = high_band / (sfreq / 2)
-        low_band_normalized = low_band / (sfreq / 2)
-        low_pass_normalized = low_pass / (sfreq / 2)
-
-        # Bandpass filter coefficients
-        b1, a1 = sp.signal.butter(4, [high_band_normalized, low_band_normalized], btype='bandpass')
-
-        # Lowpass filter coefficients
-        b2, a2 = sp.signal.butter(4, low_pass_normalized, btype='lowpass')
-
-        def process_emg(emg):
-            # Handle NaNs: skip filtering for NaN segments
-            if emg.isna().all():
-                return emg  # Returns as is if all are NaNs
-
-            # Correct mean for non-NaN values
-            non_nan_emg = emg.dropna()
-            emg_correctmean = non_nan_emg - non_nan_emg.mean()
-
-            # Filter EMG: bandpass, rectify, lowpass for non-NaN values
-            emg_filtered = sp.signal.filtfilt(b1, a1, emg_correctmean)
-            emg_rectified = np.abs(emg_filtered)
-            emg_envelope = sp.signal.filtfilt(b2, a2, emg_rectified)
-
-            # Construct the resulting series, placing NaNs back in their original positions
-            result = pd.Series(index=emg.index, data=np.nan)
-            result[emg.notna()] = emg_envelope
-
-            return result
-
-        # Apply processing to each column
-        envelopes = emg_data.apply(process_emg, axis=0)
-        env_freq = int(low_pass_normalized * sfreq)
-
-        return envelopes, env_freq
-
-
     def calculate_score(self, current_segment_start_idx_imu, current_segment_end_idx_imu):
         # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
         # The arrow of the sensor should be pointing towards the torso
         imu_sensor_label = 0
         gyro_axis = 'X'
         acc_axis = 'Z'
-
-        relevant_emg = np.array([])  
         assisted_mean = 0
-
         self.analysed_segments += 1
 
         # Extract the segment of the x-axis gyro data
         gyro_x_segment = self.complete_gyro_data[imu_sensor_label][gyro_axis][current_segment_start_idx_imu:current_segment_end_idx_imu]
         gyro_x_segment = pd.DataFrame(gyro_x_segment, columns=['GYRO X (deg/s)'])
         # Filter gyro x first, as sometimes the buffer for the acc data is not filled
-        gyro_x_filtered = self.apply_lowpass_filter(gyro_x_segment, 1, self.gyro_sample_rates[imu_sensor_label])
+        gyro_x_filtered = apply_lowpass_filter(gyro_x_segment, 1, self.gyro_sample_rates[imu_sensor_label])
 
         # Extract the segment of the z-axis acceleration data
         z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][current_segment_start_idx_imu:current_segment_end_idx_imu]
         z_acc_segment = pd.DataFrame(z_acc_segment, columns=['ACC Z (G)'])
-        z_acc_filtered = self.apply_lowpass_filter(z_acc_segment, 1, self.acc_sample_rates[imu_sensor_label])
+        z_acc_filtered = apply_lowpass_filter(z_acc_segment, 1, self.acc_sample_rates[imu_sensor_label])
 
         # Concatenate the two segments maybe better to input directly without concatenation to avoid nans
         imu_filtered = pd.concat([gyro_x_filtered, z_acc_filtered], axis=1)
-
 
         # Extract time (start,end)
         self.sts_start_idx_imu, self.sts_end_idx_imu = self.extract_time(imu_filtered)
@@ -645,44 +574,56 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         else:
             # Convert start and end indices from imu to emg indices
-            emg_start_idx = int(np.round(self.sts_start_idx_imu * self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]))
-            emg_end_idx = int(np.round(self.sts_end_idx_imu * self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]))
+            ratio = self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]
+            current_segment_start_idx_emg = int(np.round(current_segment_start_idx_imu * ratio))
+            current_segment_end_idx_emg = int(np.round(current_segment_end_idx_imu * ratio))
+            emg_start_idx = int(np.round(self.sts_start_idx_imu * ratio))
+            emg_end_idx = int(np.round(self.sts_end_idx_imu * ratio))
+
+            # Get an extra buffer at both ends (larger than it has to be, as I want to save some extra data as well)
+            # I don't see when the checks for accessing a non existent index is needed, but it is a potential failure case
+            buffer_size = 0.25 * self.emg_sampling_frequencies[imu_sensor_label]
+            if emg_start_idx - buffer_size < 0:
+                start_buffer_idx = current_segment_start_idx_emg
+            else:
+                start_buffer_idx = int(np.round(emg_start_idx - buffer_size))
+            if emg_end_idx + buffer_size > len(self.complete_emg_data[imu_sensor_label]):
+                end_buffer_idx = current_segment_end_idx_emg
+            else:
+                end_buffer_idx = int(np.round(emg_end_idx + buffer_size))
+            
+            imu_start_buffer_idx = int(np.round(start_buffer_idx / ratio))
+            imu_end_buffer_idx = int(np.round(end_buffer_idx / ratio))
 
             complete_emg_data = pd.DataFrame()
+            # complete_imu_data = pd.DataFrame()
             # Extract relevant_emg data, one sensor at a time
             for sensor_label in self.complete_emg_data.keys():
-                # Log the extracted emg data as separate files
-                # self.data_exporter.export_sts_data_to_csv(self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx], self.sensor_names[sensor_label])
-
-                sensor_data = self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx]
-
-                # Log the extracted EMG data as a single file
-                complete_emg_data[self.sensor_names[sensor_label]] = sensor_data
-                
-                if self.sensor_names[sensor_label] in ['IMU']:
-                    print(f"skipped {self.sensor_names[sensor_label]}")
+                if self.sensor_names[sensor_label] == 'IMU':
+                    sensor_data = self.complete_emg_data[sensor_label][imu_start_buffer_idx:imu_end_buffer_idx]
+                    # Save IMU data
+                    self.data_exporter.export_sts_data_to_csv(sensor_data, self.sensor_names[sensor_label])
                 else:
-                    # Use numpy to append data more efficiently
-                    if len(relevant_emg) == 0:
-                        relevant_emg = sensor_data
-                    else:
-                        relevant_emg = np.concatenate((relevant_emg, sensor_data))
-            
+                    sensor_data = self.complete_emg_data[sensor_label][start_buffer_idx:end_buffer_idx]
+                    complete_emg_data[self.sensor_names[sensor_label]] = sensor_data
+                
             # Log the extracted emg data as a single file
             self.data_exporter.export_all_sts_data_to_csv(complete_emg_data)
 
-            # Convert to DataFrame
-            relevant_emg_df = pd.DataFrame(relevant_emg)
             # Filter relevant_emg data
-            relevant_emg_filtered, env_freq = self.filter_emg(relevant_emg_df, sfreq=self.emg_sampling_frequencies[2])
+            relevant_emg_filtered, env_freq = filter_emg(complete_emg_data, sfreq=self.emg_sampling_frequencies[2])
+
+            # Cut the relevant emg data to the start and end of the sts motion
+            # TODO check if the start and end indices are correct
+            relevant_emg_filtered = relevant_emg_filtered[emg_start_idx-start_buffer_idx:emg_end_idx-start_buffer_idx]
 
             # Calculated reference score if unassisted
             if self.unassisted:
                 self.unassisted_counter += 1
                 if self.unassisted_counter == 1:
-                    self.unassisted_mean = np.mean(relevant_emg_filtered)
+                    self.unassisted_mean = np.mean(relevant_emg_filtered, axis=0)
                 else:
-                    self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered)) / self.unassisted_counter
+                    self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered, axis=0)) / self.unassisted_counter
 
                 # Save the unassisted mean to a file
                 self.data_exporter.export_unassisted_mean_to_csv(self.unassisted_mean)
@@ -694,24 +635,29 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     'Segment End Index': current_segment_end_idx_imu,
                     'Start Time': self.sts_start_idx_imu,
                     'End Time': self.sts_end_idx_imu,
-                    'Unassisted Mean': self.unassisted_mean,
-                    'Assisted Mean': None,
+                    'Score': 0,
                 }
                 self.log_entries.append(log_entry)
 
             else: 
                 # Compare score of assisted vs unassisted
-                assisted_mean = np.mean(relevant_emg_filtered)
+                assisted_mean = np.mean(relevant_emg_filtered, axis=0)
 
-                # If the unassisted_mean is None (check is currently redundant), load the unassisted mean from the file
-                if self.unassisted_mean is None:
-                    try:
-                        self.unassisted_mean = self.data_exporter.load_unassisted_mean_from_csv()
-                        # Send comparison score to socket server
-                        if self.socket:
-                            self.data_handler.send_data(f"Score_{self.unassisted_mean - assisted_mean}_Tag_{self.assistive_profile_name}")
-                    except:
-                        print("No unassisted mean found.")
+                score = 0
+
+                # Scale by how much we expect the muscle to change
+                rf_sim = self.simulation_means['rf_un']/self.simulation_means['rf_a']
+                vm_sim = self.simulation_means['vm_un']/self.simulation_means['vm_a']
+
+                for i, sensor_label in enumerate(relevant_emg_filtered.keys()):
+                    if 'RF' in sensor_label:
+                        score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                    elif 'VM' in sensor_label:
+                        score += vm_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+
+                # Send comparison score to socket server
+                if self.socket:
+                    self.data_handler.send_data(f"Score_{score}_Tag_{self.assistive_profile_name}")
 
                 # Log the extracted variables
                 log_entry = {
@@ -720,8 +666,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     'Segment End Index': current_segment_end_idx_imu,
                     'Start Time': self.sts_start_idx_imu,
                     'End Time': self.sts_end_idx_imu,
-                    'Unassisted Mean': self.unassisted_mean,
-                    'Assisted Mean': assisted_mean,
+                    'Score': score,
                 }
                 self.log_entries.append(log_entry)
 
