@@ -91,6 +91,7 @@ def calibrate_height(
         # Store calibration data
         calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
         calibration_data["theta_2_values"] = [float(angle) for angle in theta_2_scaled]
+        calibration_data["Percentage"] = [float(percentage) for percentage in unadjusted_profile.index]
 
         remote_path = session_manager.session_remote_dir
 
@@ -152,12 +153,12 @@ def control_loop_and_log(
             profiles=profile
         )
         
-        # if apply_force and t >= 0.1:
-        #     motor_1.send_torque(desired_torque=tau_1, safety=False)
-        #     motor_2.send_torque(desired_torque=tau_2, safety=False)
-        # else:
-        motor_1.send_torque(desired_torque=0, safety=False) 
-        motor_2.send_torque(desired_torque=0, safety=False)
+        if apply_force and t >= 0.1:
+            motor_1.send_torque(desired_torque=tau_1, safety=False)
+            motor_2.send_torque(desired_torque=tau_2, safety=False)
+        else:
+            motor_1.send_torque(desired_torque=0, safety=False) 
+            motor_2.send_torque(desired_torque=0, safety=False)
 
         if t - print_time >= 0.05:
             print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.measured_torque:.3f}")

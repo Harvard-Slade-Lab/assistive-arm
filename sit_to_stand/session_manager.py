@@ -57,7 +57,9 @@ class SessionManager:
             if self.yaml_path.exists():
                 with open(self.yaml_path, "r") as f:
                     calibration_data = yaml.safe_load(f)
-                self.theta_2_scaled = calibration_data["theta_2_values"]
+                self.theta_2_scaled = pd.DataFrame(calibration_data["theta_2_values"])
+                self.theta_2_scaled.index = calibration_data["Percentage"]
+                self.theta_2_scaled.columns = ["theta_2"]
                 return 1
             else:
                 print("No calibration data found.")

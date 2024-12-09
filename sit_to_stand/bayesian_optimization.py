@@ -71,9 +71,11 @@ class ForceProfileOptimizer:
         )
 
     def get_profile(self, force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time):
-
+        
         length = len(self.session_manager.theta_2_scaled)
-        base_profile = pd.DataFrame({"force_X": np.zeros(length), "force_Y": np.zeros(length), "theta_2": self.session_manager.theta_2_scaled})
+        base_profile = pd.DataFrame({"force_X": np.zeros(length), "force_Y": np.zeros(length)})
+        base_profile.index = self.session_manager.theta_2_scaled.index
+        base_profile = pd.concat([self.session_manager.theta_2_scaled, base_profile], axis=1)
 
         # X Force Profile
         grf_x = self.cubic_hermite_spline([(0, 0, 0), (force1_end_time / 2, force1_peak_force, 0), (force1_end_time, 0, 0)])
@@ -118,7 +120,7 @@ class ForceProfileOptimizer:
         
         base_profile = self.get_profile(force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time)
 
-        profile_name = f"t11_{force1_end_time}_f11_{force1_peak_force}_t21_{force2_start_time}_t22_{force2_peak_time}_t23_{force2_end_time}_f21_{force2_peak_force}"
+        profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}"
 
         # Save the profile as CSV
         profile_path = self.profile_dir / f"profile_{profile_name}.csv"
@@ -133,7 +135,7 @@ class ForceProfileOptimizer:
             # TODO find a better way to exit, if the mode flag is set
             if self.socket_server.mode_flag or self.socket_server.kill_flag:
                 break
-            print("\nReady to apply profile, iteration: ", i+1)
+            print("\nReady to apply profile, iteration: ", i)
 
             apply_simulation_profile(
                 motor_1=self.motor_1,
@@ -192,7 +194,6 @@ class ForceProfileOptimizer:
         
         # It is valid to inlude this here
         self.save_progress()
-            
 
     def save_progress(self):
         logger = JSONLogger(path=self.optimizer_path)

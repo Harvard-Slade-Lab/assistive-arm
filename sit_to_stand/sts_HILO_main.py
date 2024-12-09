@@ -31,7 +31,7 @@ class States(Enum):
 
 if __name__ == "__main__":
 
-    subject_id = "TEST"
+    subject_id = "Nathan"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
     session_manager = SessionManager(subject_id=subject_id)
 
