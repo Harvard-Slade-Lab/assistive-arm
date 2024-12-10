@@ -1,5 +1,5 @@
 from PyQt5 import QtWidgets
-
+import os
 class NoPlotUISetup:
     def __init__(self, parent):
         self.parent = parent
@@ -28,18 +28,21 @@ class NoPlotUISetup:
         self.start_unassisted_button = QtWidgets.QPushButton("Start Unassisted Trial")
         self.start_button = QtWidgets.QPushButton("Start Trial")
         self.select_mode_button = QtWidgets.QPushButton("Select Mode on Raspi")
+        self.reconnect_button = QtWidgets.QPushButton("Reconnect to Raspi")
         self.scp_button = QtWidgets.QPushButton("Export collected data to Host")
         self.quit_button = QtWidgets.QPushButton("Quit")
 
         self.start_unassisted_button.clicked.connect(self.start_unassisted_trial)
         self.start_button.clicked.connect(self.start_trial)
         self.select_mode_button.clicked.connect(self.select_mode)
+        self.reconnect_button.clicked.connect(self.parent.reconnect_to_raspi)
         self.scp_button.clicked.connect(self.parent.export_to_host)
         self.quit_button.clicked.connect(self.parent.on_quit)
 
         first_page_layout.addWidget(self.start_unassisted_button)
         first_page_layout.addWidget(self.start_button)
         first_page_layout.addWidget(self.select_mode_button)
+        first_page_layout.addWidget(self.reconnect_button)
         first_page_layout.addWidget(self.scp_button)
         first_page_layout.addWidget(self.quit_button)
 
@@ -74,9 +77,15 @@ class NoPlotUISetup:
         self.parent.start_unassisted_trial()
 
     def start_trial(self):
-        self.toggle_motor()
-        self.switch_to_second_page()
-        self.parent.start_trial()
+        filename_unassisted_mean = "most_recent_unassisted_mean.npy"
+        filepath_unassisted = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", filename_unassisted_mean)
+        # If the file doesn't exist, don't start the trial
+        if not os.path.exists(filepath_unassisted):
+            QtWidgets.QMessageBox.information(self.parent, "Error", "Please run an unassisted trial first.")
+        else:
+            self.toggle_motor()
+            self.switch_to_second_page()
+            self.parent.start_trial()
 
     def select_mode(self):
         QtWidgets.QMessageBox.information(self.parent, "Mode Selection", "Mode selection on Raspi initiated.")
@@ -85,14 +94,12 @@ class NoPlotUISetup:
     def toggle_motor(self):
         if self.parent.motor_running:
             self.motor_button.setText("Start Motor")
-            # Add logic to stop the motor
             print("Motor stopped")
         else:
             self.motor_button.setText("Stop Motor")
-            # Add logic to start the motor
             print("Motor started")
         self.parent.toggle_motor()
-        # self.motor_running = not self.motor_running
+
 
     def stop_trial(self):
         # Only stop the motor if it is running

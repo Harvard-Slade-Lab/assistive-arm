@@ -142,11 +142,17 @@ class DataExporter:
             print(f"Error exporting EMG folder to remote host: {e}")
         print("EMG folder exported to Host.")
 
+        # Export complete STS folder to remote host
+        local_sts_folder = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "STS")
+        try:
+            os.system(f"scp -r {local_sts_folder} macbook:{remote_dir_emg}")
+        except Exception as e:
+            print(f"Error exporting STS folder to remote host: {e}")
 
-    def export_sts_data_to_csv(self, emg_data, sensor_label):
+
+    def export_sts_data_to_csv(self, emg_data_df, sensor_label):
         print("Exporting STS IMU data...")
-        filename_emg = f"{self.parent.current_date}_EMG_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_Sensor_{sensor_label}_stsnumber{len(self.parent.log_entries)+1}.csv"
-        emg_data_df = pd.DataFrame(emg_data)
+        filename_emg = f"{self.parent.current_date}_IMU_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_Sensor_{sensor_label}_stsnumber{len(self.parent.log_entries)+1}.csv"
 
         # Save EMG data to CSV in the local subject folder
         subject_folder_sts = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "STS")
@@ -155,17 +161,16 @@ class DataExporter:
         filepath_emg = os.path.join(subject_folder_sts, filename_emg)  
         emg_data_df.to_csv(filepath_emg, index=False)
 
-
         # Make remote copy of the exported files
-        current_date = datetime.now()
-        month = current_date.strftime("%B")
-        day = current_date.strftime("%d")
-        remote_dir_emg_sts = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "sts").as_posix()
-        try:
-            os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
-            os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
-        except Exception as e:
-            print(f"Error exporting STS data to remote host: {e}")
+        # current_date = datetime.now()
+        # month = current_date.strftime("%B")
+        # day = current_date.strftime("%d")
+        # remote_dir_emg_sts = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "sts").as_posix()
+        # try:
+        #     os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
+        #     os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
+        # except Exception as e:
+        #     print(f"Error exporting STS data to remote host: {e}")
 
     
     def export_all_sts_data_to_csv(self, emg_data):
@@ -181,15 +186,15 @@ class DataExporter:
         emg_data.to_csv(filepath_emg, index=False)
 
         # Make remote copy of the exported files
-        current_date = datetime.now()
-        month = current_date.strftime("%B")
-        day = current_date.strftime("%d")
-        remote_dir_emg_sts = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "sts").as_posix()
-        try:
-            os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
-            os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
-        except Exception as e:
-            print(f"Error exporting STS data to remote host: {e}")
+        # current_date = datetime.now()
+        # month = current_date.strftime("%B")
+        # day = current_date.strftime("%d")
+        # remote_dir_emg_sts = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG" / "sts").as_posix()
+        # try:
+        #     os.system(f"ssh macbook mkdir -p {remote_dir_emg_sts}")
+        #     os.system(f"scp {filepath_emg} macbook:{remote_dir_emg_sts}")
+        # except Exception as e:
+        #     print(f"Error exporting STS data to remote host: {e}")
 
 
     def export_unassisted_mean_to_csv(self, unassisted_mean):

@@ -121,7 +121,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # New thread for segmentation
         self.executor = ThreadPoolExecutor(max_workers=4)
         self.last_submission_time = None
-        self.start_time = None
 
         # Simulation activation means
         self.simulation_means = None
@@ -133,6 +132,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         with open('C:/Users/patty/Desktop/Nate_3rd_arm/code/assistive-arm/Delsys-EMG-Real-Time/EMGutils/means.json', 'r') as f:
             self.simulation_means = json.load(f)
 
+    def reconnect_to_raspi(self):
+        if self.socket:
+            self.data_handler.connect_to_server()
 
     def connect_base(self):
         print("Connecting to Trigno base...")
@@ -216,7 +218,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     self.base.setSampleMode(sensor_index, modes[4])
 
         if project_name == 'sts_2':
-            id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "RF_L", "000140e9": "VM_L", "00014174": "BF_L", "00013f2a": "G_L", "00014178": "SO_R", "00014111": "TA_R"}
+            id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L"}
 
             self.sensor_label_to_index = {}
             for idx, sensor in enumerate(self.base.all_scanned_sensors):
@@ -226,7 +228,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 sensor_id = str(sensor.Id)[:8]
                 if sensor_id in id_to_name:
                     self.sensor_names[label] = id_to_name[sensor_id]
-
 
             for label, sensor_index in self.sensor_label_to_index.items():
                 # self.sensor_names[label] = sensor_names[sensor_index+1]
@@ -343,8 +344,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     def start_trial(self):
         if not self.is_collecting:
-            self.start_time = time.time()
-
             # Reset the start index
             self.segment_start_idx_imu = 0
 
@@ -377,7 +376,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     def start_unassisted_trial(self):
         if not self.is_collecting:
-            self.start_time = time.time()
 
             # Reset the start index
             self.segment_start_idx_imu = 0
@@ -410,6 +408,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if self.motor_running:
             if self.socket:
                 self.data_handler.send_data("Stop")
+                self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                # Send profile label to socket server for next profile
+                self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
         else:
             if self.socket:
                 self.data_handler.send_data("Start")
@@ -425,9 +426,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             if self.count_peak == 0 and self.real_time:
                 self.calculate_score(0, len(self.complete_gyro_data[0]["X"]))
 
-            if hasattr(self, "executor") and self.executor:
-                self.executor.shutdown(wait=True)  # Gracefully wait for all tasks to complete
-                self.executor = None
+            while not self.data_queue.empty():
+                self.data_processor.process_data(self.data_queue.get())
 
             print("Stopping trial...")
             self.stop_collection()
@@ -457,27 +457,23 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         #     self.trial_number = 1
         #     self.assistive_profile_name = assistive_profile_name
 
-        self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        # Send profile label to socket server for next profile
-        if self.socket:
-            self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
-
     def start_collection(self):
         print("Starting data collection...")
         self.base.Start_Callback(start_trigger=False, stop_trigger=False)
         self.threadManager(start_trigger=False, stop_trigger=False)
 
     def stop_collection(self):
-        print("Stopping data collection1...")
+        print("Stopping data collection...")
         self.pauseFlag = True
         self.base.Stop_Callback()
-        # Wait for threads to finish
-        time.sleep(1)
-        if hasattr(self, "streaming_thread"):
-            self.streaming_thread.join()
-        if hasattr(self, "processing_thread"):
-            self.processing_thread.join()
-        print("Data collection stopped.")
+
+        try:
+            if hasattr(self, "executor") and self.executor:
+                self.executor.shutdown(wait=True)  # Gracefully wait for all tasks to complete
+                self.executor = None
+        except Exception as e:
+            print(f"Error while shutting down executor: {e}")
+
         self.is_collecting = False  # Reset collecting flag
     
     def export_to_host(self):
@@ -487,12 +483,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.start_trigger = start_trigger
         self.stop_trigger = stop_trigger
 
-        # Start new threads for streaming and processing data
-        self.streaming_thread = threading.Thread(target=self.stream_data)
-        self.processing_thread = threading.Thread(target=self.data_processor.process_data)
-
-        self.streaming_thread.start()
-        self.processing_thread.start()
+        # Submit tasks to the executor
+        self.executor.submit(self.stream_data)
+        self.executor.submit(self.data_processor.process_data)
 
     def extract_time(self, df):
         """
@@ -554,7 +547,14 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         gyro_x_segment = self.complete_gyro_data[imu_sensor_label][gyro_axis][current_segment_start_idx_imu:current_segment_end_idx_imu]
         gyro_x_segment = pd.DataFrame(gyro_x_segment, columns=['GYRO X (deg/s)'])
         # Filter gyro x first, as sometimes the buffer for the acc data is not filled
-        gyro_x_filtered = apply_lowpass_filter(gyro_x_segment, 1, self.gyro_sample_rates[imu_sensor_label])
+        try:
+            gyro_x_filtered = apply_lowpass_filter(gyro_x_segment, 1, self.gyro_sample_rates[imu_sensor_label])
+        except Exception as e:
+            print(e)
+            print(f"Failed to filter gyro data, length was {len(gyro_x_segment)}.")
+            # Send message to raspi to repeat iteration and add identification tag
+            self.data_handler.send_data(f"Repeat_{self.assistive_profile_name}")
+            return
 
         # Extract the segment of the z-axis acceleration data
         z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][current_segment_start_idx_imu:current_segment_end_idx_imu]
@@ -568,10 +568,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.sts_start_idx_imu, self.sts_end_idx_imu = self.extract_time(imu_filtered)
 
         if self.sts_start_idx_imu is None or self.sts_end_idx_imu is None or self.sts_start_idx_imu >= self.sts_end_idx_imu:
-            print("Failed to extract start and end indices.")
+            print("Failed to extract start and end indices, iteration will be repeated.")
             # Send message to raspi to repeat iteration and add identification tag
             self.data_handler.send_data(f"Repeat_{self.assistive_profile_name}")
-
         else:
             # Convert start and end indices from imu to emg indices
             ratio = self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]
@@ -600,7 +599,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Extract relevant_emg data, one sensor at a time
             for sensor_label in self.complete_emg_data.keys():
                 if self.sensor_names[sensor_label] == 'IMU':
-                    sensor_data = self.complete_emg_data[sensor_label][imu_start_buffer_idx:imu_end_buffer_idx]
+                    gyro_data = {key: value[imu_start_buffer_idx:imu_end_buffer_idx] for key, value in self.complete_gyro_data[sensor_label].items()}
+                    acc_data = {key: value[imu_start_buffer_idx:imu_end_buffer_idx] for key, value in self.complete_acc_data[sensor_label].items()}
+                    sensor_data = pd.concat([pd.DataFrame(gyro_data), pd.DataFrame(acc_data)], axis=1)
+                    sensor_data.columns = ['GYRO X', 'GYRO Y', 'GYRO Z', 'ACC X', 'ACC Y', 'ACC Z']
                     # Save IMU data
                     self.data_exporter.export_sts_data_to_csv(sensor_data, self.sensor_names[sensor_label])
                 else:
@@ -614,7 +616,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             relevant_emg_filtered, env_freq = filter_emg(complete_emg_data, sfreq=self.emg_sampling_frequencies[2])
 
             # Cut the relevant emg data to the start and end of the sts motion
-            # TODO check if the start and end indices are correct
+            # Check if the start and end indices are correctm -> checked
             relevant_emg_filtered = relevant_emg_filtered[emg_start_idx-start_buffer_idx:emg_end_idx-start_buffer_idx]
 
             # Calculated reference score if unassisted
@@ -680,12 +682,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Hyperparameters
         peak_threshold = 50
 
-        # Terminate if over time limit ---> doesn't work
-        # if time.time() - self.start_time > 7 and self.count_peak == 0:
-        #     current_segment_start_idx_imu = self.segment_start_idx_imu
-        #     self.calculate_score(current_segment_start_idx_imu, len(self.complete_gyro_data[imu_sensor_label][gyro_axis]))
-        #     self.stop_trial()
-
         if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
             # Get the mean of the past 100 Gyro X values
             gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
@@ -715,7 +711,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         while not self.pauseFlag:
             self.data_handler.processData(self.data_queue)
             if self.real_time:
-                self.detect_peak_and_calculate()
+                if self.executor is None or self.executor._shutdown:
+                    continue
+                else:
+                    self.detect_peak_and_calculate()
 
         # Process any remaining data after stopping
         self.data_processor.process_remaining_data()
