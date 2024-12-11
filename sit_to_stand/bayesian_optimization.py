@@ -93,6 +93,11 @@ class ForceProfileOptimizer:
         return base_profile
 
     def objective(self, force1_end_time_p, force1_peak_force_p, force2_start_time_p, force2_peak_time_p, force2_peak_force_p, force2_end_time_p):
+        # Catch zero force cases
+        if force1_peak_force_p == 0 and force2_peak_force_p == 0:
+            # Those cases are the unassisted case and hence should get a score of 0
+            return 0
+        
         force1_end_time = self.minimum_width_p * self.max_time + force1_end_time_p * self.max_time * (1 - self.minimum_width_p)
         force1_peak_force = force1_peak_force_p * self.max_force * 2/3
 
@@ -127,7 +132,10 @@ class ForceProfileOptimizer:
         base_profile.to_csv(profile_path, index=False)
 
         # Send to remote host
-        os.system(f"scp {profile_path} macbook:{self.remote_profile_dir}")
+        try:
+            os.system(f"scp {profile_path} macbook:{self.remote_profile_dir}")
+        except:
+            print("Could not send profile to remote host.")
 
         scores = []
         i = 1
@@ -136,6 +144,8 @@ class ForceProfileOptimizer:
             if self.socket_server.mode_flag or self.socket_server.kill_flag:
                 break
             print("\nReady to apply profile, iteration: ", i)
+
+            current_profile_name = self.socket_server.profile_name
 
             apply_simulation_profile(
                 motor_1=self.motor_1,
@@ -154,9 +164,10 @@ class ForceProfileOptimizer:
             #     time.sleep(0.1)
 
             # Check if the score's tag is the same as the most recent profile -> tested (can also be set by repeat command)
-            while not self.socket_server.profile_name == self.socket_server.score_tag:
+            while not current_profile_name == self.socket_server.score_tag:
                 time.sleep(0.1)
 
+            # Repeat if the flag is set (last iteration can also be repeated, as flag is set True if the score can not be calculated)
             if self.socket_server.repeat_flag:
                 print("Iteration has to be repeated.")
                 self.socket_server.repeat_flag = False
@@ -236,6 +247,33 @@ class ForceProfileOptimizer:
             self.optimizer.probe(params=initial_points, lazy=True)
         else:
             print("Informed points already in optimizer space.")
+
+        # Add profiles with extreme times and zero force
+        initial_points = {
+            "force1_end_time_p": 0.0,
+            "force1_peak_force_p": 0.0,
+            "force2_start_time_p": 0.0,
+            "force2_peak_time_p": 0.0,
+            "force2_peak_force_p": 0.0,
+            "force2_end_time_p": 0.0
+        }
+        if initial_points not in self.optimizer.space.params:
+            self.optimizer.probe(params=initial_points, lazy=True)
+        else:
+            print("Zero points already in optimizer space.")
+
+        initial_points = {
+            "force1_end_time_p": 1.0,
+            "force1_peak_force_p": 0.0,
+            "force2_start_time_p": 1.0,
+            "force2_peak_time_p": 1.0,
+            "force2_peak_force_p": 0.0,
+            "force2_end_time_p": 1.0
+        }
+        if initial_points not in self.optimizer.space.params:
+            self.optimizer.probe(params=initial_points, lazy=True)
+        else:
+            print("One points already in optimizer space.")
 
     def explorate(self, init_points=1, n_iter=0):
         self.optimizer.maximize(init_points=init_points, n_iter=n_iter)

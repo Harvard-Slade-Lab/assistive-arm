@@ -28,4 +28,4 @@ def countdown(duration: int=3):
     for i in range(duration, 0, -1):
         print(f"Recording in {i} seconds...", end="\r")
         time.sleep(1)
-    print("\nGO!")
+    # print("\nGO!")

@@ -29,6 +29,9 @@ class SocketServer:
     def start_server(self):
         """Start the socket server and accept connections."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+            # Allow the socket to be reused immediately
+            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
             server_socket.bind((self.host, self.port))
             server_socket.listen()
             print(f"Server listening on {self.host}:{self.port}")
@@ -48,6 +51,7 @@ class SocketServer:
                 except socket.timeout:
                     # Timeout reached, loop back to check stop_server
                     continue
+
 
     def process_data(self, data):
         """Process received data to control the session state."""
@@ -76,11 +80,21 @@ class SocketServer:
             self.score_tag = parts[3]
 
     def stop(self):
-        """Stop the server."""
+        """Stop the server and terminate the active session."""
         self.stop_server = True
         self.collect_flag = False
-        # Close the connection 
+        
+        # Notify the client before closing the connection
         if self.conn:
-            self.conn.close()
+            try:
+                self.conn.sendall(b"Server shutting down\n")
+                self.conn.shutdown(socket.SHUT_RDWR)
+            except (socket.error, OSError):
+                print("Error notifying client or shutting down the connection.")
+            finally:
+                self.conn.close()
+                self.conn = None
+        
+        # Stop the server thread
         if self.server_thread.is_alive():
-            self.server_thread.join()
+            self.server_thread.join(timeout=5)

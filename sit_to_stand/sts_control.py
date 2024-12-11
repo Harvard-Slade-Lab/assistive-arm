@@ -119,6 +119,7 @@ def control_loop_and_log(
         session_manager: SessionManager):
     
     # Clear motor buffers
+    # Check motor_1.position_buffer -> works
     motor_1.clear_buffers()
     motor_2.clear_buffers()
 
@@ -129,6 +130,9 @@ def control_loop_and_log(
 
     loop = SoftRealtimeLoop(dt=1 / freq, report=False, fade=0)
     success = True
+    printed = False
+    increment = 0.05
+    scale_start_torque = increment
 
     for t in loop:
         if server.mode_flag or server.kill_flag:
@@ -152,12 +156,28 @@ def control_loop_and_log(
             theta_2=motor_2.position,
             profiles=profile
         )
-        
-        if apply_force and t >= 0.1:
+
+        if apply_force and t >= 0.2:
+            if not printed:
+                print("\nGO!")
+                printed = True
+            tau_1 /= 100
+            tau_2 /= 100
             motor_1.send_torque(desired_torque=tau_1, safety=False)
             motor_2.send_torque(desired_torque=tau_2, safety=False)
+        # Start applying a small torque to get ready and avoid the initial jerk
+        elif apply_force and t < 0.2:
+            # Cap start torque at 1 Nm
+            start_torque = min(scale_start_torque, 1)
+            print(f"Starting torque: {start_torque}")
+            motor_1.send_torque(desired_torque=start_torque, safety=False) 
+            motor_2.send_torque(desired_torque=-start_torque, safety=False)
+            scale_start_torque += increment
         else:
-            motor_1.send_torque(desired_torque=0, safety=False) 
+            if not printed:
+                print("\nGO!")
+                printed = True
+            motor_1.send_torque(desired_torque=0, safety=False)
             motor_2.send_torque(desired_torque=0, safety=False)
 
         if t - print_time >= 0.05:
