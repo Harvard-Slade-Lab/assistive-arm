@@ -124,6 +124,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Simulation activation means
         self.simulation_means = None
+        self.simulation_max = None
 
         self.load_activation_means()
 
@@ -131,10 +132,14 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # means = pd.read_csv("EMGutils/means.csv")
         with open('C:/Users/patty/Desktop/Nate_3rd_arm/code/assistive-arm/Delsys-EMG-Real-Time/EMGutils/means.json', 'r') as f:
             self.simulation_means = json.load(f)
+        with open('C:/Users/patty/Desktop/Nate_3rd_arm/code/assistive-arm/Delsys-EMG-Real-Time/EMGutils/max.json', 'r') as f:
+            self.simulation_max = json.load(f)
 
     def reconnect_to_raspi(self):
         if self.socket:
             self.data_handler.connect_to_server()
+            # Resend profile name
+            self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
 
     def connect_base(self):
         print("Connecting to Trigno base...")
@@ -427,7 +432,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 self.calculate_score(0, len(self.complete_gyro_data[0]["X"]))
 
             while not self.data_queue.empty():
-                self.data_processor.process_data(self.data_queue.get())
+                time.sleep(0.1)
 
             print("Stopping trial...")
             self.stop_collection()
@@ -534,7 +539,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         return start_idx, end_idx
 
-    def calculate_score(self, current_segment_start_idx_imu, current_segment_end_idx_imu):
+    def calculate_score(self, current_segment_start_idx_imu, current_segment_end_idx_imu, current_assistive_profile_name):
         # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
         # The arrow of the sensor should be pointing towards the torso
         imu_sensor_label = 0
@@ -553,7 +558,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             print(e)
             print(f"Failed to filter gyro data, length was {len(gyro_x_segment)}.")
             # Send message to raspi to repeat iteration and add identification tag
-            self.data_handler.send_data(f"Repeat_{self.assistive_profile_name}")
+            self.data_handler.send_data(f"Repeat_{current_assistive_profile_name}")
             return
 
         # Extract the segment of the z-axis acceleration data
@@ -570,7 +575,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if self.sts_start_idx_imu is None or self.sts_end_idx_imu is None or self.sts_start_idx_imu >= self.sts_end_idx_imu:
             print("Failed to extract start and end indices, iteration will be repeated.")
             # Send message to raspi to repeat iteration and add identification tag
-            self.data_handler.send_data(f"Repeat_{self.assistive_profile_name}")
+            self.data_handler.send_data(f"Repeat_{current_assistive_profile_name}")
         else:
             # Convert start and end indices from imu to emg indices
             ratio = self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]
@@ -623,7 +628,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             if self.unassisted:
                 self.unassisted_counter += 1
                 if self.unassisted_counter == 1:
-                    self.unassisted_mean = np.mean(relevant_emg_filtered, axis=0)
+                    # self.unassisted_mean = np.mean(relevant_emg_filtered, axis=0)
+                    # Convert to max (TODO change naming if this works)
+                    self.unassisted_mean = np.max(relevant_emg_filtered, axis=0)
                 else:
                     self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered, axis=0)) / self.unassisted_counter
 
@@ -632,7 +639,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
                 # Log the extracted variables
                 log_entry = {
-                    'Tag': self.assistive_profile_name,
+                    'Tag': current_assistive_profile_name,
                     'Segment Start Index': current_segment_start_idx_imu,
                     'Segment End Index': current_segment_end_idx_imu,
                     'Start Time': self.sts_start_idx_imu,
@@ -648,8 +655,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 score = 0
 
                 # Scale by how much we expect the muscle to change
-                rf_sim = self.simulation_means['rf_un']/self.simulation_means['rf_a']
-                vm_sim = self.simulation_means['vm_un']/self.simulation_means['vm_a']
+                # rf_sim = self.simulation_means['rf_un']
+                # vm_sim = self.simulation_means['vm_un']
+                rf_sim = self.simulation_max['rf_un']
+                vm_sim = self.simulation_max['vm_un']
 
                 for i, sensor_label in enumerate(relevant_emg_filtered.keys()):
                     if 'RF' in sensor_label:
@@ -659,11 +668,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
                 # Send comparison score to socket server
                 if self.socket:
-                    self.data_handler.send_data(f"Score_{score}_Tag_{self.assistive_profile_name}")
+                    self.data_handler.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}")
 
                 # Log the extracted variables
                 log_entry = {
-                    'Tag': self.assistive_profile_name,
+                    'Tag': current_assistive_profile_name,
                     'Segment Start Index': current_segment_start_idx_imu,
                     'Segment End Index': current_segment_end_idx_imu,
                     'Start Time': self.sts_start_idx_imu,
@@ -698,8 +707,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     # Get current segment indices, so they cannot get overwritten
                     current_segment_start_idx_imu = self.segment_start_idx_imu
                     current_segment_end_idx_imu = self.segment_end_idx_imu
+                    current_profile_name = self.assistive_profile_name
                     # Process the data in a separate thread
-                    self.executor.submit(self.calculate_score(current_segment_start_idx_imu, current_segment_end_idx_imu))
+                    self.executor.submit(self.calculate_score(current_segment_start_idx_imu, current_segment_end_idx_imu, current_profile_name))
 
             if self.peak:
                 if gyro_x_mean < peak_threshold:
