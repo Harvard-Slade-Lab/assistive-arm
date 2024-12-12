@@ -40,15 +40,15 @@ class SessionManager:
 
     def save_log_or_delete(self, log_path: Path, successful: bool):
         """Save or delete log file based on success of the session."""
-        if successful:
-            print("\nSending logfile to Mac...")
-            try:
-                os.system(f"scp {log_path} macbook:{self.session_remote_dir}")
-            except Exception as e:
-                print(f"Error transferring file: {e}")
-        else:
-            print(f"Removing {log_path}")
-            os.remove(log_path)
+        # if successful:
+        print("\nSending logfile to Mac...")
+        try:
+            os.system(f"scp {log_path} macbook:{self.session_remote_dir}")
+        except Exception as e:
+            print(f"Error transferring file: {e}")
+        # else:
+        #     print(f"Removing {log_path}")
+        #     os.remove(log_path)
 
     def load_device_height_calibration(self) -> pd.Series:
         """Load the device height calibration data."""
@@ -91,15 +91,16 @@ def get_logger(log_name: str, session_manager: SessionManager, server: SocketSer
     # Use session_manager to determine the next sample number
     if not server:
         sample_num = get_next_sample_number(session_manager.session_dir, log_name)
+    # Currently doesn't matter if server is passed or not, but maybe we want to add more info in the future
     else: 
-        sample_num = get_next_sample_number(session_manager.session_dir, f"{log_name}_{server.profile_name}")
+        sample_num = get_next_sample_number(session_manager.session_dir, f"{log_name}")
     
     # Format log file path
     if not server:
         log_file = f"{log_name}_{sample_num:02}.csv"
         # log_file = f"{log_name}.csv"
     else:
-        log_file = f"{log_name}_{server.profile_name}_{sample_num:02}.csv"  # session_manager.profile_name
+        log_file = f"{log_name}_{sample_num:02}.csv"  # session_manager.profile_name
         # log_file = f"{log_name}_Profile_{server.profile_name}.csv"  # session_manager.profile_name
     log_path = session_manager.session_dir / log_file
     log_path.touch(exist_ok=True)  # Ensure the file is created

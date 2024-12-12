@@ -161,15 +161,15 @@ def control_loop_and_log(
             if not printed:
                 print("\nGO!")
                 printed = True
-            tau_1 /= 100
-            tau_2 /= 100
+            # Continue from the start torque
+            tau_1 = max(tau_1, 1)
+            # tau_2 = max(tau_2, -1)
             motor_1.send_torque(desired_torque=tau_1, safety=False)
             motor_2.send_torque(desired_torque=tau_2, safety=False)
         # Start applying a small torque to get ready and avoid the initial jerk
         elif apply_force and t < 0.2:
             # Cap start torque at 1 Nm
             start_torque = min(scale_start_torque, 1)
-            print(f"Starting torque: {start_torque}")
             motor_1.send_torque(desired_torque=start_torque, safety=False) 
             motor_2.send_torque(desired_torque=-start_torque, safety=False)
             scale_start_torque += increment
@@ -230,6 +230,9 @@ def apply_simulation_profile(
 
     # Wait for trigger signal and start recording based on mode
     await_trigger_signal(mode=mode, server=server)
+
+    if server.mode_flag or server.kill_flag:
+        return
     
     # Set up logging for this iteration
     log_path, logger = get_logger(log_name=f"{profile_name}", session_manager=session_manager, server=server)
@@ -295,11 +298,12 @@ def collect_unpowered_data(
         
         # Wait until successful data collection
         while not success:
-            if server.mode_flag or server.kill_flag:
-                return
             try:
-                # Wait for trigger signal to start based on the selected mode
+                # Wait for trigger signal to start based on the selected mode, or kill the process/exit
                 await_trigger_signal(mode=mode, server=server)
+                # Check if the server is in a mode that requires stopping the process
+                if server.mode_flag or server.kill_flag:
+                    return
                 
                 # Prepare the logger for the current iteration
                 log_path, logger = get_logger(

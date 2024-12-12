@@ -130,16 +130,20 @@ if __name__ == "__main__":
                                     minimum_width_p=minimum_width_p,
                                 )
                             
-                            # Explorate the space
-                            for exploration_iteration in range(exploration_iterations):
-                                profile_optimizer.explorate()
+                            # Explorate the space exploration iterations - iterations done, so they are not done again when reloading
+                            if exploration_iterations > len(profile_optimizer.optimizer.space):
+                                for exploration_iteration in range(exploration_iterations - len(profile_optimizer.optimizer.space)):
+                                    if socket_server.mode_flag or socket_server.kill_flag:
+                                        break
+                                    else:
+                                        profile_optimizer.explorate()
                             
-                            # Run informed optimization
+                            # Add informed profiles to the optimizer
                             if informed:
                                 profile_optimizer.informed_optimization()
                                 
-                            # Optimize until the server stops (Kill command is sent)
-                            while not socket_server.stop_server:
+                            # Optimize until the server stops (Kill command is sent) or the user exits
+                            while not socket_server.stop_server and not socket_server.kill_flag and not socket_server.mode_flag:
                                 profile_optimizer.optimize()
 
                             profile_optimizer.log_to_remote()

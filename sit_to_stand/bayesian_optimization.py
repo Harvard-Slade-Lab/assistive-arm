@@ -125,7 +125,7 @@ class ForceProfileOptimizer:
         
         base_profile = self.get_profile(force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time)
 
-        profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}"
+        profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{self.socket_server.profile_name}"
 
         # Save the profile as CSV
         profile_path = self.profile_dir / f"profile_{profile_name}.csv"
@@ -163,14 +163,28 @@ class ForceProfileOptimizer:
             # while self.socket_server.score_receival_time is None or (time.time() - self.socket_server.score_receival_time) > 1:
             #     time.sleep(0.1)
 
+            # If we jumped out of apply_simulation_profile due to a stop, return to the main menu
+            # Chose to neglect the full iteration, could also still use the score if e.g the 4 previous iterations were okay
+            if self.socket_server.kill_flag or self.socket_server.mode_flag:
+                # Exit the optimization
+                raise Exception("Exiting optimization, flag triggered")
+
+            start_time = time.time()
+            local_repeat_flag = False
             # Check if the score's tag is the same as the most recent profile -> tested (can also be set by repeat command)
             while not current_profile_name == self.socket_server.score_tag:
                 time.sleep(0.1)
+                # If the score is not received in 5 seconds, break
+                if time.time() - start_time > 5:
+                    print("Score not received in 5 seconds, repeat iteration.")
+                    local_repeat_flag = True
+                    break
 
             # Repeat if the flag is set (last iteration can also be repeated, as flag is set True if the score can not be calculated)
-            if self.socket_server.repeat_flag:
+            if self.socket_server.repeat_flag or local_repeat_flag:
                 print("Iteration has to be repeated.")
                 self.socket_server.repeat_flag = False
+                local_repeat_flag = False
             else:
                 i += 1
                 score = self.socket_server.score
@@ -211,7 +225,10 @@ class ForceProfileOptimizer:
         self.optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
 
     def log_to_remote(self):
-        os.system(f"scp {self.optimizer_path} macbook:{self.session_manager.session_remote_dir}")
+        try:
+            os.system(f"scp {self.optimizer_path} macbook:{self.session_manager.session_remote_dir}")
+        except:
+            print("Could not send optimizer logs to remote host.")
 
     def informed_optimization(self):
         # Points for profile
@@ -242,7 +259,7 @@ class ForceProfileOptimizer:
             "force2_end_time_p": force2_end_time_p
         }
 
-        # Very unlikely but might happen
+        # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
         if initial_points not in self.optimizer.space.params:
             self.optimizer.probe(params=initial_points, lazy=True)
         else:
@@ -276,7 +293,16 @@ class ForceProfileOptimizer:
             print("One points already in optimizer space.")
 
     def explorate(self, init_points=1, n_iter=0):
-        self.optimizer.maximize(init_points=init_points, n_iter=n_iter)
+        if not self.socket_server.kill_flag or self.socket_server.mode_flag:
+            try:
+                self.optimizer.maximize(init_points=init_points, n_iter=n_iter)
+            except Exception as e:
+                print(e)
+
 
     def optimize(self, init_points=0, n_iter=1):
-        self.optimizer.maximize(init_points=init_points, n_iter=n_iter)
+        if not self.socket_server.kill_flag or self.socket_server.mode_flag:
+            try:
+                self.optimizer.maximize(init_points=init_points, n_iter=n_iter)
+            except Exception as e:
+                print(e)

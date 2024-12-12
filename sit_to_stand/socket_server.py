@@ -78,6 +78,7 @@ class SocketServer:
             parts = data.split("_")
             self.score = float(parts[1])
             self.score_tag = parts[3]
+            print(f"Score received: {self.score}", f"Tag: {self.score_tag}")
 
     def stop(self):
         """Stop the server and terminate the active session."""
