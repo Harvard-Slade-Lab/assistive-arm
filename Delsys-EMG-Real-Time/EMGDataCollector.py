@@ -91,6 +91,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.current_date = datetime.datetime.now().strftime('%Y%m%d')
         self.subject_number = ''
         self.assistive_profile_name = ''
+        self.processed_profile_name = ''
         self.trial_number = 1
 
         # Ensure data directory exists
@@ -136,10 +137,15 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.simulation_max = json.load(f)
 
     def reconnect_to_raspi(self):
-        if self.socket:
+        # Added the flag here so you can connect to the server even if you initially collected without it
+        try:
+            self.socket = True
             self.data_handler.connect_to_server()
             # Resend profile name
             self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
+        except Exception as e:
+            print(f"Failed to reconnect to raspi: {e}")
+            self.socket = False
 
     def connect_base(self):
         print("Connecting to Trigno base...")
@@ -413,6 +419,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if self.motor_running:
             if self.socket:
                 self.data_handler.send_data("Stop")
+                self.processed_profile_name = self.assistive_profile_name
                 self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 # Send profile label to socket server for next profile
                 self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
@@ -471,7 +478,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         print("Stopping data collection...")
         self.pauseFlag = True
         self.base.Stop_Callback()
-
         try:
             if hasattr(self, "executor") and self.executor:
                 self.executor.shutdown(wait=True)  # Gracefully wait for all tasks to complete
@@ -669,6 +675,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 # Send comparison score to socket server
                 if self.socket:
                     self.data_handler.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}")
+                    print(f"Score: {score}", f"Tag: {current_assistive_profile_name}")
 
                 # Log the extracted variables
                 log_entry = {
@@ -707,7 +714,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     # Get current segment indices, so they cannot get overwritten
                     current_segment_start_idx_imu = self.segment_start_idx_imu
                     current_segment_end_idx_imu = self.segment_end_idx_imu
-                    current_profile_name = self.assistive_profile_name
+                    current_profile_name = self.processed_profile_name
                     # Process the data in a separate thread
                     self.executor.submit(self.calculate_score(current_segment_start_idx_imu, current_segment_end_idx_imu, current_profile_name))
 

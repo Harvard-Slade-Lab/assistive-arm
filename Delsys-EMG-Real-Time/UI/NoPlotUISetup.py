@@ -52,14 +52,17 @@ class NoPlotUISetup:
 
         self.motor_button = QtWidgets.QPushButton("Stop Motor")
         self.stop_emg_button = QtWidgets.QPushButton("Stop EMG Trial")
+        self.second_reconnect_button = QtWidgets.QPushButton("Reconnect to Raspi")
         self.quit_second_page_button = QtWidgets.QPushButton("Quit")
 
         self.motor_button.clicked.connect(self.toggle_motor)
         self.stop_emg_button.clicked.connect(self.stop_trial)
+        self.second_reconnect_button.clicked.connect(self.parent.reconnect_to_raspi)
         self.quit_second_page_button.clicked.connect(self.parent.on_quit)
 
         second_page_layout.addWidget(self.motor_button)
         second_page_layout.addWidget(self.stop_emg_button)
+        second_page_layout.addWidget(self.second_reconnect_button)
         second_page_layout.addWidget(self.quit_second_page_button)
 
         # Add first page buttons to the main layout
@@ -88,7 +91,6 @@ class NoPlotUISetup:
             self.parent.start_trial()
 
     def select_mode(self):
-        QtWidgets.QMessageBox.information(self.parent, "Mode Selection", "Mode selection on Raspi initiated.")
         self.parent.select_raspi_mode()
 
     def toggle_motor(self):

@@ -149,6 +149,7 @@ class DataExporter:
         except Exception as e:
             print(f"Error exporting STS folder to remote host: {e}")
 
+        print("Subject folder exported to Host.")
 
     def export_sts_data_to_csv(self, emg_data_df, sensor_label):
         print("Exporting STS IMU data...")
