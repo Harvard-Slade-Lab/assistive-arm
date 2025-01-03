@@ -12,7 +12,7 @@ def main():
     # Flag for Socket connection
     socket = False
     # Flag for realtime processing
-    real_time = True
+    real_time = False
 
     appQt = QtWidgets.QApplication(sys.argv)
     collector = EMGDataCollector(plot, socket, real_time, window_duration=window_duration, data_directory=data_directory)

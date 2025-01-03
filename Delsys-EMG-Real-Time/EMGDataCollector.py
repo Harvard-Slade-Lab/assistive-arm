@@ -72,6 +72,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.complete_emg_data = {}
         self.complete_acc_data = {}
         self.complete_gyro_data = {}
+        self.complete_or_data = {}
         self.is_collecting = False
         self.sensor_labels = {}
         self.sensor_names = {}
@@ -83,6 +84,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.plot_data_emg = {}
         self.plot_data_acc = {}
         self.plot_data_gyro = {}
+        self.plot_data_or = {}
         self.emg_window_sizes = {}
 
         self.total_elapsed_time = 0
@@ -164,14 +166,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 print("Invalid input. Please enter 'y', 'n'.")
 
         while True:
-            project_name = input("Enter project name (0 if no project defined): ").strip()
-            if project_name in ['0', 'sts', 'sts_2']:
+            project_name = input("Enter project name (n if no project defined): ").strip()
+            if project_name in ['n', 'sts',]:
                 break  # Exit the loop if a valid name is entered
             else:
                 print("Invalid project name. Please enter a valid project name.")
 
-
-        if project_name == '0':
+        if project_name == 'n':
             rename_input = input("Rename sensors? (y/n): ").strip().lower()
             if rename_input == 'y':
                 for sensor in self.base.all_scanned_sensors:
@@ -208,27 +209,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     print(f"Set mode '{default_mode}' for sensor {label}")
 
         if project_name == 'sts':
-            id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "RF_L", "000140e9": "VM_L", "00014174": "BF_L", "00013f2a": "G_L"}
-            # sensor_names = {1: "IMU", 2: "RF_R", 3: "VM_R", 4: "BF_R", 5: "G_R", 6: "RF_L", 7: "VM_L", 8: "BF_L", 9: "G_L"}
-
-            self.sensor_label_to_index = {}
-            for idx, sensor in enumerate(self.base.all_scanned_sensors):
-                label = sensor.PairNumber
-                self.sensor_label_to_index[label] = idx
-                # Extract first 8 characters of the sensor ID
-                sensor_id = str(sensor.Id)[:8]
-                if sensor_id in id_to_name:
-                    self.sensor_names[label] = id_to_name[sensor_id]
-
-            for label, sensor_index in self.sensor_label_to_index.items():
-                # self.sensor_names[label] = sensor_names[sensor_index+1]
-                modes = self.base.getSampleModes(sensor_index)
-                if self.sensor_names[label] == 'IMU':
-                    self.base.setSampleMode(sensor_index, modes[110])
-                else:
-                    self.base.setSampleMode(sensor_index, modes[4])
-
-        if project_name == 'sts_2':
             id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L"}
 
             self.sensor_label_to_index = {}
@@ -302,10 +282,15 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.plot_data_gyro = {}
         self.gyro_sample_rates = {}
 
+        self.complete_or_data = {}
+        self.plot_data_or = {}
+        self.or_sample_rates = {}
+
         # Build a mapping from data channel indices to sensor labels
         self.channel_index_to_label = {}
         self.acc_channels_per_sensor = {}
         self.gyro_channels_per_sensor = {}
+        self.or_channels_per_sensor = {}
 
         # EMG channels
         for idx, channel_idx in enumerate(self.base.emgChannelsIdx):
@@ -321,6 +306,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.acc_sample_rates[sensor_label] = self.base.accSampleRates[sensor_label]
         for sensor_label in self.base.gyroSampleRates:
             self.gyro_sample_rates[sensor_label] = self.base.gyroSampleRates[sensor_label]
+
+        # OR sample rates per sensor
+        for sensor_label in self.base.orSampleRates:
+            self.or_sample_rates[sensor_label] = self.base.orSampleRates[sensor_label]
 
         for label in self.base.sensor_label_to_channels:
             sensor_name = self.sensor_names.get(label, f"Sensor {label}")
@@ -350,6 +339,17 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     ch_label = ch['label']
                     self.gyro_channels_per_sensor[label]['indices'].append(idx)
                     self.gyro_channels_per_sensor[label]['labels'].append(ch_label)
+            # OR channels
+            or_channels = self.base.sensor_label_to_channels[label]['OR']
+            if or_channels:
+                self.or_channels_per_sensor[label] = {'indices': [], 'labels': []}
+                self.plot_data_or[label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
+                self.complete_or_data[label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
+                for ch in or_channels:
+                    idx = ch['index']
+                    ch_label = ch['label']
+                    self.or_channels_per_sensor[label]['indices'].append(idx)
+                    self.or_channels_per_sensor[label]['labels'].append(ch_label)
 
         print("Sensors configured.")
 
@@ -362,12 +362,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             if self.executor is None or self.executor._shutdown:
                 self.executor = ThreadPoolExecutor(max_workers=4)
 
-            # Set unassisted flag to false to trigger score calculation
-            self.unassisted = False
-            # Reset counter and for unassisted runs
-            self.count_unassisted = 0
-            self.unassisted_mean = self.data_exporter.load_unassisted_mean_from_csv()
-
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
             self.data_processor.reset_plot_data()
@@ -377,36 +371,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 self.complete_acc_data[sensor_label] = {'X': [], 'Y': [], 'Z': []}
             for sensor_label in self.complete_gyro_data:
                 self.complete_gyro_data[sensor_label] = {'X': [], 'Y': [], 'Z': []}
-            self.data_queue = queue.Queue()
-            self.is_collecting = True
-            self.pauseFlag = False  # Ensure pauseFlag is False
-            self.total_elapsed_time = 0  # Reset total elapsed time
-            self.start_collection()
-        else:
-            print("A trial is already running.")
-
-    def start_unassisted_trial(self):
-        if not self.is_collecting:
-
-            # Reset the start index
-            self.segment_start_idx_imu = 0
-
-            # Reinitialize the executor if it was shutdown
-            if self.executor is None or self.executor._shutdown:
-                self.executor = ThreadPoolExecutor(max_workers=4)
-
-            # Set unassisted flag to true to trigger unassisted data reference collection
-            self.unassisted = True
-
-            print(f"Starting Trial {self.trial_number}...")
-            # Reset data structures
-            self.data_processor.reset_plot_data()
-            for sensor_label in self.complete_emg_data:
-                self.complete_emg_data[sensor_label] = []
-            for sensor_label in self.complete_acc_data:
-                self.complete_acc_data[sensor_label] = {'X': [], 'Y': [], 'Z': []}
-            for sensor_label in self.complete_gyro_data:
-                self.complete_gyro_data[sensor_label] = {'X': [], 'Y': [], 'Z': []}
+            for sensor_label in self.complete_or_data:
+                self.complete_or_data[sensor_label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
             self.data_queue = queue.Queue()
             self.is_collecting = True
             self.pauseFlag = False  # Ensure pauseFlag is False
@@ -416,17 +382,24 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             print("A trial is already running.")
 
     def toggle_motor(self):
-        if self.motor_running:
-            if self.socket:
+        if self.socket:
+            if self.motor_running:
                 self.data_handler.send_data("Stop")
                 self.processed_profile_name = self.assistive_profile_name
                 self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 # Send profile label to socket server for next profile
                 self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
-        else:
-            if self.socket:
+            else:
                 self.data_handler.send_data("Start")
+
+                # Start streaming imu data
+                # self.executor.submit(self.stream_imu_data_to_pi)
         self.motor_running = not self.motor_running
+
+    def stream_imu_data_to_pi(self):
+        while self.motor_running:
+            self.data_handler.send_data("IMU")
+            time.sleep(5)
 
     def select_raspi_mode(self):
         if self.socket:
@@ -435,7 +408,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def stop_trial(self):
         if self.is_collecting:
             # This is used if single profiles are run and only one sts is performed
-            if self.count_peak == 0 and self.real_time:
+            if self.count_peak == 0 and self.real_time and self.socket:
                 self.calculate_score(0, len(self.complete_gyro_data[0]["X"]))
 
             while not self.data_queue.empty():
@@ -447,6 +420,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             filename_emg = f"{self.current_date}_EMG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             filename_acc = f"{self.current_date}_ACC_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             filename_gyro = f"{self.current_date}_GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
+            filename_or = f"{self.current_date}_OR_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
             emg_folder = os.path.join(subject_folder, "Raw")
             if not os.path.exists(emg_folder):
@@ -454,9 +428,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             filepath_emg = os.path.join(emg_folder, filename_emg)
             filepath_acc = os.path.join(emg_folder, filename_acc)
             filepath_gyro = os.path.join(emg_folder, filename_gyro)
+            filepath_or = os.path.join(emg_folder, filename_or)
 
             # Export collected data
-            self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro)
+            self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro, filepath_or)
             print(f"Trial {self.trial_number} data saved as: {filename_emg}, {filename_acc}, and {filename_gyro}")
 
             # Reset data logger
@@ -688,7 +663,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 }
                 self.log_entries.append(log_entry)
 
-    
     def detect_peak_and_calculate(self):
         # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
         # The arrow of the sensor should be pointing towards the torso

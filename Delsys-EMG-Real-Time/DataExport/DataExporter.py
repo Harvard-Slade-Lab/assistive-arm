@@ -9,7 +9,7 @@ class DataExporter:
     def __init__(self, parent):
         self.parent = parent
 
-    def export_data_to_csv(self, filename_emg="EMG_data.csv", filename_acc="ACC_data.csv", filename_gyro="GYRO_data.csv"):
+    def export_data_to_csv(self, filename_emg="EMG_data.csv", filename_acc="ACC_data.csv", filename_gyro="GYRO_data.csv", filename_or="ORIENTATION_data.csv"):
         print("Exporting collected data...")
 
         # Export EMG data
@@ -78,6 +78,31 @@ class DataExporter:
                         else:
                             row.append("")
                 f_gyro.write(",".join(row) + '\n')
+
+        # Export ORIENTATION data
+        with open(filename_or, 'w') as f_or:
+            # Build headers
+            headers = []
+            for sensor_label in self.parent.complete_or_data:
+                for axis in ['X', 'Y', 'Z', 'W']:
+                    headers.append(f'ORIENTATION {self.parent.sensor_names.get(sensor_label, sensor_label)} {axis}')
+            f_or.write(','.join(headers) + '\n')
+
+            # Find max length
+            max_length = 0
+            for sensor_data in self.parent.complete_or_data.values():
+                max_length = max(max_length, max(len(axis_data) for axis_data in sensor_data.values()))
+            # Write data
+            for row_idx in range(max_length):
+                row = []
+                for sensor_data in self.parent.complete_or_data.values():
+                    for axis in ['X', 'Y', 'Z', 'W']:
+                        data = sensor_data[axis]
+                        if row_idx < len(data):
+                            row.append(str(data[row_idx]))
+                        else:
+                            row.append("")
+                f_or.write(",".join(row) + '\n')
 
         ################Removed to safe time####################
         # Make remote copy of the exported files

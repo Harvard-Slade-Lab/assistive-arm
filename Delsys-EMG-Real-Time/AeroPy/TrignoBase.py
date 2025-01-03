@@ -46,12 +46,15 @@ class TrignoBase:
         self.emgChannelLabels = []
         self.accChannelLabels = []
         self.gyroChannelLabels = []
+        self.orChannelsLabels = []
         self.emgChannelsIdx = []
         self.accChannelsIdx = []
         self.gyroChannelsIdx = []
+        self.orChannelsIdx = []
         self.emgSampleRates = []
         self.accSampleRates = []
         self.gyroSampleRates = []
+        self.orSampleRates = []
         self.sensor_label_to_channels = {}
         self.guid_to_index = {}
 
@@ -127,12 +130,15 @@ class TrignoBase:
                 self.emgChannelLabels = []
                 self.accChannelLabels = []
                 self.gyroChannelLabels = []
+                self.orChannelsLabels = []
                 self.emgSampleRates = {}      # Changed to dictionary
                 self.accSampleRates = {}      # Changed to dictionary
                 self.gyroSampleRates = {}     # Changed to dictionary
+                self.orSampleRates = {}       # Changed to dictionary
                 self.emgChannelSensors = []   # List to map EMG channels to sensors
                 self.accChannelSensors = []   # List to map ACC channels to sensors
                 self.gyroChannelSensors = []  # List to map GYRO channels to sensors
+                self.orChannelSensors = []    # List to map OR channels to sensors
                 self.channel_guids = []
                 self.sensor_label_to_channels = {}
                 self.guid_to_index = {}
@@ -141,7 +147,7 @@ class TrignoBase:
                 for i in range(self.SensorCount):
                     selectedSensor = self.TrigBase.GetSensorObject(i)
                     sensor_label = selectedSensor.PairNumber
-                    self.sensor_label_to_channels[sensor_label] = {'EMG': [], 'ACC': [], 'GYRO': []}
+                    self.sensor_label_to_channels[sensor_label] = {'EMG': [], 'ACC': [], 'GYRO': [], 'OR': []}
 
                     print(f"({sensor_label}) {selectedSensor.FriendlyName}")
 
@@ -192,6 +198,14 @@ class TrignoBase:
                                 if sensor_label not in self.gyroSampleRates:
                                     self.gyroSampleRates[sensor_label] = sample_rate
                                 self.sensor_label_to_channels[sensor_label]['GYRO'].append({'index': globalChannelIdx, 'label': channel_label, 'sample_rate': sample_rate})
+                                self.plotCount += 1
+                            elif "OR" in channel_name:
+                                self.orChannelsIdx.append(globalChannelIdx)
+                                self.orChannelsLabels.append(channel_label)
+                                self.orChannelSensors.append(sensor_label)
+                                if sensor_label not in self.orSampleRates:
+                                    self.orSampleRates[sensor_label] = sample_rate
+                                self.sensor_label_to_channels[sensor_label]['OR'].append({'index': globalChannelIdx, 'label': channel_label, 'sample_rate': sample_rate})
                                 self.plotCount += 1
                             else:
                                 # Other channels, ignore or handle as needed

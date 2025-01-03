@@ -75,11 +75,13 @@ class NoPlotUISetup:
         self.parent.show()
 
     def start_unassisted_trial(self):
+        self.parent.unassisted = True
         self.toggle_motor()
         self.switch_to_second_page()
-        self.parent.start_unassisted_trial()
+        self.parent.start_trial()
 
     def start_trial(self):
+        self.parent.unassisted = False
         filename_unassisted_mean = "most_recent_unassisted_mean.npy"
         filepath_unassisted = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", filename_unassisted_mean)
         # If the file doesn't exist, don't start the trial

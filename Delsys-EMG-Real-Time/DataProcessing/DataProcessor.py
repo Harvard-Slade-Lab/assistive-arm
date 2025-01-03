@@ -15,6 +15,8 @@ class DataProcessor:
                 self.parent.plot_data_acc[sensor_label] = {'X': [], 'Y': [], 'Z': []}
             for sensor_label in self.parent.plot_data_gyro:
                 self.parent.plot_data_gyro[sensor_label] = {'X': [], 'Y': [], 'Z': []}
+            for sensor_label in self.parent.plot_data_or:
+                self.parent.plot_data_or[sensor_label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
 
     def process_remaining_data(self):
         """Process any remaining data in the queue after stopping the collection."""
@@ -79,3 +81,16 @@ class DataProcessor:
                         self.parent.complete_gyro_data[sensor_label][axis].extend(data)
                     else:
                         print(f"GYRO Channel index {idx} out of range in data_batch.")
+
+            # ORIENTATION Data
+            for sensor_label, sensor_info in self.parent.or_channels_per_sensor.items():
+                indices = sensor_info['indices']
+                labels = sensor_info['labels']
+                for idx, ch_label in zip(indices, labels):
+                    axis = ch_label[-1]
+                    if idx < len(data_batch):
+                        data = data_batch[idx]
+                        self.parent.plot_data_or[sensor_label][axis].extend(data)
+                        self.parent.complete_or_data[sensor_label][axis].extend(data)
+                    else:
+                        print(f"ORIENTATION Channel index {idx} out of range in data_batch.")
