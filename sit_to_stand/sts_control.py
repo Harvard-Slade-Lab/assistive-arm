@@ -162,17 +162,17 @@ def control_loop_and_log(
                 print("\nGO!")
                 printed = True
             # Continue from the start torque
-            tau_1 = max(tau_1, 1)
+            # tau_1 = max(tau_1, 1)
             # tau_2 = max(tau_2, -1)
             motor_1.send_torque(desired_torque=tau_1, safety=False)
             motor_2.send_torque(desired_torque=tau_2, safety=False)
         # Start applying a small torque to get ready and avoid the initial jerk
-        elif apply_force and t < 0.2:
-            # Cap start torque at 1 Nm
-            start_torque = min(scale_start_torque, 1)
-            motor_1.send_torque(desired_torque=start_torque, safety=False) 
-            motor_2.send_torque(desired_torque=-start_torque, safety=False)
-            scale_start_torque += increment
+        # elif apply_force and t < 0.2:
+        #     # Cap start torque at 1 Nm
+        #     start_torque = min(scale_start_torque, 1)
+        #     motor_1.send_torque(desired_torque=start_torque, safety=False) 
+        #     motor_2.send_torque(desired_torque=-start_torque, safety=False)
+        #     scale_start_torque += increment
         else:
             if not printed:
                 print("\nGO!")
@@ -189,7 +189,6 @@ def control_loop_and_log(
                     
             print_time = t
         logger.writerow([cur_time - start_time, index, tau_1, motor_1.measured_torque, motor_1.position, motor_1.velocity, tau_2, motor_2.measured_torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
-    
     del loop
 
     motor_1.send_torque(desired_torque=0, safety=False)
@@ -201,6 +200,13 @@ def control_loop_and_log(
         print("\nSomething went wrong. Repeating the iteration...")
 
     session_manager.save_log_or_delete(log_path=log_path, successful=success)
+
+    # TODO Check motor temepratures 
+    # temp_1 = motor_1.read_motor_temperature()
+    # temp_2 = motor_2.read_motor_temperature()
+
+    # if temp_1 > 70 or temp_2 > 70:
+    #     print("Motor temperature is too high. Take a break!")
 
     return success
 
@@ -231,8 +237,9 @@ def apply_simulation_profile(
     # Wait for trigger signal and start recording based on mode
     await_trigger_signal(mode=mode, server=server)
 
-    if server.mode_flag or server.kill_flag:
-        return
+    if server is not None:
+        if server.mode_flag or server.kill_flag:
+            return
     
     # Set up logging for this iteration
     log_path, logger = get_logger(log_name=f"{profile_name}", session_manager=session_manager, server=server)
@@ -302,8 +309,9 @@ def collect_unpowered_data(
                 # Wait for trigger signal to start based on the selected mode, or kill the process/exit
                 await_trigger_signal(mode=mode, server=server)
                 # Check if the server is in a mode that requires stopping the process
-                if server.mode_flag or server.kill_flag:
-                    return
+                if server is not None:
+                    if server.mode_flag or server.kill_flag:
+                        return
                 
                 # Prepare the logger for the current iteration
                 log_path, logger = get_logger(

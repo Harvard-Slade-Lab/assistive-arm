@@ -48,6 +48,7 @@ class CubemarsMotor:
         self.prev_velocity = 0
         self.velocity = 0
         self.csv_file_name = None
+        self.temerature = 0
 
         self.measured_torque = 0
 
@@ -212,6 +213,18 @@ class CubemarsMotor:
         self.position_buffer = [0] * self.buffer_size
         self.velocity_buffer = [0] * self.buffer_size
         self.torque_buffer = [0] * self.buffer_size
+
+    def read_motor_temperature(self):
+        """Reads motor temperature from the latest CAN message."""
+        response = self.can_bus.recv(timeout=1)  # Receive CAN message
+        if response:
+            data = response.data  # Extract 8-byte data
+            motor_temperature = int.from_bytes(data[6:7], byteorder='big', signed=True)
+            print(f"Motor Temperature: {motor_temperature}°C")
+            return motor_temperature
+        else:
+            print("No response received for motor temperature.")
+            return None
 
     def _update_motor(self, cmd: list[hex], wait_time: float = 0.001) -> bool:
         if len(cmd) != 5:

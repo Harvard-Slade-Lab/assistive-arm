@@ -206,6 +206,8 @@ class ForceProfileOptimizer:
             random_state=0,
             verbose=2
         )          
+        
+        # Load existing logs
         if os.path.exists(self.optimizer_path):
             load_logs(self.optimizer, logs=[self.optimizer_path])
             if self.optimizer.space:
@@ -216,13 +218,11 @@ class ForceProfileOptimizer:
                 print("No evaluations found in the log. Starting a new optimization.")
         else:
             print("No saved progress found. Starting a new optimization.")
-        
-        # It is valid to inlude this here
-        self.save_progress()
 
-    def save_progress(self):
-        logger = JSONLogger(path=self.optimizer_path)
-        self.optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
+        # Attach a logger (append mode)
+        self.logger = JSONLogger(path=self.optimizer_path, reset=False)
+        self.optimizer.subscribe(Events.OPTIMIZATION_STEP, self.logger)
+
 
     def log_to_remote(self):
         try:
