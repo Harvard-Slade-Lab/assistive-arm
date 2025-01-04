@@ -22,6 +22,7 @@ from Plotting.Plotter import Plotter
 from DataProcessing.DataProcessor import DataProcessor
 from DataExport.DataExporter import DataExporter
 from EMGutils.EMGfilter import apply_lowpass_filter, filter_emg
+from EMGutils.socket import SocketServer
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -33,6 +34,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         self.base = TrignoBase(self)
         self.data_handler = DataKernel(self.base)
+        self.socket_server = SocketServer()
         self.collection_data_handler = self
 
         # Variables for data processing
@@ -61,7 +63,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.socket = socket
         if self.socket:
             # Connect to the server
-            self.data_handler.connect_to_server()
+            self.socket_server.connect_to_server()
 
         # Initialize attributes expected by TrignoBase
         self.EMGplot = None
@@ -142,9 +144,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Added the flag here so you can connect to the server even if you initially collected without it
         try:
             self.socket = True
-            self.data_handler.connect_to_server()
+            self.socket_server.connect_to_server()
             # Resend profile name
-            self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
+            self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
         except Exception as e:
             print(f"Failed to reconnect to raspi: {e}")
             self.socket = False
@@ -257,7 +259,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         # Send profile label to socket server
         if self.socket:
-            self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
+            self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
 
     def configure_sensors(self):
         print("Configuring sensors...")
@@ -384,13 +386,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def toggle_motor(self):
         if self.socket:
             if self.motor_running:
-                self.data_handler.send_data("Stop")
+                self.socket_server.send_data("Stop")
                 self.processed_profile_name = self.assistive_profile_name
                 self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 # Send profile label to socket server for next profile
-                self.data_handler.send_data(f"Profile:{self.assistive_profile_name}")
+                self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
             else:
-                self.data_handler.send_data("Start")
+                self.socket_server.send_data("Start")
 
                 # Start streaming imu data
                 # self.executor.submit(self.stream_imu_data_to_pi)
@@ -398,12 +400,12 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     def stream_imu_data_to_pi(self):
         while self.motor_running:
-            self.data_handler.send_data("IMU")
+            self.socket_server.send_data("IMU")
             time.sleep(5)
 
     def select_raspi_mode(self):
         if self.socket:
-            self.data_handler.send_data("Mode")
+            self.socket_server.send_data("Mode")
 
     def stop_trial(self):
         if self.is_collecting:
@@ -472,6 +474,25 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Submit tasks to the executor
         self.executor.submit(self.stream_data)
         self.executor.submit(self.data_processor.process_data)
+        # if self.socket:
+        self.executor.submit(self.send_roll_angle)
+
+    def send_roll_angle(self):
+        " Calculates roll angle according to https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles"
+        # I have also tried to calculate the roll angle directly in the data processor but it was too slow
+        while not self.pauseFlag:
+            # Use complete data to calculate roll angle
+            if self.complete_or_data[0]['W']:
+                # need to use correct sensor index
+                sensor_entries = self.complete_or_data[0]
+                qw = sensor_entries['W'][-1]
+                qx = sensor_entries['X'][-1]
+                qy = sensor_entries['Y'][-1]
+                qz = sensor_entries['Z'][-1]
+                roll_angle = np.arctan2(2.0 * (qw * qx + qy * qz), 1 - 2.0 * (qx ** 2 + qy ** 2))
+                if self.socket:
+                    self.socket_server.send_roll_angle(roll_angle)
+                time.sleep(0.015)
 
     def extract_time(self, df):
         """
@@ -539,7 +560,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             print(e)
             print(f"Failed to filter gyro data, length was {len(gyro_x_segment)}.")
             # Send message to raspi to repeat iteration and add identification tag
-            self.data_handler.send_data(f"Repeat_{current_assistive_profile_name}")
+            self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
             return
 
         # Extract the segment of the z-axis acceleration data
@@ -556,7 +577,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if self.sts_start_idx_imu is None or self.sts_end_idx_imu is None or self.sts_start_idx_imu >= self.sts_end_idx_imu:
             print("Failed to extract start and end indices, iteration will be repeated.")
             # Send message to raspi to repeat iteration and add identification tag
-            self.data_handler.send_data(f"Repeat_{current_assistive_profile_name}")
+            self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
         else:
             # Convert start and end indices from imu to emg indices
             ratio = self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]
@@ -649,7 +670,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
                 # Send comparison score to socket server
                 if self.socket:
-                    self.data_handler.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}")
+                    self.socket_server.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}")
                     print(f"Score: {score}", f"Tag: {current_assistive_profile_name}")
 
                 # Log the extracted variables
@@ -715,6 +736,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.stop_collection()
         # Close the socket connection
         if self.socket:
-            self.data_handler.send_data("Kill")
-            self.data_handler.close_connection()
+            self.socket_server.send_data("Kill")
+            self.socket_server.close_connection()
         self.close()

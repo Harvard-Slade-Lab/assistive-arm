@@ -84,7 +84,7 @@ class DataExporter:
             # Build headers
             headers = []
             for sensor_label in self.parent.complete_or_data:
-                for axis in ['X', 'Y', 'Z', 'W']:
+                for axis in ['W', 'X', 'Y', 'Z']:
                     headers.append(f'ORIENTATION {self.parent.sensor_names.get(sensor_label, sensor_label)} {axis}')
             f_or.write(','.join(headers) + '\n')
 
@@ -96,7 +96,7 @@ class DataExporter:
             for row_idx in range(max_length):
                 row = []
                 for sensor_data in self.parent.complete_or_data.values():
-                    for axis in ['X', 'Y', 'Z', 'W']:
+                    for axis in ['W', 'X', 'Y', 'Z']:
                         data = sensor_data[axis]
                         if row_idx < len(data):
                             row.append(str(data[row_idx]))

@@ -86,6 +86,15 @@ class DataProcessor:
             for sensor_label, sensor_info in self.parent.or_channels_per_sensor.items():
                 indices = sensor_info['indices']
                 labels = sensor_info['labels']
+                # I have tried to directly calculate and send the roll angle from here but it is too slow, hence having a separate thread for it
+                # Convert data_batch elements to numpy arrays
+                # data_batch = [np.array(batch) for batch in data_batch]
+                # # Calculate roll element-wise
+                # roll = np.arctan2(2.0 * (data_batch[2] * data_batch[3] + data_batch[4] * data_batch[5]), 
+                #                   1.0 - 2.0 * (data_batch[3]**2 + data_batch[4]**2))
+                # Calculate roll for last element in data_batch (most recent data)
+                # roll = np.arctan2(2.0 * (data_batch[2][-1] * data_batch[3][-1] + data_batch[4][-1] * data_batch[5][-1]),
+                #                     1.0 - 2.0 * (data_batch[3][-1]**2 + data_batch[4][-1]**2))
                 for idx, ch_label in zip(indices, labels):
                     axis = ch_label[-1]
                     if idx < len(data_batch):
