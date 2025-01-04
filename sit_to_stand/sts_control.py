@@ -21,77 +21,76 @@ from sts_utils import await_trigger_signal, countdown
 
 
 def calibrate_height(
-        motor_1: CubemarsMotor,
-        motor_2: CubemarsMotor,
+        server: SocketServer,
         freq: int,
         session_manager: SessionManager,
-        profile_dir: Path):
+        mode: Literal["TRIGGER", "ENTER", "SOCKET"]):
     """
     Perform height calibration by running the sit-to-stand motion.
 
     Args:
-        motor_1 (CubemarsMotor): The first motor for the assistive arm.
-        motor_2 (CubemarsMotor): The second motor for the assistive arm.
-        freq (int): The frequency for control loop (Hz).
-        session_manager (SessionManager): Instance managing session directories and logging.
-        profile_dir (Path): Path to the unadjusted profile file.
+        server (SocketServer): Socket server instance for communication.
+        freq (int): Control loop frequency (Hz).
+        session_manager (SessionManager): Manages session and logging paths.
     """
     # Use session_manager to retrieve the YAML path for calibration data
     yaml_path = session_manager.yaml_path
-
-    # Load unadjusted profile data
-    unadjusted_profile = pd.read_csv(profile_dir, index_col="Percentage")
 
     # Set up the real-time control loop
     loop = SoftRealtimeLoop(dt=1 / freq, report=False, fade=0)
 
     # Data for calibration
     calibration_data = dict()
-    P_EE_values = []
-    theta_2 = []
+    roll_angles = []
     start_time = 0
 
     try:
-        motor_1.send_torque(desired_torque=0, safety=True)
-        motor_2.send_torque(desired_torque=0, safety=True)
+        await_trigger_signal(mode=mode, server=server)
 
-        input("\nPress Enter to start calibrating...")
         countdown(duration=3)
 
         print("Calibration started. Please perform the sit-to-stand motion.")
-        print("Press Ctrl + C to stop recording.\n")
+
+        sts_start = time.time()
 
         for t in loop:
-            P_EE = calculate_ee_pos(theta_1=motor_1.position, theta_2=motor_2.position)
-            
-            if not t < 0.5:
-                P_EE_values.append(P_EE[0])  # Assuming x is the first element
-                theta_2.append(motor_2.position)
+            if server.mode_flag or server.kill_flag:
+                print("Stopped recording, exiting...")
+                break
+            if mode == "TRIGGER" and GPIO.input(17):
+                print("Stopped recording, exiting...")
+                break
+            elif mode == "SOCKET" and not server.collect_flag:
+                print("Stopped recording, exiting...")
+                break
 
-            motor_1.send_torque(desired_torque=0, safety=True)
-            motor_2.send_torque(desired_torque=0, safety=True)
+            roll_angles.append(server.roll_angle)
 
             if t - start_time >= 0.05:
-                print(f"P_EE x: {P_EE[0]}, y: {P_EE[1]}", end="\r")
+                print(f"Roll angle: {server.roll_angle}", end="\r")
                 start_time = t
+            
+            # Wait to avoid duplicates
+            time.sleep(0.015)
+
+        sts_duration = time.time() - sts_start
 
         print("\nRecording stopped. Processing data...\n")
 
         # Calibration calculations
-        theta_2 = np.array(theta_2)
-        new_max = theta_2.max() - 0.01
-        new_min = theta_2.min() + 0.1
+        roll_angles = np.array(roll_angles)
+        new_max = roll_angles.max()
+        new_min = roll_angles.min()
 
-        original_max = unadjusted_profile.theta_2.max()
-        original_min = unadjusted_profile.theta_2.min()
-
-        scale = (new_max - new_min) / (original_max - original_min)
-        theta_2_scaled = unadjusted_profile['theta_2'].apply(lambda x: new_min + (x - original_min) * scale)
+        # Calculate the number of entries
+        num_entries = int(sts_duration * freq)
 
         # Store calibration data
         calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
-        calibration_data["theta_2_values"] = [float(angle) for angle in theta_2_scaled]
-        calibration_data["Percentage"] = [float(percentage) for percentage in unadjusted_profile.index]
+        # Generate the roll angles array
+        calibration_data["roll_angles"] = np.linspace(new_min, new_max, num=num_entries).tolist()
+        # Generate the percentage array
+        calibration_data["Percentage"] = np.linspace(0, 100, num=num_entries).tolist()
 
         remote_path = session_manager.session_remote_dir
 
@@ -156,6 +155,9 @@ def control_loop_and_log(
             theta_2=motor_2.position,
             profiles=profile
         )
+
+        tau_1 = 0
+        tau_2 = 0
 
         if apply_force and t >= 0.2:
             if not printed:

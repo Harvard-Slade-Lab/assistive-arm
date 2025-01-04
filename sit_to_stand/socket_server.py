@@ -1,6 +1,7 @@
 # Network socket server
 import socket
 import threading
+import struct
 # import time
 
 # Configuration
@@ -19,6 +20,7 @@ class SocketServer:
         self.kill_flag = False
         self.profile_name = None
         self.score = None
+        self.roll_angle = None
         # self.score_receival_time = None
         self.score_tag = None
         self.stop_server = False
@@ -46,8 +48,13 @@ class SocketServer:
                             data = self.conn.recv(1024)
                             if not data:
                                 break
-                            data_decoded = data.decode('utf-8', errors='replace')
-                            self.process_data(data_decoded)
+                            # Quick check if it is roll angle data
+                            if data[0:1] == b'r':  # If the first byte indicates roll angle
+                                roll_angle = struct.unpack('!f', data[1:5])[0]
+                                self.roll_angle = roll_angle
+                            else:
+                                data_decoded = data.decode('utf-8', errors='replace')
+                                self.process_data(data_decoded)
                 except socket.timeout:
                     # Timeout reached, loop back to check stop_server
                     continue
@@ -78,7 +85,7 @@ class SocketServer:
             parts = data.split("_")
             self.score = float(parts[1])
             self.score_tag = parts[3]
-            print(f"Score received: {self.score}", f"Tag: {self.score_tag}")
+            print(f"\nScore received: {self.score}", f"Tag: {self.score_tag}")
 
     def stop(self):
         """Stop the server and terminate the active session."""

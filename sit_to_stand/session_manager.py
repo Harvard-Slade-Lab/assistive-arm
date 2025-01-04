@@ -18,7 +18,7 @@ class SessionManager:
     def __init__(self, subject_id):
         self.subject_folder = Path(f"./subject_logs/subject_{subject_id}")
         self.session_dir, self.session_remote_dir = self.set_up_logging_dir()
-        self.theta_2_scaled = None
+        self.roll_angles = None
         self.yaml_path = None
 
         self.get_yaml_path("device_height_calibration")
@@ -57,9 +57,9 @@ class SessionManager:
             if self.yaml_path.exists():
                 with open(self.yaml_path, "r") as f:
                     calibration_data = yaml.safe_load(f)
-                self.theta_2_scaled = pd.DataFrame(calibration_data["theta_2_values"])
-                self.theta_2_scaled.index = calibration_data["Percentage"]
-                self.theta_2_scaled.columns = ["theta_2"]
+                self.roll_angles = pd.DataFrame(calibration_data["roll_angles"])
+                self.roll_angles.index = calibration_data["Percentage"]
+                self.roll_angles.columns = ["roll_angles"]
                 return 1
             else:
                 print("No calibration data found.")

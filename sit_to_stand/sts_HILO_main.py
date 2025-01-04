@@ -31,7 +31,7 @@ class States(Enum):
 
 if __name__ == "__main__":
 
-    subject_id = "Nathan"
+    subject_id = "Test"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
     session_manager = SessionManager(subject_id=subject_id)
 
@@ -87,11 +87,10 @@ if __name__ == "__main__":
                     with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                         with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
                             calibrate_height(
-                                motor_1=motor_1,
-                                motor_2=motor_2,
+                                server=socket_server,
                                 freq=freq,
                                 session_manager=session_manager,
-                                profile_dir=unadjusted_profile_dir
+                                mode=trigger_mode,
                             )
 
                 # If the device is not calibrated for the user's height, the user will not be able to collect data
@@ -154,7 +153,7 @@ if __name__ == "__main__":
                         socket_server.stop()
                     break
 
-                if session_manager.theta_2_scaled is None:
+                if session_manager.roll_angles is None:
                     print("Please calibrate the device height before proceeding.")
 
             except ValueError:

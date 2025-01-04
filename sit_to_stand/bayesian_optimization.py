@@ -72,10 +72,10 @@ class ForceProfileOptimizer:
 
     def get_profile(self, force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time):
         
-        length = len(self.session_manager.theta_2_scaled)
+        length = len(self.session_manager.roll_angles)
         base_profile = pd.DataFrame({"force_X": np.zeros(length), "force_Y": np.zeros(length)})
-        base_profile.index = self.session_manager.theta_2_scaled.index
-        base_profile = pd.concat([self.session_manager.theta_2_scaled, base_profile], axis=1)
+        base_profile.index = self.session_manager.roll_angles.index
+        base_profile = pd.concat([self.session_manager.roll_angles, base_profile], axis=1)
 
         # X Force Profile
         grf_x = self.cubic_hermite_spline([(0, 0, 0), (force1_end_time / 2, force1_peak_force, 0), (force1_end_time, 0, 0)])
