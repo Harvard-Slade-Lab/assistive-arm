@@ -8,6 +8,7 @@ import queue
 import json
 import re
 import scipy as sp
+from collections import deque
 from scipy.signal import find_peaks, argrelextrema
 import pandas as pd
 
@@ -20,6 +21,7 @@ from UI.UISetup import UISetup
 from UI.NoPlotUISetup import NoPlotUISetup
 from Plotting.Plotter import Plotter
 from DataProcessing.DataProcessor import DataProcessor
+from DataProcessing.NoPlotDataProcessor import NoPlotDataProcessor
 from DataExport.DataExporter import DataExporter
 from EMGutils.EMGfilter import apply_lowpass_filter, filter_emg
 from EMGutils.socket import SocketServer
@@ -113,12 +115,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Set up the UI
             self.ui = UISetup(self)
             self.ui.init_ui()
+            # Set up the DataProcessor
+            self.data_processor = DataProcessor(self)
         else:
             self.ui = NoPlotUISetup(self)
             self.ui.init_ui()
-
-        # Set up the DataProcessor
-        self.data_processor = DataProcessor(self)
+            # Set up the DataProcessor
+            self.data_processor = NoPlotDataProcessor(self)
 
         # Set up the DataExporter
         self.data_exporter = DataExporter(self)
@@ -366,7 +369,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
-            self.data_processor.reset_plot_data()
+            if self.plot:
+                self.data_processor.reset_plot_data()
             for sensor_label in self.complete_emg_data:
                 self.complete_emg_data[sensor_label] = []
             for sensor_label in self.complete_acc_data:
@@ -394,14 +398,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             else:
                 self.socket_server.send_data("Start")
 
-                # Start streaming imu data
-                # self.executor.submit(self.stream_imu_data_to_pi)
         self.motor_running = not self.motor_running
-
-    def stream_imu_data_to_pi(self):
-        while self.motor_running:
-            self.socket_server.send_data("IMU")
-            time.sleep(5)
 
     def select_raspi_mode(self):
         if self.socket:
@@ -474,25 +471,48 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Submit tasks to the executor
         self.executor.submit(self.stream_data)
         self.executor.submit(self.data_processor.process_data)
-        # if self.socket:
-        self.executor.submit(self.send_roll_angle)
+        # Only start if the socket is connected and there are orientation channels
+        if self.socket and self.or_channels_per_sensor:
+            self.executor.submit(self.send_roll_angle)
 
     def send_roll_angle(self):
         " Calculates roll angle according to https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles"
         # I have also tried to calculate the roll angle directly in the data processor but it was too slow
+        # Careful with the sensor index, it should be the same as the one used in the data processor for the orientation data
+        # Access the first key (change if you want to use another sensor)
+        first_key = next(iter(self.or_channels_per_sensor))
+        # Wait, so there is data to process
+        time.sleep(1)
         while not self.pauseFlag:
-            # Use complete data to calculate roll angle
-            if self.complete_or_data[0]['W']:
-                # need to use correct sensor index
-                sensor_entries = self.complete_or_data[0]
-                qw = sensor_entries['W'][-1]
-                qx = sensor_entries['X'][-1]
-                qy = sensor_entries['Y'][-1]
-                qz = sensor_entries['Z'][-1]
-                roll_angle = np.arctan2(2.0 * (qw * qx + qy * qz), 1 - 2.0 * (qx ** 2 + qy ** 2))
-                if self.socket:
-                    self.socket_server.send_roll_angle(roll_angle)
-                time.sleep(0.015)
+            # Use lock so that the data is not modified while being read
+            with self.plot_data_lock:
+                # sensor_entries = self.complete_or_data[first_key].copy()
+                # sensor_entries = {k: v.copy() for k, v in self.complete_or_data[first_key].items()}
+                # sensor_entries = {k: v.copy() for k, v in self.most_recent_or_data.items()}
+
+                # qw = self.most_recent_or_data[first_key]['W'][-1]
+                # qx = self.most_recent_or_data[first_key]['X'][-1]
+                # qy = self.most_recent_or_data[first_key]['Y'][-1]
+                # qz = self.most_recent_or_data[first_key]['Z'][-1]
+
+                data_copy = {k: v.copy() for k, v in self.complete_or_data.items()}
+            sensor_entries = data_copy[first_key]
+
+            qw = sensor_entries['W'][-1]
+            qx = sensor_entries['X'][-1]
+            qy = sensor_entries['Y'][-1]
+            qz = sensor_entries['Z'][-1]
+
+            # qw = data_copy[first_key]['W'][-1]
+            # qx = data_copy[first_key]['X'][-1]
+            # qy = data_copy[first_key]['Y'][-1]
+            # qz = data_copy[first_key]['Z'][-1]
+            roll_angle = np.arctan2(2.0 * (qw * qx + qy * qz), 1 - 2.0 * (qx ** 2 + qy ** 2))
+            print(roll_angle)
+            if self.socket:
+                # Send roll angle rounded to 5 decimal places
+                self.socket_server.send_roll_angle(round(roll_angle, 5))
+            time.sleep(0.015)
 
     def extract_time(self, df):
         """
