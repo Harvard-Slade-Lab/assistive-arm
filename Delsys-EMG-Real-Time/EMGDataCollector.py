@@ -8,7 +8,6 @@ import queue
 import json
 import re
 import scipy as sp
-from collections import deque
 from scipy.signal import find_peaks, argrelextrema
 import pandas as pd
 
@@ -18,7 +17,6 @@ from AeroPy.TrignoBase import TrignoBase
 from AeroPy.DataManager import DataKernel
 
 from UI.UISetup import UISetup
-from UI.NoPlotUISetup import NoPlotUISetup
 from Plotting.Plotter import Plotter
 from DataProcessing.DataProcessor import DataProcessor
 from DataProcessing.NoPlotDataProcessor import NoPlotDataProcessor
@@ -60,6 +58,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Flag to select if data should be processed in real-time or not
         self.real_time = real_time
+
+        # Flag to test things
+        self.test_flag = False
+
+        # Flag to calibrate
+        self.calibration = False
+        self.max_roll_angle = None
 
         # Flag to have socket connection or not
         self.socket = socket
@@ -113,12 +118,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # **Initialize the Plotter BEFORE setting up the UI**
             self.plotter = Plotter(self)
             # Set up the UI
-            self.ui = UISetup(self)
+            self.ui = UISetup(self, plot)
             self.ui.init_ui()
             # Set up the DataProcessor
             self.data_processor = DataProcessor(self)
         else:
-            self.ui = NoPlotUISetup(self)
+            self.ui = UISetup(self, plot)
+            # self.ui = NoPlotUISetup(self)
             self.ui.init_ui()
             # Set up the DataProcessor
             self.data_processor = NoPlotDataProcessor(self)
@@ -404,6 +410,12 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if self.socket:
             self.socket_server.send_data("Mode")
 
+    def check_calibration(self):
+        self.max_roll_angle = self.data_exporter.load_roll_angle_limit_from_npy()
+
+    def check_unassisted(self):
+        self.unassisted_mean = self.data_exporter.load_unassisted_mean_from_npy()
+
     def stop_trial(self):
         if self.is_collecting:
             # This is used if single profiles are run and only one sts is performed
@@ -472,47 +484,55 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.executor.submit(self.stream_data)
         self.executor.submit(self.data_processor.process_data)
         # Only start if the socket is connected and there are orientation channels
-        if self.socket and self.or_channels_per_sensor:
+        # if self.socket and self.or_channels_per_sensor:
+        if self.or_channels_per_sensor:
             self.executor.submit(self.send_roll_angle)
 
     def send_roll_angle(self):
         " Calculates roll angle according to https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles"
         # I have also tried to calculate the roll angle directly in the data processor but it was too slow
+        # Tried a bunch of things, as this doesn't always work, however, I didn't see any difference
+        # in performance (tried second dict with deque, just an array with the last values from the data_batch)
         # Careful with the sensor index, it should be the same as the one used in the data processor for the orientation data
         # Access the first key (change if you want to use another sensor)
         first_key = next(iter(self.or_channels_per_sensor))
         # Wait, so there is data to process
         time.sleep(1)
+        # Collect roll angles for claibration:
+        roll_angles = []
         while not self.pauseFlag:
             # Use lock so that the data is not modified while being read
             with self.plot_data_lock:
-                # sensor_entries = self.complete_or_data[first_key].copy()
-                # sensor_entries = {k: v.copy() for k, v in self.complete_or_data[first_key].items()}
-                # sensor_entries = {k: v.copy() for k, v in self.most_recent_or_data.items()}
-
-                # qw = self.most_recent_or_data[first_key]['W'][-1]
-                # qx = self.most_recent_or_data[first_key]['X'][-1]
-                # qy = self.most_recent_or_data[first_key]['Y'][-1]
-                # qz = self.most_recent_or_data[first_key]['Z'][-1]
-
                 data_copy = {k: v.copy() for k, v in self.complete_or_data.items()}
             sensor_entries = data_copy[first_key]
-
             qw = sensor_entries['W'][-1]
             qx = sensor_entries['X'][-1]
             qy = sensor_entries['Y'][-1]
             qz = sensor_entries['Z'][-1]
 
-            # qw = data_copy[first_key]['W'][-1]
-            # qx = data_copy[first_key]['X'][-1]
-            # qy = data_copy[first_key]['Y'][-1]
-            # qz = data_copy[first_key]['Z'][-1]
-            roll_angle = np.arctan2(2.0 * (qw * qx + qy * qz), 1 - 2.0 * (qx ** 2 + qy ** 2))
-            print(roll_angle)
-            if self.socket:
+            # Calculate roll angle with inverted sign (more intiutive)
+            roll_angle = -np.arctan2(2.0 * (qw * qx + qy * qz), 1 - 2.0 * (qx ** 2 + qy ** 2))
+
+            if self.socket and self.motor_running:
                 # Send roll angle rounded to 5 decimal places
                 self.socket_server.send_roll_angle(round(roll_angle, 5))
+
+            if self.calibration:
+                roll_angles.append(roll_angle)
+                print(roll_angle)
+
+            elif roll_angle >= self.max_roll_angle - 0.05:
+                # Toggle the motor, as if the button in the ui was pressed
+                self.ui.toggle_motor()
+                # Calculate the score
+                self.calculate_score(self.segment_start_idx_imu, len(sensor_entries['W']), self.assistive_profile_name)
+
             time.sleep(0.015)
+
+        if self.calibration:
+            self.max_roll_angle = max(roll_angles)
+            # Save the max and min roll angles
+            self.data_exporter.export_roll_angle_limit_to_npy(self.max_roll_angle)
 
     def extract_time(self, df):
         """
@@ -571,7 +591,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.analysed_segments += 1
 
         # Extract the segment of the x-axis gyro data
-        gyro_x_segment = self.complete_gyro_data[imu_sensor_label][gyro_axis][current_segment_start_idx_imu:current_segment_end_idx_imu]
+        gyro_x_segment = self.complete_gyro_data[imu_sensor_label][gyro_axis][current_segment_start_idx_imu:current_segment_end_idx_imu].copy()
         gyro_x_segment = pd.DataFrame(gyro_x_segment, columns=['GYRO X (deg/s)'])
         # Filter gyro x first, as sometimes the buffer for the acc data is not filled
         try:
@@ -584,7 +604,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             return
 
         # Extract the segment of the z-axis acceleration data
-        z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][current_segment_start_idx_imu:current_segment_end_idx_imu]
+        z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][current_segment_start_idx_imu:current_segment_end_idx_imu].copy()
         z_acc_segment = pd.DataFrame(z_acc_segment, columns=['ACC Z (G)'])
         z_acc_filtered = apply_lowpass_filter(z_acc_segment, 1, self.acc_sample_rates[imu_sensor_label])
 
@@ -626,14 +646,14 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Extract relevant_emg data, one sensor at a time
             for sensor_label in self.complete_emg_data.keys():
                 if self.sensor_names[sensor_label] == 'IMU':
-                    gyro_data = {key: value[imu_start_buffer_idx:imu_end_buffer_idx] for key, value in self.complete_gyro_data[sensor_label].items()}
-                    acc_data = {key: value[imu_start_buffer_idx:imu_end_buffer_idx] for key, value in self.complete_acc_data[sensor_label].items()}
+                    gyro_data = {k: v[imu_start_buffer_idx:imu_end_buffer_idx].copy() for k, v in self.complete_gyro_data[sensor_label].items()}
+                    acc_data = {k: v[imu_start_buffer_idx:imu_end_buffer_idx].copy() for k, v in self.complete_acc_data[sensor_label].items()}
                     sensor_data = pd.concat([pd.DataFrame(gyro_data), pd.DataFrame(acc_data)], axis=1)
                     sensor_data.columns = ['GYRO X', 'GYRO Y', 'GYRO Z', 'ACC X', 'ACC Y', 'ACC Z']
                     # Save IMU data
                     self.data_exporter.export_sts_data_to_csv(sensor_data, self.sensor_names[sensor_label])
                 else:
-                    sensor_data = self.complete_emg_data[sensor_label][start_buffer_idx:end_buffer_idx]
+                    sensor_data = self.complete_emg_data[sensor_label][start_buffer_idx:end_buffer_idx].copy()
                     complete_emg_data[self.sensor_names[sensor_label]] = sensor_data
                 
             # Log the extracted emg data as a single file
@@ -657,7 +677,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered, axis=0)) / self.unassisted_counter
 
                 # Save the unassisted mean to a file
-                self.data_exporter.export_unassisted_mean_to_csv(self.unassisted_mean)
+                self.data_exporter.export_unassisted_mean_to_npy(self.unassisted_mean)
 
                 # Log the extracted variables
                 log_entry = {

@@ -223,21 +223,21 @@ class DataExporter:
         #     print(f"Error exporting STS data to remote host: {e}")
 
 
-    def export_unassisted_mean_to_csv(self, unassisted_mean):
-        # Save unassisted mean as a single-value CSV file locally
+    def export_unassisted_mean_to_npy(self, unassisted_mean):
+        # Save unassisted mean as a single-value npy file locally
         filename_unassisted_mean = "most_recent_unassisted_mean.npy"
         
         # Ensure subject folder exists
-        subject_folder_unassisted = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}")
-        if not os.path.exists(subject_folder_unassisted):
-            os.makedirs(subject_folder_unassisted)
+        subject_folder = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}")
+        if not os.path.exists(subject_folder):
+            os.makedirs(subject_folder)
         
         # Write the unassisted mean to a npy file
-        filepath_unassisted = os.path.join(subject_folder_unassisted, filename_unassisted_mean)
+        filepath_unassisted = os.path.join(subject_folder, filename_unassisted_mean)
         np.save(filepath_unassisted, unassisted_mean)
             
 
-    def load_unassisted_mean_from_csv(self):
+    def load_unassisted_mean_from_npy(self):
         filename_unassisted_mean = "most_recent_unassisted_mean.npy"
         filepath_unassisted = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", filename_unassisted_mean)
         
@@ -246,4 +246,30 @@ class DataExporter:
             return np.load(filepath_unassisted)
         except Exception as e:
             print(f"Error loading unassisted mean from file: {e}, record unassisted data first")
+            return None
+
+
+    def export_roll_angle_limit_to_npy(self, roll_angle):
+        # Save roll angle as a single-value npy file locally
+        filename_roll_angle = "roll_angle_limit.npy"
+        
+        # Ensure subject folder exists
+        subject_folder = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}")
+        if not os.path.exists(subject_folder):
+            os.makedirs(subject_folder)
+        
+        # Write the roll angle to a npy file
+        filepath_roll = os.path.join(subject_folder, filename_roll_angle)
+        np.save(filepath_roll, roll_angle)
+
+    
+    def load_roll_angle_limit_from_npy(self):
+        filename_roll_angle = "roll_angle_limit.npy"
+        filepath_roll = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", filename_roll_angle)
+        
+        # Load roll angle from npy if it exists
+        try:
+            return np.load(filepath_roll)
+        except Exception as e:
+            print(f"Error loading roll angle from file: {e}, record roll angle limit first")
             return None
