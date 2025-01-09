@@ -47,6 +47,7 @@ class CubemarsMotor:
         self.position = 0
         self.prev_velocity = 0
         self.velocity = 0
+        self.temperature = 0
         self.csv_file_name = None
         self.temerature = 0
 
@@ -58,6 +59,7 @@ class CubemarsMotor:
         self.position_buffer = [0] * self.buffer_size
         self.velocity_buffer = [0] * self.buffer_size
         self.torque_buffer = [0] * self.buffer_size
+        self.temperature_buffer = [0] * self.buffer_size
 
         self._emergency_stop = False
         self._first_run = True
@@ -67,6 +69,7 @@ class CubemarsMotor:
         self.can_bus = can.interface.Bus(
             channel=self.params["CAN"], bustype="socketcan"
         )
+        self.can_bus.flush_tx_buffer()
         self._connect_motor()
         self._start_time = time.time()
         self._last_update_time = self._start_time
@@ -83,11 +86,14 @@ class CubemarsMotor:
             traceback.print_exc()
 
     def _init_can_ports(self) -> None:
-        os.system(f"sudo ip link set {self.params['CAN']} type can bitrate 1000000")
-        os.system(f"sudo ifconfig {self.params['CAN']} up")
+        # os.system(f"sudo ip link set {self.params['CAN']} type can bitrate 1000000")
+        # os.system(f"sudo ifconfig {self.params['CAN']} up")
+        os.system(f"sudo ip link set {self.params['CAN']} down")
+        os.system(f"sudo ip link set {self.params['CAN']} up type can bitrate 1000000")
 
     def _stop_can_port(self) -> None:
-        os.system(f"sudo ifconfig {self.params['CAN']} down")
+        # os.system(f"sudo ifconfig {self.params['CAN']} down")
+        os.system(f"sudo ip link set {self.params['CAN']} down")
 
     def _connect_motor(self, delay: float = 0.005, zero: bool = False) -> None:
         """Establish connection with motor
@@ -96,6 +102,7 @@ class CubemarsMotor:
             motor_id (hex): motor id in hexadecimal
             delay (float, optional): waiting time. Defaults to 0.001.
         """
+        # Command to enter motor control mode, can also be used to read the current state in stateless manner
         start_motor_mode = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC]
 
         starting = False
@@ -109,7 +116,7 @@ class CubemarsMotor:
                 response = self.can_bus.recv(delay)
 
                 if response:
-                    P, V, T = self._read_motor_msg(response.data)
+                    P, V, T, Te = self._read_motor_msg(response.data)
                     print(f"Motor {self.type} connected successfully")
                     starting = True
                     if zero:
@@ -125,7 +132,7 @@ class CubemarsMotor:
 
     def _stop_motor(self) -> None:
         """Stop motor"""
-
+        # Command ti exit motor control mode
         stop_motor_mode = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD]
         can_name = self.can_bus.channel_info.split(" ")[-1]
 
@@ -146,16 +153,29 @@ class CubemarsMotor:
             self.velocity = 0
             time.sleep(0.5)
             self.send_torque(0)
+            print("Motor speed exceeded speed limit")
+            # self._stop_motor()
+
+    def check_temperature_limit(self):
+        # TODO not completely correct, get weweird signal from 70-10
+        if self.temperature > 80:
+            self._emergency_stop = True
+            self.send_velocity(0)
+            self.velocity = 0
+            time.sleep(0.5)
+            self.send_torque(0)
+            print("Motor temperature exceeded 80 degrees")
             # self._stop_motor()
 
     def send_zero_position(self) -> None:
+        # Set current Position as zero position
         zero_position = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE]
 
         self.can_bus.send(self._send_message(zero_position))
         # Sleep for 2.5s to allow motor to zero
         response = self.can_bus.recv(1.5)
         print("Zeroing position...")
-        print("Pos, Vel, Torque: ", self._read_motor_msg(response.data))
+        print("Pos, Vel, Torque, Temperature: ", self._read_motor_msg(response.data))
 
         zero_cmd = [0, 0, 0, 0, 0]
 
@@ -214,18 +234,6 @@ class CubemarsMotor:
         self.velocity_buffer = [0] * self.buffer_size
         self.torque_buffer = [0] * self.buffer_size
 
-    def read_motor_temperature(self):
-        """Reads motor temperature from the latest CAN message."""
-        response = self.can_bus.recv(timeout=1)  # Receive CAN message
-        if response:
-            data = response.data  # Extract 8-byte data
-            motor_temperature = int.from_bytes(data[6:7], byteorder='big', signed=True)
-            print(f"Motor Temperature: {motor_temperature}°C")
-            return motor_temperature
-        else:
-            print("No response received for motor temperature.")
-            return None
-
     def _update_motor(self, cmd: list[hex], wait_time: float = 0.001) -> bool:
         if len(cmd) != 5:
             print("Too many or too few arguments")
@@ -247,9 +255,10 @@ class CubemarsMotor:
             return
 
         self.check_safety_speed_limit()
+        self.check_temperature_limit()
         try:
             # Read position, velocity, and torque from the received message
-            p, v, t = self._read_motor_msg(new_msg.data)
+            p, v, t, te = self._read_motor_msg(new_msg.data)
 
             p *= -1 if self.type == "AK60-6" else 1
             v *= -1 if self.type == "AK60-6" else 1
@@ -259,6 +268,7 @@ class CubemarsMotor:
             self.position_buffer[self.buffer_index] = p
             self.velocity_buffer[self.buffer_index] = v
             self.torque_buffer[self.buffer_index] = t
+            self.temperature_buffer[self.buffer_index] = te
 
             self.buffer_index = (self.buffer_index + 1) % self.buffer_size
 
@@ -270,13 +280,16 @@ class CubemarsMotor:
                 self.position_buffer = [p] * self.buffer_size
                 self.velocity_buffer = [v] * self.buffer_size
                 self.torque_buffer = [t] * self.buffer_size
+                self.temperature_buffer = [te] * self.buffer_size
                 self._first_run = False
             
             avg_position = sum(self.position_buffer) / self.buffer_size
             avg_velocity = sum(self.velocity_buffer) / self.buffer_size
+            avg_temperature = sum(self.temperature_buffer) / self.buffer_size
 
             self.position = avg_position
             self.velocity = avg_velocity
+            self.temperature = avg_temperature
             self.measured_torque = t
 
             
@@ -303,12 +316,16 @@ class CubemarsMotor:
         p_int = (data[1] << 8) | data[2]
         v_int = (data[3] << 4) | (data[4] >> 4)
         t_int = ((data[4] & 0xF) << 8) | data[5]
+        # Temperature (Range from -40 to 215)
+        te_int = data[6]
+
         # convert to floats
         p = uint_to_float(p_int, self.params["P_min"], self.params["P_max"], 16)
         v = uint_to_float(v_int, self.params["V_min"], self.params["V_max"], 12)
         t = uint_to_float(t_int, self.params["T_min"], self.params["T_max"], 12)
+        te = uint_to_float(te_int, -40, 215, 8)
 
-        return p, v, t  # position, velocity, torque
+        return p, v, t, te  # position, velocity, torque, temperature
 
     def _pack_cmd(self, p_des: int, v_des: int, kp: int, kd: int, t_ff: int):
         # convert floats to ints

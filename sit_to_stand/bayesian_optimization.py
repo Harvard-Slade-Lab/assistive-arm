@@ -25,7 +25,8 @@ class ForceProfileOptimizer:
 
         self.iterations = iterations
         self.max_force = max_force
-        self.max_time = max_time
+        # self.max_time = max_time
+        self.max_time = len(self.session_manager.roll_angles)
         self.minimum_width_p = minimum_width_p
         self.minimum_distance = self.max_time * self.minimum_width_p / 2 # Minimum distance between force2_start_time and force2_peak_time / orce2_peak_time and force2_end_time
 
@@ -232,12 +233,12 @@ class ForceProfileOptimizer:
 
     def informed_optimization(self):
         # Points for profile
-        force1_end_time = 150.0
+        force1_end_time = 150.0/360.0 * self.max_time
         force1_peak_force = 20.0
 
-        force2_start_time = 70.0
-        force2_peak_time = 160.0
-        force2_end_time = 250.0
+        force2_start_time = 70.0/360.0 * self.max_time
+        force2_peak_time = 160.0/360.0 * self.max_time
+        force2_end_time = 250.0/360.0 * self.max_time
         force2_peak_force = 60.0
 
         # Revert to the original values (for the dynamic constraints)

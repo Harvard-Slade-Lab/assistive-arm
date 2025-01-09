@@ -85,7 +85,7 @@ def get_logger(log_name: str, session_manager: SessionManager, server: SocketSer
     """
     
     # Variables to be logged
-    logged_vars = ["Percentage", "target_tau_1", "measured_tau_1", "theta_1", "velocity_1", 
+    logged_vars = ["Percentage", "roll_angle", "target_tau_1", "measured_tau_1", "theta_1", "velocity_1", 
                    "target_tau_2", "measured_tau_2", "theta_2", "velocity_2", "EE_X", "EE_Y"]
 
     # Use session_manager to determine the next sample number

@@ -28,18 +28,21 @@ def start_server():
         print(f"Server listening on {HOST}:{PORT}")
 
         conn, addr = server_socket.accept()
+        datalog = open("datalog.txt", "w")
         with conn:
             print(f"Connected by {addr}")
             while True:
                 data = conn.recv(1024)  # Buffer size of 1024 bytes
                 if not data:
                     break
-
+                datalog.write(f"{data}\n")
                 if data[0:1] == b'r':  # If the first byte indicates roll angle
                     roll_angle = struct.unpack('!f', data[1:5])[0]
-                    print(f"\nRoll angle: {roll_angle}")
+                    # print(f"\nRoll angle: {roll_angle}")
+                    datalog.write(f"{roll_angle}\n")
                 else:
                     data_decoded = data.decode('utf-8', errors='replace').strip()
+                    datalog.write(f"{data_decoded}\n")
                     if data_decoded == "Start":
                         print("Start recording")
                         control_flag = True
@@ -77,7 +80,7 @@ def main():
     while not control_flag:
         time.sleep(0.1) # Wait for the server to start
 
-    while not kill_flag:
+    while control_flag:
         time.sleep(1)
     # plot_roll_angle()  # Start live plotting
 

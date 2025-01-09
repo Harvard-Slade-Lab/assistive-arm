@@ -63,15 +63,16 @@ def calibrate_height(
             elif mode == "SOCKET" and not server.collect_flag:
                 print("Stopped recording, exiting...")
                 break
-
-            roll_angles.append(server.roll_angle)
+            
+            if server.roll_angle is not None:
+                roll_angles.append(server.roll_angle)
 
             if t - start_time >= 0.05:
                 print(f"Roll angle: {server.roll_angle}", end="\r")
                 start_time = t
             
             # Wait to avoid duplicates
-            time.sleep(0.015)
+            # time.sleep(0.01)
 
         sts_duration = time.time() - sts_start
 
@@ -150,14 +151,16 @@ def control_loop_and_log(
             success = False
             break
 
+        # Maybe want to move this into the function
+        roll_angle = server.roll_angle
+
         tau_1, tau_2, P_EE, index = get_target_torques(
             theta_1=motor_1.position,
             theta_2=motor_2.position,
+            current_roll_angle=roll_angle,
             profiles=profile
         )
 
-        tau_1 = 0
-        tau_2 = 0
 
         if apply_force and t >= 0.2:
             if not printed:
@@ -190,7 +193,7 @@ def control_loop_and_log(
             sys.stdout.write(f"\x1b[4A\x1b[2K")
                     
             print_time = t
-        logger.writerow([cur_time - start_time, index, tau_1, motor_1.measured_torque, motor_1.position, motor_1.velocity, tau_2, motor_2.measured_torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
+        logger.writerow([cur_time - start_time, index, roll_angle, tau_1, motor_1.measured_torque, motor_1.position, motor_1.velocity, tau_2, motor_2.measured_torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
     del loop
 
     motor_1.send_torque(desired_torque=0, safety=False)
@@ -202,13 +205,6 @@ def control_loop_and_log(
         print("\nSomething went wrong. Repeating the iteration...")
 
     session_manager.save_log_or_delete(log_path=log_path, successful=success)
-
-    # TODO Check motor temepratures 
-    # temp_1 = motor_1.read_motor_temperature()
-    # temp_2 = motor_2.read_motor_temperature()
-
-    # if temp_1 > 70 or temp_2 > 70:
-    #     print("Motor temperature is too high. Take a break!")
 
     return success
 
@@ -277,7 +273,6 @@ def collect_unpowered_data(
         freq: int,
         iterations: int,
         session_manager: SessionManager,
-        profile_dir: Path,
         mode: Literal["TRIGGER", "ENTER"],
         server: SocketServer):
     """
@@ -288,16 +283,13 @@ def collect_unpowered_data(
         motor_2 (CubemarsMotor): The second motor for the assistive arm.
         freq (int): Control loop frequency (Hz).
         session_manager (SessionManager): Manages session and logging paths.
-        profile_dir (Path): Path to the calibrated profile.
         mode (Literal["TRIGGER", "ENTER"]): Start trigger mode.
         server (SocketServer): Socket server instance for connection control.
-    """
-    adjusted_profile_dir = profile_dir.parent / f"{profile_dir.stem}.csv"
-    
-    if not adjusted_profile_dir.exists():
-        raise FileNotFoundError(f"File {adjusted_profile_dir} does not exist. Please calibrate the device first.")
-    
-    profile = pd.read_csv(adjusted_profile_dir, index_col="Percentage")
+    """ 
+    profile = session_manager.roll_angles
+    # Add columns with zero force
+    profile["force_X"] = 0
+    profile["force_Y"] = 0
 
     i = 1
     # Loop over the number of iterations for unpowered data collection

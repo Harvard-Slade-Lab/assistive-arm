@@ -62,9 +62,6 @@ if __name__ == "__main__":
     else:
         socket_server = None
 
-    # This profile is just used in the calibration process to map the new height to the theta_2_values
-    unadjusted_profile_dir = Path(f"./torque_profiles/reference/reference_profile.csv")
-
     # Start the main interaction loop
     try:
         while True:
@@ -104,7 +101,6 @@ if __name__ == "__main__":
                                     freq=freq,
                                     iterations=iterations_per_parameter_set,
                                     session_manager=session_manager,
-                                    profile_dir=unadjusted_profile_dir,
                                     mode=trigger_mode,
                                     server=socket_server
                                 )

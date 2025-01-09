@@ -62,13 +62,13 @@ class SocketServer:
 
     def process_data(self, data):
         """Process received data to control the session state."""
-        if data == "Start":
+        if "Start" in data:
             self.collect_flag = True
-        elif data == "Stop":
+        elif "Stop" in data:
             self.collect_flag = False
-        elif data == "Mode":
+        elif "Mode" in data:
             self.mode_flag = True
-        elif data == "Kill":
+        elif "Kill" in data:
             print("\nClosing connection and exiting...")
             self.kill_flag = True
             self.stop()
