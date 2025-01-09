@@ -53,7 +53,7 @@ class SocketServer:
                                 roll_angle = struct.unpack('!f', data[1:5])[0]
                                 self.roll_angle = roll_angle
                             else:
-                                data_decoded = data.decode('utf-8', errors='replace')
+                                data_decoded = data.decode('utf-8', errors='replace').strip()
                                 self.process_data(data_decoded)
                 except socket.timeout:
                     # Timeout reached, loop back to check stop_server
