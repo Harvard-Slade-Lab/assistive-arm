@@ -1,9 +1,10 @@
 import socket
 import time
+import struct
 
 # Configuration
-SERVER_HOST = '10.250.1.229'  # Server IP address (replace with actual server IP)
-SERVER_PORT = 3000       # Port that matches the server's port
+SERVER_HOST = '10.250.16.32'  # Server IP address (replace with actual server IP)
+SERVER_PORT = 3003       # Port that matches the server's port
 
 def connect_to_server(retries=1, delay=2):
     """ Function to connect to the server with retry logic. """
@@ -26,8 +27,12 @@ def main():
         message = "Start"
         sock.sendall(message.encode('utf-8'))
 
+        time.sleep(1)
+        message = struct.pack('!cf', b'r', 2.145)
+        sock.sendall(message)
+
         # Wait for 5 seconds
-        time.sleep(2)
+        time.sleep(5)
         message = 5
         sock.sendall(str(message).encode('utf-8'))
 

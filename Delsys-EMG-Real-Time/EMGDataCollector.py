@@ -133,7 +133,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.data_exporter = DataExporter(self)
 
         # New thread for segmentation
-        self.executor = ThreadPoolExecutor(max_workers=4)
+        self.executor = ThreadPoolExecutor(max_workers=3)
         self.last_submission_time = None
 
         # Simulation activation means
@@ -220,7 +220,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     print(f"Set mode '{default_mode}' for sensor {label}")
 
         if project_name == 'sts':
-            id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L"}
+            id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L", "000140e5": "OR"}
 
             self.sensor_label_to_index = {}
             for idx, sensor in enumerate(self.base.all_scanned_sensors):
@@ -236,6 +236,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 modes = self.base.getSampleModes(sensor_index)
                 if self.sensor_names[label] == 'IMU':
                     self.base.setSampleMode(sensor_index, modes[110])
+                elif self.sensor_names[label] == 'OR':
+                    self.base.setSampleMode(sensor_index, modes[207]) 
                 else:
                     self.base.setSampleMode(sensor_index, modes[4])
 
@@ -371,7 +373,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             # Reinitialize the executor if it was shutdown
             if self.executor is None or self.executor._shutdown:
-                self.executor = ThreadPoolExecutor(max_workers=4)
+                self.executor = ThreadPoolExecutor(max_workers=3)
 
             print(f"Starting Trial {self.trial_number}...")
             # Reset data structures
@@ -394,17 +396,28 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             print("A trial is already running.")
 
     def toggle_motor(self):
+        self.motor_running = not self.motor_running
+
+        if self.motor_running:
+            self.executor.submit(self.send_roll_angle)
+
         if self.socket:
-            if self.motor_running:
+            if not self.motor_running:
                 self.socket_server.send_data("Stop")
                 self.processed_profile_name = self.assistive_profile_name
                 self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                 # Send profile label to socket server for next profile
                 self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
             else:
+                imu_sensor_label = next(iter(self.gyro_channels_per_sensor))
+                # Get start index
+                self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label]['X'])
                 self.socket_server.send_data("Start")
 
-        self.motor_running = not self.motor_running
+                # Only start if the socket is connected and there are orientation channels
+                # if self.socket and self.or_channels_per_sensor:
+                if self.or_channels_per_sensor:
+                    self.executor.submit(self.send_roll_angle)
 
     def select_raspi_mode(self):
         if self.socket:
@@ -458,7 +471,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def start_collection(self):
         print("Starting data collection...")
         self.base.Start_Callback(start_trigger=False, stop_trigger=False)
-        self.threadManager(start_trigger=False, stop_trigger=False)
 
     def stop_collection(self):
         print("Stopping data collection...")
@@ -483,10 +495,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Submit tasks to the executor
         self.executor.submit(self.stream_data)
         self.executor.submit(self.data_processor.process_data)
-        # Only start if the socket is connected and there are orientation channels
-        # if self.socket and self.or_channels_per_sensor:
-        if self.or_channels_per_sensor:
-            self.executor.submit(self.send_roll_angle)
 
     def send_roll_angle(self):
         " Calculates roll angle according to https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles"
@@ -500,7 +508,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         time.sleep(1)
         # Collect roll angles for claibration:
         roll_angles = []
-        while not self.pauseFlag:
+        while self.motor_running:
             # Use lock so that the data is not modified while being read
             with self.plot_data_lock:
                 data_copy = {k: v.copy() for k, v in self.complete_or_data.items()}
@@ -515,24 +523,41 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             if self.socket and self.motor_running:
                 # Send roll angle rounded to 5 decimal places
-                self.socket_server.send_roll_angle(round(roll_angle, 5))
+                self.socket_server.send_roll_angle_to_pi(round(roll_angle, 5))
+
+            if self.test_flag:
+                print(f"Roll angle: {roll_angle}")
 
             if self.calibration:
                 roll_angles.append(roll_angle)
-                print(roll_angle)
 
             elif roll_angle >= self.max_roll_angle - 0.05:
                 # Toggle the motor, as if the button in the ui was pressed
                 self.ui.toggle_motor()
-                # Calculate the score
-                self.calculate_score(self.segment_start_idx_imu, len(sensor_entries['W']), self.assistive_profile_name)
+                print("Stopped motor.")
+                break
 
-            time.sleep(0.015)
+            time.sleep(0.01)
 
+        # Save the roll angles after calibration
         if self.calibration:
             self.max_roll_angle = max(roll_angles)
             # Save the max and min roll angles
             self.data_exporter.export_roll_angle_limit_to_npy(self.max_roll_angle)
+
+            # Save roll_angle array
+            roll_angles = np.array(roll_angles)
+            np.save(f"roll_angles_{self.current_date}_{self.assistive_profile_name}.npy", roll_angles)
+
+        # else:
+        #     # Get imu sensor label
+        #     imu_sensor_label = next(iter(self.gyro_channels_per_sensor))
+        #     # Find current index
+        #     current_index = len(self.complete_gyro_data[imu_sensor_label]['X'])
+        #     self.calculate_score(self.segment_start_idx_imu, current_index, self.assistive_profile_name)
+            
+        # print("\nRoll angle thread stopped.")
+
 
     def extract_time(self, df):
         """
@@ -546,40 +571,20 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         """
         # Find the global minimum in X velocity
         minimum = np.argmin(df['GYRO X (deg/s)'])
-
         # First derivative (rate of change) to detect where the acceleration starts decreasing
         acc_z_diff = np.diff(df['ACC Z (G)'])
         # Find all acceleration-change extremas
         maxima = argrelextrema(acc_z_diff, np.greater)[0]
         # Get the two maxima closest to the global minimum
         maxima.sort()
-
         try:
             # Maximum in acc z diff before global minimum is a good way to detect the start of the motion
             start_idx = maxima[np.searchsorted(maxima, minimum) - 1]
-
-            # More conservative (stops later)
-            # # We need to have at least three maxima to be able to detect the end of the motion, as sometimes people might sit down to quickly
-            # if len(maxima) > 2:
-            #     end_idx = maxima[np.searchsorted(maxima, minimum)]
-            # # If there is no maxima, there will still always be a change of signs in the jerk
-            # else:
-            #     acc_z_diff_diff = np.diff(acc_z_diff)
-            #     acc_z_diff_diff_minima = argrelextrema(acc_z_diff_diff, np.less)[0]
-            #     # Select the minimum closest to the global minimum (higher than the global minimum)
-            #     end_idx = acc_z_diff_diff_minima[np.searchsorted(acc_z_diff_diff_minima, minimum)]
-
-            # Less conservative (stops earlier)
-            gyro_x_diff = np.diff(df['GYRO X (deg/s)'])
-            gyro_x_diff_diff = np.diff(gyro_x_diff)
-            minima = argrelextrema(gyro_x_diff_diff, np.less)[0]
-            end_idx = minima[np.searchsorted(minima, minimum)]
         except Exception as e:
             print(e)
             start_idx = None
-            end_idx = None
 
-        return start_idx, end_idx
+        return start_idx
 
     def calculate_score(self, current_segment_start_idx_imu, current_segment_end_idx_imu, current_assistive_profile_name):
         # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
@@ -602,6 +607,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Send message to raspi to repeat iteration and add identification tag
             self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
             return
+
 
         # Extract the segment of the z-axis acceleration data
         z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][current_segment_start_idx_imu:current_segment_end_idx_imu].copy()
@@ -724,49 +730,49 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 }
                 self.log_entries.append(log_entry)
 
-    def detect_peak_and_calculate(self):
-        # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
-        # The arrow of the sensor should be pointing towards the torso
-        imu_sensor_label = 0
-        gyro_axis = 'X'
+    # def detect_peak_and_calculate(self):
+    #     # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
+    #     # The arrow of the sensor should be pointing towards the torso
+    #     imu_sensor_label = 0
+    #     gyro_axis = 'X'
 
-        # Hyperparameters
-        peak_threshold = 50
+    #     # Hyperparameters
+    #     peak_threshold = 50
 
-        if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
-            # Get the mean of the past 100 Gyro X values
-            gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
+    #     if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
+    #         # Get the mean of the past 100 Gyro X values
+    #         gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
 
-            # Detect peak to see if a sts has ended
-            if gyro_x_mean > peak_threshold and not self.peak:
-                self.peak = True
-                self.segment_end_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
-                self.count_peak += 1
+    #         # Detect peak to see if a sts has ended
+    #         if gyro_x_mean > peak_threshold and not self.peak:
+    #             self.peak = True
+    #             self.segment_end_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
+    #             self.count_peak += 1
 
-            if self.count_peak > self.analysed_segments:
-                if self.last_submission_time is None or time.time() - self.last_submission_time > 1:
-                    self.last_submission_time = time.time()
-                    # Get current segment indices, so they cannot get overwritten
-                    current_segment_start_idx_imu = self.segment_start_idx_imu
-                    current_segment_end_idx_imu = self.segment_end_idx_imu
-                    current_profile_name = self.processed_profile_name
-                    # Process the data in a separate thread
-                    self.executor.submit(self.calculate_score(current_segment_start_idx_imu, current_segment_end_idx_imu, current_profile_name))
+    #         if self.count_peak > self.analysed_segments:
+    #             if self.last_submission_time is None or time.time() - self.last_submission_time > 1:
+    #                 self.last_submission_time = time.time()
+    #                 # Get current segment indices, so they cannot get overwritten
+    #                 current_segment_start_idx_imu = self.segment_start_idx_imu
+    #                 current_segment_end_idx_imu = self.segment_end_idx_imu
+    #                 current_profile_name = self.processed_profile_name
+    #                 # Process the data in a separate thread
+    #                 self.executor.submit(self.calculate_score(current_segment_start_idx_imu, current_segment_end_idx_imu, current_profile_name))
 
-            if self.peak:
-                if gyro_x_mean < peak_threshold:
-                    self.peak = False
-                    self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
+    #         if self.peak:
+    #             if gyro_x_mean < peak_threshold:
+    #                 self.peak = False
+    #                 self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
 
     def stream_data(self):
         """Collect data from sensors and put it into the queue."""
         while not self.pauseFlag:
             self.data_handler.processData(self.data_queue)
-            if self.real_time:
-                if self.executor is None or self.executor._shutdown:
-                    continue
-                else:
-                    self.detect_peak_and_calculate()
+            # if self.real_time:
+            #     if self.executor is None or self.executor._shutdown:
+            #         continue
+            #     else:
+            #         self.detect_peak_and_calculate()
 
         # Process any remaining data after stopping
         self.data_processor.process_remaining_data()

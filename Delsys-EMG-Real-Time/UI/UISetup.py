@@ -107,16 +107,16 @@ class UISetup:
     def toggle_test_flag(self):
         self.parent.test_flag = not self.parent.test_flag
         if self.parent.test_flag:
-            self.test_button.setText("Test (ON)")
+            self.parent.test_button.setText("Test (ON)")
         else:
-            self.test_button.setText("Test (OFF)")
+            self.parent.test_button.setText("Test (OFF)")
 
     def calibrate_height(self):
         self.parent.calibration = True
         self.parent.unassisted = False
+        self.parent.start_trial()
         self.toggle_motor()
         self.switch_to_second_page()
-        self.parent.start_trial()
 
     def start_unassisted_trial(self):
         self.parent.check_calibration()
@@ -127,9 +127,9 @@ class UISetup:
         else:
             self.parent.unassisted = True
             self.parent.calibration = False
+            self.parent.start_trial()
             self.toggle_motor()
             self.switch_to_second_page()
-            self.parent.start_trial()
 
     def start_trial(self):
         self.parent.check_calibration()
@@ -144,9 +144,9 @@ class UISetup:
         else:
             self.parent.unassisted = False
             self.parent.calibration = False
+            self.parent.start_trial()
             self.toggle_motor()
             self.switch_to_second_page()
-            self.parent.start_trial()
 
     def select_mode(self):
         self.parent.select_raspi_mode()
