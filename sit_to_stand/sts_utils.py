@@ -13,7 +13,7 @@ def handle_interrupt(signum, frame):
     global interrupt_flag
     interrupt_flag = True
             
-def await_trigger_signal(mode: Literal["TRIGGER", "ENTER", "SOCKET"], server: SocketServer=None):
+def await_trigger_signal(mode: Literal["TRIGGER", "ENTER", "SOCKET"], socket_server: SocketServer=None):
     """ Wait for trigger signal OR Enter to start Trial """
     signal.signal(signal.SIGINT, handle_interrupt)
 
@@ -25,21 +25,21 @@ def await_trigger_signal(mode: Literal["TRIGGER", "ENTER", "SOCKET"], server: So
         while not GPIO.input(17):
             pass
 
-    elif mode == "SOCKET" and server:
+    elif mode == "SOCKET" and socket_server:
         print("\nWaiting for socket start signal to start Trial")
         # Make sure we can exit if connection is lost, kind of an ugly solution, also tried demon thread with shared flag
         # as well as an exception handling approach, but this seems to be the most reliable.
-        while not server.collect_flag and not interrupt_flag:
-            if server.kill_flag:
-                server.stop()
+        while not socket_server.collect_flag and not interrupt_flag:
+            if socket_server.kill_flag:
+                socket_server.stop()
                 break
-            if server.mode_flag:
+            if socket_server.mode_flag:
                 break
             time.sleep(0.1)
 
         if interrupt_flag:
             # This is hacky but makes sense to exit to where we want to
-            server.mode_flag = True
+            socket_server.mode_flag = True
 
 def countdown(duration: int=3):
     for i in range(duration, 0, -1):

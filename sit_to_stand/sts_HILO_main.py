@@ -84,10 +84,10 @@ if __name__ == "__main__":
                     with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
                         with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
                             calibrate_height(
-                                server=socket_server,
                                 freq=freq,
                                 session_manager=session_manager,
                                 mode=trigger_mode,
+                                socket_server=socket_server
                             )
 
                 # If the device is not calibrated for the user's height, the user will not be able to collect data
@@ -102,7 +102,7 @@ if __name__ == "__main__":
                                     iterations=iterations_per_parameter_set,
                                     session_manager=session_manager,
                                     mode=trigger_mode,
-                                    server=socket_server
+                                    socket_server=socket_server
                                 )
                             except FileNotFoundError as e:
                                 print(e)

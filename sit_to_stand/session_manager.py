@@ -71,15 +71,14 @@ class SessionManager:
         return self.session_dir / yaml_file
     
 
-def get_logger(log_name: str, session_manager: SessionManager, server: SocketServer = None) -> tuple[Path, csv.writer]:
+def get_logger(log_name: str, session_manager: SessionManager, socket_server: SocketServer = None) -> tuple[Path, csv.writer]:
     """
     Set up a logger for various tasks in the script. Return the log file path and logger.
 
     Args:
         log_name (str): Name for the log file.
         session_manager (SessionManager): Instance managing the session directory.
-        profile_details (list, optional): Details for logging [peak_time, peak_force]. Defaults to None.
-
+        socket_server (SocketServer): Instance of the command socket server.
     Returns:
         tuple[Path, csv.writer]: The path to the log file and the CSV writer instance.
     """
@@ -89,14 +88,14 @@ def get_logger(log_name: str, session_manager: SessionManager, server: SocketSer
                    "target_tau_2", "measured_tau_2", "theta_2", "velocity_2", "EE_X", "EE_Y"]
 
     # Use session_manager to determine the next sample number
-    if not server:
+    if not socket_server:
         sample_num = get_next_sample_number(session_manager.session_dir, log_name)
     # Currently doesn't matter if server is passed or not, but maybe we want to add more info in the future
     else: 
         sample_num = get_next_sample_number(session_manager.session_dir, f"{log_name}")
     
     # Format log file path
-    if not server:
+    if not socket_server:
         log_file = f"{log_name}_{sample_num:02}.csv"
         # log_file = f"{log_name}.csv"
     else:

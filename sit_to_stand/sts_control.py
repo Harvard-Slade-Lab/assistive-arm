@@ -6,6 +6,7 @@ import zipfile
 import numpy as np
 import pandas as pd
 import yaml
+import threading
 from typing import Literal
 
 from pathlib import Path
@@ -21,17 +22,18 @@ from sts_utils import await_trigger_signal, countdown
 
 
 def calibrate_height(
-        server: SocketServer,
         freq: int,
         session_manager: SessionManager,
-        mode: Literal["TRIGGER", "ENTER", "SOCKET"]):
+        mode: Literal["TRIGGER", "ENTER", "SOCKET"],
+        socket_server: SocketServer):
     """
     Perform height calibration by running the sit-to-stand motion.
 
     Args:
-        server (SocketServer): Socket server instance for communication.
         freq (int): Control loop frequency (Hz).
         session_manager (SessionManager): Manages session and logging paths.
+        mode (Literal["TRIGGER", "ENTER", "SOCKET"]): Start trigger mode.
+        socket_server (SocketServer): Socket server instance for communication.
     """
     # Use session_manager to retrieve the YAML path for calibration data
     yaml_path = session_manager.yaml_path
@@ -45,7 +47,7 @@ def calibrate_height(
     start_time = 0
 
     try:
-        await_trigger_signal(mode=mode, server=server)
+        await_trigger_signal(mode=mode, socket_server=socket_server)
 
         countdown(duration=3)
 
@@ -54,21 +56,24 @@ def calibrate_height(
         sts_start = time.time()
 
         for t in loop:
-            if server.mode_flag or server.kill_flag:
+            if socket_server.mode_flag or socket_server.kill_flag:
                 print("Stopped recording, exiting...")
                 break
             if mode == "TRIGGER" and GPIO.input(17):
                 print("Stopped recording, exiting...")
                 break
-            elif mode == "SOCKET" and not server.collect_flag:
+            elif mode == "SOCKET" and not socket_server.collect_flag:
                 print("Stopped recording, exiting...")
                 break
             
-            if server.roll_angle is not None:
-                roll_angles.append(server.roll_angle)
+            with threading.Lock():
+                roll_angle = socket_server.roll_angle
+
+            if roll_angle is not None:
+                roll_angles.append(roll_angle)
 
             if t - start_time >= 0.05:
-                print(f"Roll angle: {server.roll_angle}", end="\r")
+                print(f"Roll angle: {roll_angle}", end="\r")
                 start_time = t
             
             # Wait to avoid duplicates
@@ -115,7 +120,7 @@ def control_loop_and_log(
         mode: Literal["TRIGGER", "ENTER", "SOCKET"],
         apply_force: bool,
         log_path: Path,
-        server: SocketServer,
+        socket_server: SocketServer,
         session_manager: SessionManager):
     
     # Clear motor buffers
@@ -135,13 +140,13 @@ def control_loop_and_log(
     scale_start_torque = increment
 
     for t in loop:
-        if server.mode_flag or server.kill_flag:
+        if socket_server.mode_flag or socket_server.kill_flag:
             print("Stopped recording, exiting...")
             break
         if mode == "TRIGGER" and GPIO.input(17):
             print("Stopped recording, exiting...")
             break
-        elif mode == "SOCKET" and not server.collect_flag:
+        elif mode == "SOCKET" and not socket_server.collect_flag:
             print("Stopped recording, exiting...")
             break
 
@@ -152,7 +157,8 @@ def control_loop_and_log(
             break
 
         # Maybe want to move this into the function
-        roll_angle = server.roll_angle
+        with threading.Lock():
+            roll_angle = socket_server.roll_angle
 
         tau_1, tau_2, P_EE, index = get_target_torques(
             theta_1=motor_1.position,
@@ -169,8 +175,8 @@ def control_loop_and_log(
             # Continue from the start torque
             # tau_1 = max(tau_1, 1)
             # tau_2 = max(tau_2, -1)
-            motor_1.send_torque(desired_torque=tau_1, safety=False)
-            motor_2.send_torque(desired_torque=tau_2, safety=False)
+            motor_1.send_torque(desired_torque=0, safety=False)
+            motor_2.send_torque(desired_torque=0, safety=False)
         # Start applying a small torque to get ready and avoid the initial jerk
         # elif apply_force and t < 0.2:
         #     # Cap start torque at 1 Nm
@@ -217,7 +223,7 @@ def apply_simulation_profile(
         profile: pd.DataFrame,
         profile_name: str,
         mode: Literal["TRIGGER", "ENTER", "SOCKET"],
-        server: SocketServer):
+        socket_server: SocketServer):
     """
     Apply a calibrated profile to simulate an assistive arm motion.
 
@@ -233,14 +239,14 @@ def apply_simulation_profile(
     """
 
     # Wait for trigger signal and start recording based on mode
-    await_trigger_signal(mode=mode, server=server)
+    await_trigger_signal(mode=mode, socket_server=socket_server)
 
-    if server is not None:
-        if server.mode_flag or server.kill_flag:
+    if socket_server is not None:
+        if socket_server.mode_flag or socket_server.kill_flag:
             return
     
     # Set up logging for this iteration
-    log_path, logger = get_logger(log_name=f"{profile_name}", session_manager=session_manager, server=server)
+    log_path, logger = get_logger(log_name=f"{profile_name}", session_manager=session_manager, socket_server=socket_server)
     
     # Countdown before starting
     countdown(duration=1)
@@ -256,7 +262,7 @@ def apply_simulation_profile(
             mode=mode,
             apply_force=True,
             log_path=log_path,
-            server=server,
+            socket_server=socket_server,
             session_manager=session_manager
         )
 
@@ -274,7 +280,7 @@ def collect_unpowered_data(
         iterations: int,
         session_manager: SessionManager,
         mode: Literal["TRIGGER", "ENTER"],
-        server: SocketServer):
+        socket_server: SocketServer):
     """
     Collect unpowered data for EMG synchronization.
 
@@ -284,7 +290,7 @@ def collect_unpowered_data(
         freq (int): Control loop frequency (Hz).
         session_manager (SessionManager): Manages session and logging paths.
         mode (Literal["TRIGGER", "ENTER"]): Start trigger mode.
-        server (SocketServer): Socket server instance for connection control.
+        socket_server (SocketServer): Socket server instance for connection control.
     """ 
     profile = session_manager.roll_angles
     # Add columns with zero force
@@ -301,17 +307,17 @@ def collect_unpowered_data(
         while not success:
             try:
                 # Wait for trigger signal to start based on the selected mode, or kill the process/exit
-                await_trigger_signal(mode=mode, server=server)
+                await_trigger_signal(mode=mode, socket_server=socket_server)
                 # Check if the server is in a mode that requires stopping the process
-                if server is not None:
-                    if server.mode_flag or server.kill_flag:
+                if socket_server is not None:
+                    if socket_server.mode_flag or socket_server.kill_flag:
                         return
                 
                 # Prepare the logger for the current iteration
                 log_path, logger = get_logger(
                     log_name=f"unpowered_device",
                     session_manager=session_manager,
-                    server=server
+                    socket_server=socket_server
                 )
 
                 # Start countdown before data collection
@@ -328,7 +334,7 @@ def collect_unpowered_data(
                     mode=mode,
                     apply_force=False,
                     log_path=log_path,
-                    server=server,
+                    socket_server=socket_server,
                     session_manager=session_manager
                 )
 
@@ -342,8 +348,8 @@ def collect_unpowered_data(
                 print("Keyboard interrupt detected. Exiting...")
                 return
         # Will miss repetition if last iteration fails (maybe add getting the profile tag)
-        if server.repeat_flag:
+        if socket_server.repeat_flag:
             print("Iteration has to be repeated.")
-            server.repeat_flag = False
+            socket_server.repeat_flag = False
         else:
             i += 1
