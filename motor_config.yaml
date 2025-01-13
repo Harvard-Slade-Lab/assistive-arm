@@ -34,5 +34,5 @@
   Kt_actual: 0.087 # UNTESTED CONSTANT!
   GEAR_RATIO: 6.0
   Use_derived_torque_constants: false # true if you have a better model
-  CAN: "can1"
+  CAN: "can0"
   ID: 0x02

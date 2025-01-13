@@ -3,6 +3,7 @@ import numpy as np
 import os
 import time
 import sys
+import can
 
 from pathlib import Path
 
@@ -107,7 +108,9 @@ if __name__ == "__main__":
         choice = input("Enter your choice: ")
 
         if choice == '1':
-            with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
+            os.system(f"sudo ip link set can0 up type can bitrate 1000000")
+            can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
+            with CubemarsMotor(motor_type="AK70-10", frequency=freq, can_bus=can_bus) as motor_1:
                 print(f"Calibrating {motor_1.type}... Do not touch.")
                 time.sleep(1)
                 limit_tracking(motor_1, direction="right", velocity=3)
@@ -117,9 +120,12 @@ if __name__ == "__main__":
                 left_limit = limit_tracking(motor_1, direction="left", velocity=3)
                 print("Angle range: ", [0, left_limit])
                 time.sleep(1.5)
+            os.system(f"sudo ip link set can0 down")
 
         elif choice == '2':
-            with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
+            os.system(f"sudo ip link set can0 up type can bitrate 1000000")
+            can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
+            with CubemarsMotor(motor_type="AK60-6", frequency=freq, can_bus=can_bus) as motor_2:
                 print("Calibrating motor... Do not touch.")
                 time.sleep(1)
                 limit_tracking(motor_2, direction='right', velocity=3)
@@ -130,6 +136,7 @@ if __name__ == "__main__":
                 print(f"Setting zero position to {np.rad2deg(left_limit/2): .2f}º...")
                 time.sleep(1.5)
                 set_dh_origin(motor_2, left_limit / 2)
+            os.system(f"sudo ip link set can0 down")
 
         elif choice == '0':
             print("Exiting...")

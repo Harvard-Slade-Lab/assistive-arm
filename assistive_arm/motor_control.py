@@ -38,11 +38,13 @@ class CubemarsMotor:
         self,
         motor_type: Literal["AK60-6", "AK70-10"],
         frequency: int,
+        can_bus: can.Bus,  # Shared CAN bus instance
     ) -> None:
         self.type = motor_type
         self.params = MOTOR_PARAMS[motor_type]
         self.log_vars = ["position", "velocity", "torque"]
         self.frequency = frequency
+        self.can_bus = can_bus
 
         self.position = 0
         self.prev_velocity = 0
@@ -65,11 +67,8 @@ class CubemarsMotor:
         self._first_run = True
 
     def __enter__(self):
-        self._init_can_ports()
-        self.can_bus = can.interface.Bus(
-            channel=self.params["CAN"], bustype="socketcan"
-        )
-        self.can_bus.flush_tx_buffer()
+        # self._init_can_ports()
+        # self.can_bus.flush_tx_buffer()
         self._connect_motor()
         self._start_time = time.time()
         self._last_update_time = self._start_time
@@ -80,7 +79,7 @@ class CubemarsMotor:
             print("\n\nEmergency stop triggered. Shutting down...\n\n")
         else:
             self._stop_motor()
-            self._stop_can_port()
+            # self._stop_can_port()
     
         if exc_type is not None:
             traceback.print_exc()

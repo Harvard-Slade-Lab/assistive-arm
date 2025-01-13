@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import os
+import can
 
 from pathlib import Path
 from enum import Enum
@@ -81,67 +83,75 @@ if __name__ == "__main__":
                 choice = int(input("Enter your choice: "))
 
                 if choice == States.CALIBRATING:
-                    with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
-                        with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                            calibrate_height(
+                    os.system(f"sudo ip link set can0 up type can bitrate 1000000")
+                    can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
+                    with CubemarsMotor("AK70-10", frequency=200, can_bus=can_bus) as motor_1, CubemarsMotor("AK60-6", frequency=200, can_bus=can_bus) as motor_2:
+                        calibrate_height(
+                            freq=freq,
+                            session_manager=session_manager,
+                            mode=trigger_mode,
+                            socket_server=socket_server
+                        )
+                    os.system(f"sudo ip link set can0 down")
+
+                # If the device is not calibrated for the user's height, the user will not be able to collect data
+                elif choice == States.UNPOWERED_COLLECTION and session_manager.load_device_height_calibration() is not None:
+                    os.system(f"sudo ip link set can0 up type can bitrate 1000000")
+                    can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
+                    with CubemarsMotor("AK70-10", frequency=200, can_bus=can_bus) as motor_1, CubemarsMotor("AK60-6", frequency=200, can_bus=can_bus) as motor_2:
+                        try:
+                            collect_unpowered_data(
+                                motor_1=motor_1,
+                                motor_2=motor_2,
                                 freq=freq,
+                                iterations=iterations_per_parameter_set,
                                 session_manager=session_manager,
                                 mode=trigger_mode,
                                 socket_server=socket_server
                             )
+                        except FileNotFoundError as e:
+                            print(e)
+                            print("Returning to the main menu...")
 
-                # If the device is not calibrated for the user's height, the user will not be able to collect data
-                elif choice == States.UNPOWERED_COLLECTION and session_manager.load_device_height_calibration() is not None:
-                    with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
-                        with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                            try:
-                                collect_unpowered_data(
-                                    motor_1=motor_1,
-                                    motor_2=motor_2,
-                                    freq=freq,
-                                    iterations=iterations_per_parameter_set,
-                                    session_manager=session_manager,
-                                    mode=trigger_mode,
-                                    socket_server=socket_server
-                                )
-                            except FileNotFoundError as e:
-                                print(e)
-                                print("Returning to the main menu...")
+                        os.system(f"sudo ip link set can0 down")
 
                 elif choice == States.HILO and session_manager.load_device_height_calibration() is not None:
-                    with CubemarsMotor(motor_type="AK70-10", frequency=freq) as motor_1:
-                        with CubemarsMotor(motor_type="AK60-6", frequency=freq) as motor_2:
-                            profile_optimizer = ForceProfileOptimizer(
-                                    motor_1=motor_1,
-                                    motor_2=motor_2,
-                                    kappa=kappa,
-                                    freq = freq, 
-                                    iterations = iterations_per_parameter_set,
-                                    session_manager = session_manager, 
-                                    trigger_mode = trigger_mode, 
-                                    socket_server = socket_server, 
-                                    max_force=max_force,
-                                    max_time=max_time,
-                                    minimum_width_p=minimum_width_p,
-                                )
+                    os.system(f"sudo ip link set can0 up type can bitrate 1000000")
+                    can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
+                    with CubemarsMotor("AK70-10", frequency=200, can_bus=can_bus) as motor_1, CubemarsMotor("AK60-6", frequency=200, can_bus=can_bus) as motor_2:
+                        profile_optimizer = ForceProfileOptimizer(
+                                motor_1=motor_1,
+                                motor_2=motor_2,
+                                kappa=kappa,
+                                freq = freq, 
+                                iterations = iterations_per_parameter_set,
+                                session_manager = session_manager, 
+                                trigger_mode = trigger_mode, 
+                                socket_server = socket_server, 
+                                max_force=max_force,
+                                max_time=max_time,
+                                minimum_width_p=minimum_width_p,
+                            )
                             
-                            # Explorate the space exploration iterations - iterations done, so they are not done again when reloading
-                            if exploration_iterations > len(profile_optimizer.optimizer.space):
-                                for exploration_iteration in range(exploration_iterations - len(profile_optimizer.optimizer.space)):
-                                    if socket_server.mode_flag or socket_server.kill_flag:
-                                        break
-                                    else:
-                                        profile_optimizer.explorate()
+                        # Explorate the space exploration iterations - iterations done, so they are not done again when reloading
+                        if exploration_iterations > len(profile_optimizer.optimizer.space):
+                            for exploration_iteration in range(exploration_iterations - len(profile_optimizer.optimizer.space)):
+                                if socket_server.mode_flag or socket_server.kill_flag:
+                                    break
+                                else:
+                                    profile_optimizer.explorate()
+                        
+                        # Add informed profiles to the optimizer
+                        if informed:
+                            profile_optimizer.informed_optimization()
                             
-                            # Add informed profiles to the optimizer
-                            if informed:
-                                profile_optimizer.informed_optimization()
-                                
-                            # Optimize until the server stops (Kill command is sent) or the user exits
-                            while not socket_server.stop_server and not socket_server.kill_flag and not socket_server.mode_flag:
-                                profile_optimizer.optimize()
+                        # Optimize until the server stops (Kill command is sent) or the user exits
+                        while not socket_server.stop_server and not socket_server.kill_flag and not socket_server.mode_flag:
+                            profile_optimizer.optimize()
 
-                            profile_optimizer.log_to_remote()
+                        profile_optimizer.log_to_remote()
+
+                    os.system(f"sudo ip link set can0 down")
 
                 elif choice == States.EXIT or socket_server.kill_flag:
                     print("Exiting...")

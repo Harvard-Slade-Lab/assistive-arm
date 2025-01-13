@@ -164,37 +164,34 @@ class ForceProfileOptimizer:
             # while self.socket_server.score_receival_time is None or (time.time() - self.socket_server.score_receival_time) > 1:
             #     time.sleep(0.1)
 
-            # # If we jumped out of apply_simulation_profile due to a stop, return to the main menu
-            # # Chose to neglect the full iteration, could also still use the score if e.g the 4 previous iterations were okay
-            # if self.socket_server.kill_flag or self.socket_server.mode_flag:
-            #     # Exit the optimization
-            #     raise Exception("Exiting optimization, flag triggered")
+            # If we jumped out of apply_simulation_profile due to a stop, return to the main menu
+            # Chose to neglect the full iteration, could also still use the score if e.g the 4 previous iterations were okay
+            if self.socket_server.kill_flag or self.socket_server.mode_flag:
+                # Exit the optimization
+                raise Exception("Exiting optimization, flag triggered")
 
-            # start_time = time.time()
-            # local_repeat_flag = False
-            # # Check if the score's tag is the same as the most recent profile -> tested (can also be set by repeat command)
-            # while not current_profile_name == self.socket_server.score_tag:
-            #     time.sleep(0.1)
-            #     # If the score is not received in 5 seconds, break
-            #     if time.time() - start_time > 5:
-            #         print("Score not received in 5 seconds, repeat iteration.")
-            #         local_repeat_flag = True
-            #         break
+            start_time = time.time()
+            local_repeat_flag = False
+            # Check if the score's tag is the same as the most recent profile -> tested (can also be set by repeat command)
+            while not current_profile_name == self.socket_server.score_tag:
+                time.sleep(0.1)
+                # If the score is not received in 5 seconds, break
+                if time.time() - start_time > 5:
+                    print("Score not received in 5 seconds, repeat iteration.")
+                    local_repeat_flag = True
+                    break
 
-            # # Repeat if the flag is set (last iteration can also be repeated, as flag is set True if the score can not be calculated)
-            # if self.socket_server.repeat_flag or local_repeat_flag:
-            #     print("Iteration has to be repeated.")
-            #     self.socket_server.repeat_flag = False
-            #     local_repeat_flag = False
-            # else:
-            #     i += 1
-            #     score = self.socket_server.score
-            #     self.score_history.append(score)
-            #     scores.append(score)
-            #     print(f"Score: {score}")
-
-            i+=1
-            scores.append(1)
+            # Repeat if the flag is set (last iteration can also be repeated, as flag is set True if the score can not be calculated)
+            if self.socket_server.repeat_flag or local_repeat_flag:
+                print("Iteration has to be repeated.")
+                self.socket_server.repeat_flag = False
+                local_repeat_flag = False
+            else:
+                i += 1
+                score = self.socket_server.score
+                self.score_history.append(score)
+                scores.append(score)
+                print(f"Score: {score}")
 
         # Get mean score over last iterations
         mean_score = np.mean(scores)
