@@ -6,6 +6,8 @@ import clr
 
 # Import required libraries for data handling and plotting
 from AeroPy.DataManager import DataKernel
+from System.Collections.Generic import List
+from System import Int32
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -117,7 +119,15 @@ class TrignoBase:
             return True
         elif self.TrigBase.GetPipelineState() == 'Connected':
             self.channelcount = 0
-            self.TrigBase.Configure(self.start_trigger, self.stop_trigger)
+            newTransform = self.TrigBase.CreateTransform("raw")
+            index = List[Int32]()
+            # This variable changes the communiv=cation frequency between the base and the sensors
+            # 1 is roughly 74Hz, 2 is roughly 37Hz, 3 is roughly 24Hz,..
+            frame_throughput = 3
+            for i in range(self.SensorCount):
+                index.Add(i)
+
+            self.TrigBase.Configure(index, newTransform, frame_throughput, self.start_trigger, self.stop_trigger)
             configured = self.TrigBase.IsPipelineConfigured()
             if configured:
                 self.channelobjects = []
