@@ -9,7 +9,7 @@ class DataExporter:
     def __init__(self, parent):
         self.parent = parent
 
-    def export_data_to_csv(self, filename_emg="EMG_data.csv", filename_acc="ACC_data.csv", filename_gyro="GYRO_data.csv", filename_or="ORIENTATION_data.csv"):
+    def export_data_to_csv(self, filename_emg="EMG_data.csv", filename_acc="ACC_data.csv", filename_gyro="GYRO_data.csv", filename_or="ORIENTATION_data.csv", filename_or_debug="ORIENTATION_data_debug.csv"):
         print("Exporting collected data...")
 
         # Export EMG data
@@ -103,6 +103,31 @@ class DataExporter:
                         else:
                             row.append("")
                 f_or.write(",".join(row) + '\n')
+
+        # Export ORIENTATION data (debug)
+        with open(filename_or_debug, 'w') as f_or_debug:
+            # Build headers
+            headers = []
+            for sensor_label in self.parent.complete_or_data_debug:
+                for axis in ['W', 'X', 'Y', 'Z']:
+                    headers.append(f'ORIENTATION {self.parent.sensor_names.get(sensor_label, sensor_label)} {axis}')
+            f_or_debug.write(','.join(headers) + '\n')
+
+            # Find max length
+            max_length = 0
+            for sensor_data in self.parent.complete_or_data_debug.values():
+                max_length = max(max_length, max(len(axis_data) for axis_data in sensor_data.values()))
+            # Write data
+            for row_idx in range(max_length):
+                row = []
+                for sensor_data in self.parent.complete_or_data_debug.values():
+                    for axis in ['W', 'X', 'Y', 'Z']:
+                        data = sensor_data[axis]
+                        if row_idx < len(data):
+                            row.append(str(data[row_idx]))
+                        else:
+                            row.append("")
+                f_or_debug.write(",".join(row) + '\n')
 
         ################Removed to safe time####################
         # Make remote copy of the exported files
@@ -249,27 +274,28 @@ class DataExporter:
             return None
 
 
-    def export_roll_angle_limit_to_npy(self, roll_angle):
-        # Save roll angle as a single-value npy file locally
-        filename_roll_angle = "roll_angle_limit.npy"
+    def export_roll_angle_limits_to_npy(self, min_roll_angle, max_roll_angle):
+        # Save roll angle limits as a two-value npy file locally
+        filename_roll_angle = "roll_angle_limits.npy"
         
         # Ensure subject folder exists
         subject_folder = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}")
         if not os.path.exists(subject_folder):
             os.makedirs(subject_folder)
         
-        # Write the roll angle to a npy file
+        # Combine min and max roll angles into an array and write to a npy file
+        roll_angles = np.array([min_roll_angle, max_roll_angle])
         filepath_roll = os.path.join(subject_folder, filename_roll_angle)
-        np.save(filepath_roll, roll_angle)
+        np.save(filepath_roll, roll_angles)
 
-    
-    def load_roll_angle_limit_from_npy(self):
-        filename_roll_angle = "roll_angle_limit.npy"
+    def load_roll_angle_limits_from_npy(self):
+        filename_roll_angle = "roll_angle_limits.npy"
         filepath_roll = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", filename_roll_angle)
         
-        # Load roll angle from npy if it exists
+        # Load roll angles from npy if it exists
         try:
-            return np.load(filepath_roll)
+            roll_angles = np.load(filepath_roll)
+            return roll_angles[0], roll_angles[1]  # Return min and max roll angles
         except Exception as e:
-            print(f"Error loading roll angle from file: {e}, record roll angle limit first")
-            return None
+            print(f"Error loading roll angles from file: {e}, record roll angle limits first")
+            return None, None

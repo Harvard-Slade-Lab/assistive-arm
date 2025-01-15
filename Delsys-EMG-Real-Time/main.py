@@ -11,11 +11,13 @@ def main():
     plot = False
     # Flag for Socket connection
     socket = False
-    # Flag for realtime processing
-    real_time = False
+    # Flag for imu score calcualtion
+    imu_processing = False
+    # Flag for EMG control
+    emg_control = True
 
     appQt = QtWidgets.QApplication(sys.argv)
-    collector = EMGDataCollector(plot, socket, real_time, window_duration=window_duration, data_directory=data_directory)
+    collector = EMGDataCollector(plot, socket, imu_processing, emg_control, window_duration=window_duration, data_directory=data_directory)
     collector.connect_base()
     collector.scan_and_pair_sensors()
     sys.exit(appQt.exec_())

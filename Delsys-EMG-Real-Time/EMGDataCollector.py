@@ -27,7 +27,7 @@ from EMGutils.socket import SocketServer
 from concurrent.futures import ThreadPoolExecutor
 
 class EMGDataCollector(QtWidgets.QMainWindow):
-    def __init__(self, plot=False, socket=False, real_time=False, window_duration=5, data_directory="Data"):
+    def __init__(self, plot=False, socket=False, imu_processing=False, emg_control=False, window_duration=5, data_directory="Data"):
         super().__init__()
         self.window_duration = window_duration
         self.data_directory = data_directory
@@ -43,6 +43,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.segment_end_idx_imu = 0
         self.sts_start_idx_imu = 0
         self.sts_end_idx_imu = 0
+        self.sts_start_idx_emg = 0
+        self.sts_end_idx_emg = 0
         self.count_peak = 0
         self.peak = False
 
@@ -56,8 +58,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Flag to see if motor is running
         self.motor_running = False
 
-        # Flag to select if data should be processed in real-time or not
-        self.real_time = real_time
+        # Flag to select if motion detection and score calculation should be done in relat itme with imu signals
+        self.imu_processing = imu_processing
 
         # Flag to test things
         self.test_flag = False
@@ -65,12 +67,16 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Flag to calibrate
         self.calibration = False
         self.max_roll_angle = None
+        self.min_roll_angle = None
 
         # Flag to have socket connection or not
         self.socket = socket
         if self.socket:
             # Connect to the server
             self.socket_server.connect_to_server()
+
+        # Flag to control motor with EMG
+        self.emg_control = emg_control
 
         # Initialize attributes expected by TrignoBase
         self.EMGplot = None
@@ -82,6 +88,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.complete_acc_data = {}
         self.complete_gyro_data = {}
         self.complete_or_data = {}
+        self.complete_or_data_debug = {}
         self.is_collecting = False
         self.sensor_labels = {}
         self.sensor_names = {}
@@ -296,6 +303,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.gyro_sample_rates = {}
 
         self.complete_or_data = {}
+        self.complete_or_data_debug = {}
         self.plot_data_or = {}
         self.or_sample_rates = {}
 
@@ -358,6 +366,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 self.or_channels_per_sensor[label] = {'indices': [], 'labels': []}
                 self.plot_data_or[label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
                 self.complete_or_data[label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
+                self.complete_or_data_debug[label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
                 for ch in or_channels:
                     idx = ch['index']
                     ch_label = ch['label']
@@ -387,6 +396,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 self.complete_gyro_data[sensor_label] = {'X': [], 'Y': [], 'Z': []}
             for sensor_label in self.complete_or_data:
                 self.complete_or_data[sensor_label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
+            for sensor_label in self.complete_or_data_debug:
+                self.complete_or_data_debug[sensor_label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
             self.data_queue = queue.Queue()
             self.is_collecting = True
             self.pauseFlag = False  # Ensure pauseFlag is False
@@ -398,16 +409,17 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def toggle_motor(self):
         self.motor_running = not self.motor_running
 
-        if self.motor_running:
+        if self.motor_running and not self.socket:
             self.executor.submit(self.send_roll_angle)
 
         if self.socket:
             if not self.motor_running:
                 self.socket_server.send_data("Stop")
-                self.processed_profile_name = self.assistive_profile_name
-                self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-                # Send profile label to socket server for next profile
-                self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
+                if not self.or_channels_per_sensor:
+                    self.processed_profile_name = self.assistive_profile_name
+                    self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                    # Send profile label to socket server for next profile
+                    self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
             else:
                 imu_sensor_label = next(iter(self.gyro_channels_per_sensor))
                 # Get start index
@@ -424,7 +436,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.socket_server.send_data("Mode")
 
     def check_calibration(self):
-        self.max_roll_angle = self.data_exporter.load_roll_angle_limit_from_npy()
+        self.max_roll_angle, self.min_roll_angle = self.data_exporter.load_roll_angle_limits_from_npy()
 
     def check_unassisted(self):
         self.unassisted_mean = self.data_exporter.load_unassisted_mean_from_npy()
@@ -432,7 +444,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def stop_trial(self):
         if self.is_collecting:
             # This is used if single profiles are run and only one sts is performed
-            if self.count_peak == 0 and self.real_time and self.socket:
+            if self.count_peak == 0 and self.imu_processing and self.socket:
                 self.calculate_score(0, len(self.complete_gyro_data[0]["X"]))
 
             while not self.data_queue.empty():
@@ -445,6 +457,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             filename_acc = f"{self.current_date}_ACC_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             filename_gyro = f"{self.current_date}_GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             filename_or = f"{self.current_date}_OR_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
+            filename_or_debug = f"{self.current_date}_OR_Debug_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
             subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
             emg_folder = os.path.join(subject_folder, "Raw")
             if not os.path.exists(emg_folder):
@@ -453,9 +466,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             filepath_acc = os.path.join(emg_folder, filename_acc)
             filepath_gyro = os.path.join(emg_folder, filename_gyro)
             filepath_or = os.path.join(emg_folder, filename_or)
+            filepath_or_debug = os.path.join(emg_folder, filename_or_debug)
 
             # Export collected data
-            self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro, filepath_or)
+            self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro, filepath_or, filepath_or_debug)
             print(f"Trial {self.trial_number} data saved as: {filename_emg}, {filename_acc}, and {filename_gyro}")
 
             # Reset data logger
@@ -502,62 +516,212 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Tried a bunch of things, as this doesn't always work, however, I didn't see any difference
         # in performance (tried second dict with deque, just an array with the last values from the data_batch)
         # Careful with the sensor index, it should be the same as the one used in the data processor for the orientation data
-        # Access the first key (change if you want to use another sensor)
-        first_key = next(iter(self.or_channels_per_sensor))
-        # Wait, so there is data to process
-        time.sleep(1)
+
+        # Access the key for the (first) OR sensor (change if you want to use another sensor)
+        or_key = next(iter(self.or_channels_per_sensor))
+        # Key for the EMG sensor (change if you want to use another sensor)
+        emg_key = 1
         # Collect roll angles for claibration:
         roll_angles = []
+        # Set motion_detected to False
+        motion_detected = False
+
+        # Wait, so data is not empty
+        while not self.complete_or_data[or_key]['W']:
+            time.sleep(0.1)
+
         while self.motor_running:
-            # Use lock so that the data is not modified while being read
-            with self.plot_data_lock:
-                data_copy = {k: v.copy() for k, v in self.complete_or_data.items()}
-            sensor_entries = data_copy[first_key]
-            qw = sensor_entries['W'][-1]
-            qx = sensor_entries['X'][-1]
-            qy = sensor_entries['Y'][-1]
-            qz = sensor_entries['Z'][-1]
+            try:
+                # Use lock so that the data is not modified while being read
+                with self.plot_data_lock:
+                    data_copy = {k: v.copy() for k, v in self.complete_or_data.items()}
+                    # data_copy = {k: v.copy() for k, v in self.complete_or_data_debug.items()}
+                sensor_entries = data_copy[or_key]
+                qw = sensor_entries['W'][-1]
+                qx = sensor_entries['X'][-1]
+                qy = sensor_entries['Y'][-1]
+                qz = sensor_entries['Z'][-1]
 
-            # Calculate roll angle with inverted sign (more intiutive)
-            roll_angle = -np.arctan2(2.0 * (qw * qx + qy * qz), 1 - 2.0 * (qx ** 2 + qy ** 2))
+                # Calculate roll angle with inverted sign (more intiutive)
+                roll_angle = -np.arctan2(2.0 * (qw * qx + qy * qz), 1 - 2.0 * (qx ** 2 + qy ** 2))
 
-            if self.socket and self.motor_running:
-                # Send roll angle rounded to 5 decimal places
-                self.socket_server.send_roll_angle_to_pi(round(roll_angle, 5))
+                # Send roll angle to the raspberry pi if neeeded
+                if self.socket and self.emg_control:
+                    # Send roll angle rounded to 5 decimal places
+                    self.socket_server.send_roll_angle_to_pi(round(roll_angle, 5))
 
-            if self.test_flag:
-                print(f"Roll angle: {roll_angle}")
+                if self.test_flag:
+                    print(f"Roll angle: {roll_angle}")
 
-            if self.calibration:
-                roll_angles.append(roll_angle)
+                if self.calibration:
+                    roll_angles.append(roll_angle)
+                # Detect start of the motion
+                elif roll_angle >= self.min_roll_angle + 0.01 and not motion_detected:
+                    motion_detected = True
+                    # TODO check if this is the correct index
+                    sts_start_idx_emg = len(self.complete_emg_data[emg_key])
+                # Detect end of the motion
+                elif roll_angle >= self.max_roll_angle - 0.01:
+                    # Toggle the motor, as if the button in the ui was pressed
+                    self.ui.toggle_motor()
+                    print("Stopped motor.")
+                    break
 
-            elif roll_angle >= self.max_roll_angle - 0.05:
-                # Toggle the motor, as if the button in the ui was pressed
-                self.ui.toggle_motor()
-                print("Stopped motor.")
+                time.sleep(0.01)
+
+            except Exception as e:
+                print(f"Error in send_roll_angle: {e}")
                 break
-
-            time.sleep(0.01)
 
         # Save the roll angles after calibration
         if self.calibration:
             self.max_roll_angle = max(roll_angles)
+            self.min_roll_angle = min(roll_angles)
             # Save the max and min roll angles
-            self.data_exporter.export_roll_angle_limit_to_npy(self.max_roll_angle)
-
+            self.data_exporter.export_roll_angle_limits_to_npy(self.max_roll_angle, self.min_roll_angle)
             # Save roll_angle array
-            roll_angles = np.array(roll_angles)
-            np.save(f"roll_angles_{self.current_date}_{self.assistive_profile_name}.npy", roll_angles)
-
-        # else:
-        #     # Get imu sensor label
-        #     imu_sensor_label = next(iter(self.gyro_channels_per_sensor))
-        #     # Find current index
-        #     current_index = len(self.complete_gyro_data[imu_sensor_label]['X'])
-        #     self.calculate_score(self.segment_start_idx_imu, current_index, self.assistive_profile_name)
+            # roll_angles = np.array(roll_angles)
+            # np.save(f"roll_angles_{self.current_date}_{self.assistive_profile_name}.npy", roll_angles)
+        else:
+            # If the score calculation should be done based on the orientation data
+            if not self.imu_processing:
+                # Get the end index of the STS motion
+                sts_end_idx_emg = len(self.complete_emg_data[emg_key])
+                self.extract_relevant_emg_or(sts_start_idx_emg, sts_end_idx_emg, self.assistive_profile_name, emg_key)
             
-        # print("\nRoll angle thread stopped.")
+        self.processed_profile_name = self.assistive_profile_name
+        self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        # Send profile label to socket server for next profile
+        self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
 
+        print("\nRoll angle thread stopped.")
+
+
+    def extract_relevant_emg_or(self, emg_start_idx, emg_end_idx, current_assistive_profile_name, emg_key):
+        # Wait for a bit, so data can be filtered with buffers
+        time.sleep(0.5)
+
+        # Get an extra buffer at both ends (larger than it has to be, as I want to save some extra data as well)
+        # I don't see when the checks for accessing a non existent index is needed, but it is a potential failure case
+        buffer_size = 0.25 * self.emg_sampling_frequencies[emg_key]
+        if emg_start_idx - buffer_size < 0:
+            start_buffer_idx = emg_start_idx
+        else:
+            start_buffer_idx = int(np.round(emg_start_idx - buffer_size))
+
+        if emg_end_idx + buffer_size > len(self.complete_emg_data[emg_key]):
+            end_buffer_idx = emg_end_idx
+        else:
+            end_buffer_idx = int(np.round(emg_end_idx + buffer_size))
+
+        # Extract the relevant emg data
+        complete_emg_data = pd.DataFrame()
+        for sensor_label in self.complete_emg_data.keys():
+            if self.sensor_names[sensor_label] in ['IMU', 'OR']:
+                continue
+            else:
+                sensor_data = self.complete_emg_data[sensor_label][start_buffer_idx:end_buffer_idx].copy()
+                complete_emg_data[self.sensor_names[sensor_label]] = sensor_data
+            
+        # Log the extracted emg data as a single file
+        self.data_exporter.export_all_sts_data_to_csv(complete_emg_data)
+
+        # Filter relevant_emg data
+        relevant_emg_filtered, env_freq = filter_emg(complete_emg_data, sfreq=self.emg_sampling_frequencies[2])
+
+        # Cut the relevant emg data to the start and end of the sts motion
+        # Check if the start and end indices are correct -> checked
+        relevant_emg_filtered = relevant_emg_filtered[emg_start_idx-start_buffer_idx:emg_end_idx-start_buffer_idx]
+
+        # Calculate the score
+        self.calculate_score(relevant_emg_filtered, emg_start_idx, emg_end_idx, current_assistive_profile_name)
+
+
+    def calculate_score(self, relevant_emg_filtered, emg_start_idx, emg_end_idx, current_assistive_profile_name):
+        # Calculated reference score if unassisted
+        if self.unassisted:
+            self.unassisted_counter += 1
+            if self.unassisted_counter == 1:
+                # self.unassisted_mean = np.mean(relevant_emg_filtered, axis=0)
+                # Convert to max (TODO change naming if this works)
+                self.unassisted_mean = np.max(relevant_emg_filtered, axis=0)
+            else:
+                self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered, axis=0)) / self.unassisted_counter
+
+            # Save the unassisted mean to a file
+            self.data_exporter.export_unassisted_mean_to_npy(self.unassisted_mean)
+
+            # Log the extracted variables
+            log_entry = {
+                'Tag': current_assistive_profile_name,
+                'Start Time': emg_start_idx,
+                'End Time': emg_end_idx,
+                'Score': 0,
+            }
+            self.log_entries.append(log_entry)
+
+        else: 
+            # Compare score of assisted vs unassisted
+            assisted_mean = np.mean(relevant_emg_filtered, axis=0)
+
+            score = 0
+
+            # Scale by how much we expect the muscle to change
+            # rf_sim = self.simulation_means['rf_un']
+            # vm_sim = self.simulation_means['vm_un']
+            rf_sim = self.simulation_max['rf_un']
+            vm_sim = self.simulation_max['vm_un']
+
+            for i, sensor_label in enumerate(relevant_emg_filtered.keys()):
+                if 'RF' in sensor_label:
+                    score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                elif 'VM' in sensor_label:
+                    score += vm_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+
+            # Send comparison score to socket server
+            if self.socket:
+                self.socket_server.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}")
+                print(f"Score: {score}", f"Tag: {current_assistive_profile_name}")
+
+            # Log the extracted variables
+            log_entry = {
+                'Tag': current_assistive_profile_name,
+                'Start Time': emg_start_idx,
+                'End Time': emg_end_idx,
+                'Score': score,
+            }
+            self.log_entries.append(log_entry)
+
+    def stream_data(self):
+        """Collect data from sensors and put it into the queue."""
+        while not self.pauseFlag:
+            self.data_handler.processData(self.data_queue)
+            if self.imu_processing:
+                if self.executor is None or self.executor._shutdown:
+                    continue
+                else:
+                    self.detect_peak_and_calculate()
+
+        # Process any remaining data after stopping
+        self.data_processor.process_remaining_data()
+
+    def on_quit(self):
+        print("Quitting application.")
+        self.stop_collection()
+        # Close the socket connection
+        if self.socket:
+            self.socket_server.send_data("Kill")
+            self.socket_server.close_connection()
+        self.close()
+
+
+
+
+
+
+
+
+#######IMU SEGMENTATION#######
 
     def extract_time(self, df):
         """
@@ -586,7 +750,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         return start_idx
 
-    def calculate_score(self, current_segment_start_idx_imu, current_segment_end_idx_imu, current_assistive_profile_name):
+    def extract_relevant_emg_imu(self, current_segment_start_idx_imu, current_segment_end_idx_imu, current_assistive_profile_name):
         # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
         # The arrow of the sensor should be pointing towards the torso
         imu_sensor_label = 0
@@ -730,58 +894,36 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 }
                 self.log_entries.append(log_entry)
 
-    # def detect_peak_and_calculate(self):
-    #     # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
-    #     # The arrow of the sensor should be pointing towards the torso
-    #     imu_sensor_label = 0
-    #     gyro_axis = 'X'
+    def detect_peak_and_calculate(self):
+        # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
+        # The arrow of the sensor should be pointing towards the torso
+        imu_sensor_label = 0
+        gyro_axis = 'X'
 
-    #     # Hyperparameters
-    #     peak_threshold = 50
+        # Hyperparameters
+        peak_threshold = 50
 
-    #     if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
-    #         # Get the mean of the past 100 Gyro X values
-    #         gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
+        if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
+            # Get the mean of the past 100 Gyro X values
+            gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
 
-    #         # Detect peak to see if a sts has ended
-    #         if gyro_x_mean > peak_threshold and not self.peak:
-    #             self.peak = True
-    #             self.segment_end_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
-    #             self.count_peak += 1
+            # Detect peak to see if a sts has ended
+            if gyro_x_mean > peak_threshold and not self.peak:
+                self.peak = True
+                self.segment_end_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
+                self.count_peak += 1
 
-    #         if self.count_peak > self.analysed_segments:
-    #             if self.last_submission_time is None or time.time() - self.last_submission_time > 1:
-    #                 self.last_submission_time = time.time()
-    #                 # Get current segment indices, so they cannot get overwritten
-    #                 current_segment_start_idx_imu = self.segment_start_idx_imu
-    #                 current_segment_end_idx_imu = self.segment_end_idx_imu
-    #                 current_profile_name = self.processed_profile_name
-    #                 # Process the data in a separate thread
-    #                 self.executor.submit(self.calculate_score(current_segment_start_idx_imu, current_segment_end_idx_imu, current_profile_name))
+            if self.count_peak > self.analysed_segments:
+                if self.last_submission_time is None or time.time() - self.last_submission_time > 1:
+                    self.last_submission_time = time.time()
+                    # Get current segment indices, so they cannot get overwritten
+                    current_segment_start_idx_imu = self.segment_start_idx_imu
+                    current_segment_end_idx_imu = self.segment_end_idx_imu
+                    current_profile_name = self.processed_profile_name
+                    # Process the data in a separate thread
+                    self.executor.submit(self.extract_relevant_emg_imu(current_segment_start_idx_imu, current_segment_end_idx_imu, current_profile_name))
 
-    #         if self.peak:
-    #             if gyro_x_mean < peak_threshold:
-    #                 self.peak = False
-    #                 self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
-
-    def stream_data(self):
-        """Collect data from sensors and put it into the queue."""
-        while not self.pauseFlag:
-            self.data_handler.processData(self.data_queue)
-            # if self.real_time:
-            #     if self.executor is None or self.executor._shutdown:
-            #         continue
-            #     else:
-            #         self.detect_peak_and_calculate()
-
-        # Process any remaining data after stopping
-        self.data_processor.process_remaining_data()
-
-    def on_quit(self):
-        print("Quitting application.")
-        self.stop_collection()
-        # Close the socket connection
-        if self.socket:
-            self.socket_server.send_data("Kill")
-            self.socket_server.close_connection()
-        self.close()
+            if self.peak:
+                if gyro_x_mean < peak_threshold:
+                    self.peak = False
+                    self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])

@@ -43,6 +43,7 @@ class NoPlotDataProcessor:
                     if idx < len(data_batch):
                         data = data_batch[idx]
                         self.parent.complete_or_data[sensor_label][axis].extend(data)
+                        self.parent.complete_or_data_debug[sensor_label][axis].extend([data[-1]])
                     else:
                         print(f"ORIENTATION Channel index {idx} out of range in data_batch.")
             # EMG Data
