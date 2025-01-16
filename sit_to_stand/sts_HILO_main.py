@@ -12,6 +12,7 @@ from assistive_arm.motor_control import CubemarsMotor
 from bayesian_optimization import ForceProfileOptimizer
 from session_manager import SessionManager
 from socket_server import SocketServer
+from read_imu import IMUReader
 from sts_control import calibrate_height, collect_unpowered_data, apply_simulation_profile
 
 
@@ -33,7 +34,7 @@ class States(Enum):
 
 if __name__ == "__main__":
 
-    subject_id = "Test"
+    subject_id = "Nathan"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
     session_manager = SessionManager(subject_id=subject_id)
 
@@ -49,8 +50,17 @@ if __name__ == "__main__":
     # Minimum width of the profile in percentage of the total time
     minimum_width_p = 0.1
 
-    # Parameter to select, if the Gaussian Process should be informed by a parameter set, based on the simulation
+    # Flag to select, if the Gaussian Process should be informed by a parameter set, based on the simulation
     informed = True
+
+    # Flag to decide wether the emg IMU (True) or the wired IMU should be used for control
+    emg_control = False
+
+    # Initialize the IMU reader
+    if not emg_control:
+        imu_reader = IMUReader()
+    else:
+        imu_reader = None
 
     # Use Broadcom SOC Pin numbers
     GPIO.setmode(GPIO.BCM)
@@ -90,8 +100,11 @@ if __name__ == "__main__":
                             freq=freq,
                             session_manager=session_manager,
                             mode=trigger_mode,
-                            socket_server=socket_server
+                            socket_server=socket_server,
+                            imu_reader=imu_reader
                         )
+                    if 'can_bus' in locals() and can_bus:
+                        can_bus.shutdown()
                     os.system(f"sudo ip link set can0 down")
 
                 # If the device is not calibrated for the user's height, the user will not be able to collect data
@@ -107,13 +120,15 @@ if __name__ == "__main__":
                                 iterations=iterations_per_parameter_set,
                                 session_manager=session_manager,
                                 mode=trigger_mode,
-                                socket_server=socket_server
+                                socket_server=socket_server,
+                                imu_reader=imu_reader
                             )
                         except FileNotFoundError as e:
                             print(e)
                             print("Returning to the main menu...")
-
-                        os.system(f"sudo ip link set can0 down")
+                    if 'can_bus' in locals() and can_bus:
+                        can_bus.shutdown()
+                    os.system(f"sudo ip link set can0 down")
 
                 elif choice == States.HILO and session_manager.load_device_height_calibration() is not None:
                     os.system(f"sudo ip link set can0 up type can bitrate 1000000")
@@ -128,6 +143,7 @@ if __name__ == "__main__":
                                 session_manager = session_manager, 
                                 trigger_mode = trigger_mode, 
                                 socket_server = socket_server, 
+                                imu_reader = imu_reader,
                                 max_force=max_force,
                                 max_time=max_time,
                                 minimum_width_p=minimum_width_p,
@@ -151,6 +167,8 @@ if __name__ == "__main__":
 
                         profile_optimizer.log_to_remote()
 
+                    if 'can_bus' in locals() and can_bus:
+                        can_bus.shutdown()
                     os.system(f"sudo ip link set can0 down")
 
                 elif choice == States.EXIT or socket_server.kill_flag:

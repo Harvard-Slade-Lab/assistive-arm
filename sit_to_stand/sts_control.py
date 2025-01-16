@@ -18,6 +18,7 @@ from assistive_arm.motor_control import CubemarsMotor
 from assistive_arm.robotic_arm import calculate_ee_pos, get_target_torques
 from session_manager import SessionManager, get_logger
 from socket_server import SocketServer
+from read_imu import IMUReader
 from sts_utils import await_trigger_signal, countdown
 
 
@@ -25,7 +26,8 @@ def calibrate_height(
         freq: int,
         session_manager: SessionManager,
         mode: Literal["TRIGGER", "ENTER", "SOCKET"],
-        socket_server: SocketServer):
+        socket_server: SocketServer,
+        imu_reader: IMUReader):
     """
     Perform height calibration by running the sit-to-stand motion.
 
@@ -34,6 +36,7 @@ def calibrate_height(
         session_manager (SessionManager): Manages session and logging paths.
         mode (Literal["TRIGGER", "ENTER", "SOCKET"]): Start trigger mode.
         socket_server (SocketServer): Socket server instance for communication.
+        imu_reader (IMUReader): IMU reader instance for roll angle data.
     """
     # Use session_manager to retrieve the YAML path for calibration data
     yaml_path = session_manager.yaml_path
@@ -48,6 +51,10 @@ def calibrate_height(
 
     try:
         await_trigger_signal(mode=mode, socket_server=socket_server)
+
+        # Start reading from the IMU
+        if imu_reader is not None:
+            imu_reader.start_reading_imu_data()
 
         countdown(duration=3)
 
@@ -67,7 +74,10 @@ def calibrate_height(
                 break
             
             with threading.Lock():
-                roll_angle = socket_server.roll_angle
+                if imu_reader is not None:
+                    roll_angle = imu_reader.imu_data.pitch
+                else:
+                    roll_angle = socket_server.roll_angle
 
             if roll_angle is not None:
                 roll_angles.append(roll_angle)
@@ -78,6 +88,10 @@ def calibrate_height(
             
             # Wait to avoid duplicates
             # time.sleep(0.01)
+
+        # Stop the IMU reader
+        if imu_reader is not None:
+            imu_reader.stop_reading_imu_data()
 
         sts_duration = time.time() - sts_start
 
@@ -121,6 +135,7 @@ def control_loop_and_log(
         apply_force: bool,
         log_path: Path,
         socket_server: SocketServer,
+        imu_reader: IMUReader,
         session_manager: SessionManager):
     
     # Clear motor buffers
@@ -158,7 +173,10 @@ def control_loop_and_log(
 
         # Maybe want to move this into the function
         with threading.Lock():
-            roll_angle = socket_server.roll_angle
+            if imu_reader is not None:
+                roll_angle = imu_reader.imu_data.pitch
+            else:
+                roll_angle = socket_server.roll_angle
 
         tau_1, tau_2, P_EE, index = get_target_torques(
             theta_1=motor_1.position,
@@ -167,16 +185,15 @@ def control_loop_and_log(
             profiles=profile
         )
 
-
-        if apply_force and t >= 0.2:
+        if apply_force and t >= 0.1:
             if not printed:
                 print("\nGO!")
                 printed = True
             # Continue from the start torque
             # tau_1 = max(tau_1, 1)
             # tau_2 = max(tau_2, -1)
-            motor_1.send_torque(desired_torque=0, safety=False)
-            motor_2.send_torque(desired_torque=0, safety=False)
+            motor_1.send_torque(desired_torque=tau_1, safety=False)
+            motor_2.send_torque(desired_torque=tau_2, safety=False)
         # Start applying a small torque to get ready and avoid the initial jerk
         # elif apply_force and t < 0.2:
         #     # Cap start torque at 1 Nm
@@ -192,8 +209,8 @@ def control_loop_and_log(
             motor_2.send_torque(desired_torque=0, safety=False)
 
         if t - print_time >= 0.05:
-            print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.measured_torque:.3f}")
-            print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.measured_torque:.3f}")
+            print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.measured_torque:.3f} Sent Torque: {tau_1}")
+            print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.measured_torque:.3f} Sent Torque: {tau_2}")
             print(f"Body height: {-P_EE[0]}")
             print(f"Movement: {index:.0f}%. tau_1: {tau_1}, tau_2: {tau_2}")
             sys.stdout.write(f"\x1b[4A\x1b[2K")
@@ -223,7 +240,8 @@ def apply_simulation_profile(
         profile: pd.DataFrame,
         profile_name: str,
         mode: Literal["TRIGGER", "ENTER", "SOCKET"],
-        socket_server: SocketServer):
+        socket_server: SocketServer,
+        imu_reader: IMUReader):
     """
     Apply a calibrated profile to simulate an assistive arm motion.
 
@@ -236,6 +254,7 @@ def apply_simulation_profile(
         profile_name (str): Name of the profile to apply.
         mode (Literal["TRIGGER", "ENTER", "SOCKET"]): Start trigger mode.
         server (SocketServer): Socket server instance for communication.
+        imu_reader (IMUReader): IMU reader instance for roll angle data.
     """
 
     # Wait for trigger signal and start recording based on mode
@@ -244,7 +263,11 @@ def apply_simulation_profile(
     if socket_server is not None:
         if socket_server.mode_flag or socket_server.kill_flag:
             return
-    
+        
+    # Start reading from the IMU
+    if imu_reader is not None:
+        imu_reader.start_reading_imu_data()
+
     # Set up logging for this iteration
     log_path, logger = get_logger(log_name=f"{profile_name}", session_manager=session_manager, socket_server=socket_server)
     
@@ -263,11 +286,16 @@ def apply_simulation_profile(
             apply_force=True,
             log_path=log_path,
             socket_server=socket_server,
+            imu_reader=imu_reader,
             session_manager=session_manager
         )
 
         # Save or delete the log based on success
         session_manager.save_log_or_delete(log_path=log_path, successful=success)
+
+        # Stop reading from the IMU
+        if imu_reader is not None:
+            imu_reader.stop_reading_imu_data()
 
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Stopping...")
@@ -280,7 +308,8 @@ def collect_unpowered_data(
         iterations: int,
         session_manager: SessionManager,
         mode: Literal["TRIGGER", "ENTER"],
-        socket_server: SocketServer):
+        socket_server: SocketServer,
+        imu_reader: IMUReader):
     """
     Collect unpowered data for EMG synchronization.
 
@@ -291,6 +320,7 @@ def collect_unpowered_data(
         session_manager (SessionManager): Manages session and logging paths.
         mode (Literal["TRIGGER", "ENTER"]): Start trigger mode.
         socket_server (SocketServer): Socket server instance for connection control.
+        imu_reader (IMUReader): IMU reader instance for roll angle data.
     """ 
     profile = session_manager.roll_angles
     # Add columns with zero force
@@ -298,6 +328,7 @@ def collect_unpowered_data(
     profile["force_Y"] = 0
 
     i = 1
+
     # Loop over the number of iterations for unpowered data collection
     while i <= iterations:  # Collect data across 5 iterations
         print(f"\nIteration number: {i}")
@@ -312,6 +343,10 @@ def collect_unpowered_data(
                 if socket_server is not None:
                     if socket_server.mode_flag or socket_server.kill_flag:
                         return
+                    
+                # Start reading from the IMU
+                if imu_reader is not None:
+                    imu_reader.start_reading_imu_data()
                 
                 # Prepare the logger for the current iteration
                 log_path, logger = get_logger(
@@ -335,11 +370,16 @@ def collect_unpowered_data(
                     apply_force=False,
                     log_path=log_path,
                     socket_server=socket_server,
+                    imu_reader=imu_reader,
                     session_manager=session_manager
                 )
 
                 # Save or delete the log based on the success of data collection
                 session_manager.save_log_or_delete(log_path=log_path, successful=success)
+
+                # Stop reading from the IMU
+                if imu_reader is not None:
+                    imu_reader.stop_reading_imu_data()
 
             except Exception as e:
                 print(f"An error occurred: {e}. Repeating the iteration...")

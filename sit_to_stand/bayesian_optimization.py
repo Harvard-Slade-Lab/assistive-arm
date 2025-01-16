@@ -16,12 +16,13 @@ from sts_control import apply_simulation_profile
 
 
 class ForceProfileOptimizer:
-    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, max_force=65, max_time=360, minimum_width_p=0.1):   
+    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=65, max_time=360, minimum_width_p=0.1):   
         self.motor_1 = motor_1
         self.motor_2 = motor_2
         self.session_manager = session_manager
         self.trigger_mode = trigger_mode
         self.socket_server = socket_server
+        self.imu_reader = imu_reader
 
         self.iterations = iterations
         self.max_force = max_force
@@ -148,6 +149,8 @@ class ForceProfileOptimizer:
 
             current_profile_name = self.socket_server.profile_name
 
+            print(f"motor1 type (70-10): {self.motor_1.type}, motor2 type (60-6): {self.motor_2.type}")
+
             apply_simulation_profile(
                 motor_1=self.motor_1,
                 motor_2=self.motor_2,
@@ -156,7 +159,8 @@ class ForceProfileOptimizer:
                 profile = base_profile,
                 profile_name = profile_name,
                 mode=self.trigger_mode,
-                socket_server=self.socket_server
+                socket_server=self.socket_server,
+                imu_reader=self.imu_reader
             )
 
             # Check if the most recent (correct) score was received

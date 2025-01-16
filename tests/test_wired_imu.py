@@ -72,7 +72,7 @@ def read_imu_data(channel='can1', bustype='socketcan', bitrate=1000000):
                 print(f"Received message: ID={msg.arbitration_id}, Data={msg.data.hex()}")
                 process_imu_data(imu_data, msg.arbitration_id, msg.data)
                 # print(f"IMU Data: {vars(imu_data)}")
-                print("Roll: {:.2f}, Pitch: {:.2f}, Yaw: {:.2f}".format(imu_data.roll, imu_data.pitch, imu_data.yaw))
+                print(f"Roll: {imu_data.pitch:.2f}")
             else:
                 print("No message received. Waiting...")
 

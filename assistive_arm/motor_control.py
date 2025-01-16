@@ -51,7 +51,6 @@ class CubemarsMotor:
         self.velocity = 0
         self.temperature = 0
         self.csv_file_name = None
-        self.temerature = 0
 
         self.measured_torque = 0
 
@@ -65,6 +64,9 @@ class CubemarsMotor:
 
         self._emergency_stop = False
         self._first_run = True
+
+        # Set CAN filters for this motor
+        # self._set_filters()
 
     def __enter__(self):
         # self._init_can_ports()
@@ -84,15 +86,21 @@ class CubemarsMotor:
         if exc_type is not None:
             traceback.print_exc()
 
-    def _init_can_ports(self) -> None:
-        # os.system(f"sudo ip link set {self.params['CAN']} type can bitrate 1000000")
-        # os.system(f"sudo ifconfig {self.params['CAN']} up")
-        os.system(f"sudo ip link set {self.params['CAN']} down")
-        os.system(f"sudo ip link set {self.params['CAN']} up type can bitrate 1000000")
+    def _set_filters(self):
+        """Set CAN filters for this motor."""
+        filters = [{"can_id": self.params['ID'], "can_mask": 0x7FF, "extended": False}]
+        self.can_bus.set_filters(filters)
+        print(f"Filters set for motor ID: {self.params['ID']}")
 
-    def _stop_can_port(self) -> None:
-        # os.system(f"sudo ifconfig {self.params['CAN']} down")
-        os.system(f"sudo ip link set {self.params['CAN']} down")
+    # def _init_can_ports(self) -> None:
+    #     # os.system(f"sudo ip link set {self.params['CAN']} type can bitrate 1000000")
+    #     # os.system(f"sudo ifconfig {self.params['CAN']} up")
+    #     os.system(f"sudo ip link set {self.params['CAN']} down")
+    #     os.system(f"sudo ip link set {self.params['CAN']} up type can bitrate 1000000")
+
+    # def _stop_can_port(self) -> None:
+    #     # os.system(f"sudo ifconfig {self.params['CAN']} down")
+    #     os.system(f"sudo ip link set {self.params['CAN']} down")
 
     def _connect_motor(self, delay: float = 0.005, zero: bool = False) -> None:
         """Establish connection with motor
@@ -126,24 +134,23 @@ class CubemarsMotor:
             except (can.CanError, AttributeError) as e:
                 print(f"Error: {e}, reinitializing CAN interface...")
                 # Try moving this to line 115
-                self._init_can_ports()  # Reinitialize the CAN interface
-                time.sleep(1)  # Wait before retrying
+                # self._init_can_ports()  # Reinitialize the CAN interface
+                # time.sleep(1)  # Wait before retrying
 
     def _stop_motor(self) -> None:
         """Stop motor"""
         # Command ti exit motor control mode
         stop_motor_mode = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD]
-        can_name = self.can_bus.channel_info.split(" ")[-1]
-
+        # can_name = self.can_bus.channel_info.split(" ")[-1]
         print(f"\nShutting down motor {self.type}...")
 
         try:
             self.can_bus.send(self._send_message(stop_motor_mode))  # disable motor mode
-            self.can_bus.shutdown()
+            # self.can_bus.shutdown()
             print(f"Motor {self.type} shutdown successful")
         except:
             traceback.print_exc()
-            print(f"Failed to shutdown motor {self.type} or {can_name}")
+            print(f"Failed to shutdown motor {self.type}")
 
     def check_safety_speed_limit(self):
         if abs(self.velocity) > self.params["Vel_limit"]:

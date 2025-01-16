@@ -120,6 +120,7 @@ if __name__ == "__main__":
                 left_limit = limit_tracking(motor_1, direction="left", velocity=3)
                 print("Angle range: ", [0, left_limit])
                 time.sleep(1.5)
+            can_bus.shutdown()
             os.system(f"sudo ip link set can0 down")
 
         elif choice == '2':
@@ -136,6 +137,7 @@ if __name__ == "__main__":
                 print(f"Setting zero position to {np.rad2deg(left_limit/2): .2f}º...")
                 time.sleep(1.5)
                 set_dh_origin(motor_2, left_limit / 2)
+            can_bus.shutdown()
             os.system(f"sudo ip link set can0 down")
 
         elif choice == '0':

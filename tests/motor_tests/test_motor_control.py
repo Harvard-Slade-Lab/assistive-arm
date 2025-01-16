@@ -82,13 +82,13 @@ if __name__ == "__main__":
 
     with CubemarsMotor("AK70-10", frequency=200, can_bus=can_bus) as motor_1, CubemarsMotor("AK60-6", frequency=200, can_bus=can_bus) as motor_2:
         # Control loop for each motor (one after the other)
-        if False:
+        if True:
             single_motor_control_loop(motor_1)
             single_motor_control_loop(motor_2)
 
         # Control loop for both motors simultaneously
-        if True:
-            dual_motor_control_loop(motor_1, motor_2)
+        # if True:
+        #     dual_motor_control_loop(motor_1, motor_2)
 
-
+    can_bus.shutdown()
     os.system(f"sudo ip link set can0 down")
