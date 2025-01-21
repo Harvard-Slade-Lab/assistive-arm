@@ -3,6 +3,7 @@ import pandas as pd
 import yaml
 import os
 import time
+import logging
 import bayes_opt.acquisition
 
 from chspy import CubicHermiteSpline
@@ -71,6 +72,15 @@ class ForceProfileOptimizer:
             force2_end_time > force2_peak_time and
             force2_peak_time > force2_start_time
         )
+    
+    def get_logger(self, profile_name, profile_path):
+        logger = logging.getLogger(profile_name)
+        handler = logging.FileHandler(f"{profile_path.with_suffix('.log')}")
+        formatter = logging.Formatter('%(asctime)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        return logger
 
     def get_profile(self, force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time):
         
@@ -129,6 +139,14 @@ class ForceProfileOptimizer:
 
         profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{self.socket_server.profile_name}"
 
+        # Configure a new logger for each call
+        profile_path = self.profile_dir / f"profile_{profile_name}.csv"
+        logger = self.get_logger(profile_name, profile_path)
+
+        # Log the initial inputs and calculated values
+        logger.info(f"Inputs: force1_end_time_p={force1_end_time_p}, force1_peak_force_p={force1_peak_force_p}, force2_start_time_p={force2_start_time_p}, force2_peak_time_p={force2_peak_time_p}, force2_peak_force_p={force2_peak_force_p}, force2_end_time_p={force2_end_time_p}")
+        logger.info(f"Calculated Values: force1_end_time={force1_end_time}, force1_peak_force={force1_peak_force}, force2_start_time={force2_start_time}, force2_peak_time={force2_peak_time}, force2_peak_force={force2_peak_force}, force2_end_time={force2_end_time}")
+
         # Save the profile as CSV
         profile_path = self.profile_dir / f"profile_{profile_name}.csv"
         base_profile.to_csv(profile_path, index=False)
@@ -148,6 +166,7 @@ class ForceProfileOptimizer:
             print("\nReady to apply profile, iteration: ", i)
 
             current_profile_name = self.socket_server.profile_name
+            profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{current_profile_name}"
 
             print(f"motor1 type (70-10): {self.motor_1.type}, motor2 type (60-6): {self.motor_2.type}")
 
@@ -195,6 +214,7 @@ class ForceProfileOptimizer:
                 score = self.socket_server.score
                 self.score_history.append(score)
                 scores.append(score)
+                logger.info(f"Profile Name: {profile_name}, Score: {score}")
                 print(f"Score: {score}")
 
         # Get mean score over last iterations

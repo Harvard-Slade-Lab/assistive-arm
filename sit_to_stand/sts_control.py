@@ -333,6 +333,7 @@ def collect_unpowered_data(
     while i <= iterations:  # Collect data across 5 iterations
         print(f"\nIteration number: {i}")
         success = False
+        profile_name = socket_server.profile_name
         
         # Wait until successful data collection
         while not success:
@@ -350,7 +351,7 @@ def collect_unpowered_data(
                 
                 # Prepare the logger for the current iteration
                 log_path, logger = get_logger(
-                    log_name=f"unpowered_device",
+                    log_name=f"unpowered_device_tag_{profile_name}_iteration_{i}",
                     session_manager=session_manager,
                     socket_server=socket_server
                 )
