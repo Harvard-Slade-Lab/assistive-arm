@@ -452,12 +452,21 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             print("Stopping trial...")
             self.stop_collection()
+
+            what = None
+            if self.calibration:
+                what = "calibration"
+            elif self.unassisted:
+                what = "unpowered"
+            else:
+                what = "assisted"
+        
             # time.sleep(2)  # Wait for last batch data
-            filename_emg = f"{self.current_date}_EMG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
-            filename_acc = f"{self.current_date}_ACC_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
-            filename_gyro = f"{self.current_date}_GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
-            filename_or = f"{self.current_date}_OR_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
-            filename_or_debug = f"{self.current_date}_OR_Debug_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}.csv"
+            filename_emg = f"{self.current_date}_EMG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
+            filename_acc = f"{self.current_date}_ACC_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
+            filename_gyro = f"{self.current_date}_GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
+            filename_or = f"{self.current_date}_OR_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
+            filename_or_debug = f"{self.current_date}_OR_Debug_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
             subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
             emg_folder = os.path.join(subject_folder, "Raw")
             if not os.path.exists(emg_folder):

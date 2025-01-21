@@ -14,7 +14,7 @@ def main():
     # Flag for imu score calcualtion
     imu_processing = False
     # Flag for EMG control
-    emg_control = True
+    emg_control = False
 
     appQt = QtWidgets.QApplication(sys.argv)
     collector = EMGDataCollector(plot, socket, imu_processing, emg_control, window_duration=window_duration, data_directory=data_directory)
