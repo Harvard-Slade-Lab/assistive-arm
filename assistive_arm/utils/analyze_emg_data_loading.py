@@ -299,7 +299,7 @@ def load_profile_data_hilo(subject_data, subject_dirs, subjects):
                         # Check if the profile exists in the session data, filters out profiles that were created but never run
                         # This is also acts as a sanity test to make sure that sorting in the motor data loader was correct
                         if tag in session_data["ASSISTED"].keys():
-                            session_data["ASSISTED"][tag]["PROFILE"] = df
+                            session_data["ASSISTED"][tag]["FORCE_PROFILE"] = df
                         else: 
                             print(f"Profile {file_path.stem} not found in session {session}")
 
