@@ -12,16 +12,69 @@ from typing import Literal
 from pathlib import Path
 from functools import wraps
 
+import logging
+
 
 with open("./motor_config.yaml", "r") as f:
     MOTOR_PARAMS = yaml.load(f, Loader=yaml.FullLoader)
 
+def init_can_port(channel, bitrate=1000000):
+    try:
+        os.system(f"sudo ip link set {channel} up type can bitrate {bitrate}")
+        print(f"CAN port {channel} initialized successfully with bitrate {bitrate}")
+    except Exception as e:
+        print(f"Failed to initialize CAN port {channel}: {e}")
+
+def shutdown_can_port(channel):
+    try:
+        os.system(f"sudo ip link set {channel} down")
+        print(f"CAN port {channel} shutdown successfully")
+    except Exception as e:
+        print(f"Failed to shutdown CAN port {channel}: {e}")
+
+def setup_can_and_motors():
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            print(f"Attempting to initialize CAN bus and connect motors (Attempt {attempt + 1}/{max_retries})...")
+            init_can_port("can1")
+            can_bus = can.interface.Bus(channel="can1", bustype="socketcan")
+            
+            motor_1 = CubemarsMotor("AK70-10", frequency=200, can_bus=can_bus)
+            motor_2 = CubemarsMotor("AK60-6", frequency=200, can_bus=can_bus)
+
+            print("Both motors connected successfully.")
+            return can_bus, motor_1, motor_2
+
+        except Exception as e:
+            print(f"Error during motor setup: {e}")
+            print("Reinitializing CAN bus...")
+            shutdown_can_port("can1")
+            # Adding a short delay before reinitialization can help in some cases
+            time.sleep(1)
+        print("Failed to connect both motors after multiple attempts.")
+    return None
+
+def shutdown_can_and_motors(can_bus, motor_1, motor_2):
+    """Shutdown the motors and CAN bus."""
+    try:
+        motor_1.shutdown()
+    except Exception as e:
+        print(f"Error shutting down motor 1: {e}")
+    try:
+        motor_2.shutdown()
+    except Exception as e:
+        print(f"Error shutting down motor 2: {e}")
+    try:
+        can_bus.shutdown()
+    except Exception as e:
+        print(f"Error shutting down CAN bus: {e}")
+    shutdown_can_port("can1")
 
 def uint_to_float(x, xmin, xmax, bits):
     span = xmax - xmin
     int_val = float(x) * span / (float((1 << bits) - 1)) + xmin
     return int_val
-
 
 def float_to_uint(x, xmin, xmax, bits):
     span = xmax - xmin
@@ -31,7 +84,6 @@ def float_to_uint(x, xmin, xmax, bits):
         x = xmax
     convert = int((x - xmin) * (((1 << bits) - 1) / span))
     return convert
-
 
 class CubemarsMotor:
     def __init__(
@@ -65,42 +117,28 @@ class CubemarsMotor:
         self._emergency_stop = False
         self._first_run = True
 
-        # Set CAN filters for this motor
+        self._connect_motor()
+        # self.logger = self._setup_logger()
         # self._set_filters()
 
-    def __enter__(self):
-        # self._init_can_ports()
-        # self.can_bus.flush_tx_buffer()
-        self._connect_motor()
-        self._start_time = time.time()
-        self._last_update_time = self._start_time
-        return self
-
-    def __exit__(self, exc_type: None, exc_value: None, trb: None):
-        if self._emergency_stop:
-            print("\n\nEmergency stop triggered. Shutting down...\n\n")
-        else:
-            self._stop_motor()
-            # self._stop_can_port()
+    def _setup_logger(self):
+        logger = logging.getLogger(f"Motor_{self.params['ID']}")
+        if not logger.hasHandlers():  # Avoid duplicate handlers
+            logger.setLevel(logging.INFO)
+            file_handler = logging.FileHandler(f"motor_{self.params['ID']}.log")
+            file_handler.setLevel(logging.INFO)
+            formatter = logging.Formatter(
+                "%(asctime)s - %(levelname)s - %(message)s"
+            )
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        return logger
     
-        if exc_type is not None:
-            traceback.print_exc()
-
-    def _set_filters(self):
-        """Set CAN filters for this motor."""
-        filters = [{"can_id": self.params['ID'], "can_mask": 0x7FF, "extended": False}]
-        self.can_bus.set_filters(filters)
-        print(f"Filters set for motor ID: {self.params['ID']}")
-
-    # def _init_can_ports(self) -> None:
-    #     # os.system(f"sudo ip link set {self.params['CAN']} type can bitrate 1000000")
-    #     # os.system(f"sudo ifconfig {self.params['CAN']} up")
-    #     os.system(f"sudo ip link set {self.params['CAN']} down")
-    #     os.system(f"sudo ip link set {self.params['CAN']} up type can bitrate 1000000")
-
-    # def _stop_can_port(self) -> None:
-    #     # os.system(f"sudo ifconfig {self.params['CAN']} down")
-    #     os.system(f"sudo ip link set {self.params['CAN']} down")
+    # def _set_filters(self):
+    #     """Set CAN filters for this motor."""
+    #     filters = [{"can_id": self.params["ID"], "can_mask": 0x7FF, "extended": False}]
+    #     self.can_bus.set_filters(filters)
+    #     print(f"Filters set for motor ID: {self.params['ID']}")
 
     def _connect_motor(self, delay: float = 0.005, zero: bool = False) -> None:
         """Establish connection with motor
@@ -109,11 +147,15 @@ class CubemarsMotor:
             motor_id (hex): motor id in hexadecimal
             delay (float, optional): waiting time. Defaults to 0.001.
         """
+        self._start_time = time.time()
+        self._last_update_time = self._start_time
+
         # Command to enter motor control mode, can also be used to read the current state in stateless manner
         start_motor_mode = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC]
 
         starting = False
 
+        tries = 0
         while not starting:
             print("\nSending starting command...")
             try:
@@ -132,14 +174,14 @@ class CubemarsMotor:
                     raise AttributeError("No response from motor")
 
             except (can.CanError, AttributeError) as e:
-                print(f"Error: {e}, reinitializing CAN interface...")
-                # Try moving this to line 115
-                # self._init_can_ports()  # Reinitialize the CAN interface
-                # time.sleep(1)  # Wait before retrying
+                tries += 1
+                if tries > 5:
+                    print(f"Failed to connect to motor {self.type}")
+                    break
 
     def _stop_motor(self) -> None:
         """Stop motor"""
-        # Command ti exit motor control mode
+        # Command to exit motor control mode
         stop_motor_mode = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD]
         # can_name = self.can_bus.channel_info.split(" ")[-1]
         print(f"\nShutting down motor {self.type}...")
@@ -152,6 +194,9 @@ class CubemarsMotor:
             traceback.print_exc()
             print(f"Failed to shutdown motor {self.type}")
 
+    def shutdown(self,):
+        self._stop_motor()
+
     def check_safety_speed_limit(self):
         if abs(self.velocity) > self.params["Vel_limit"]:
             self._emergency_stop = True
@@ -163,7 +208,8 @@ class CubemarsMotor:
             # self._stop_motor()
 
     def check_temperature_limit(self):
-        # TODO not completely correct, get weweird signal from 70-10
+        # Actually returns the mosfet temperature
+        # TODO not completely correct, get weird signal from 70-10
         if self.temperature > 80:
             self._emergency_stop = True
             self.send_velocity(0)
@@ -256,6 +302,16 @@ class CubemarsMotor:
         self.can_bus.send(self._send_message(packed_cmd))
         new_msg = self.can_bus.recv(wait_time)
 
+        if new_msg is None:
+            # self.logger.info(f"Data: {new_msg}")
+            return
+
+        # self.logger.info(f"Received - ID: {new_msg.arbitration_id}, Data: {new_msg}")
+
+        motor_id = new_msg.data[0]
+        if motor_id != self.params["ID"]:
+            return
+
         # Must be after sending message to ensure motor stops
         if self._emergency_stop:
             return
@@ -265,7 +321,6 @@ class CubemarsMotor:
         try:
             # Read position, velocity, and torque from the received message
             p, v, t, te = self._read_motor_msg(new_msg.data)
-
             p *= -1 if self.type == "AK60-6" else 1
             v *= -1 if self.type == "AK60-6" else 1
             t *= -1 if self.type == "AK60-6" else 1
@@ -298,7 +353,6 @@ class CubemarsMotor:
             self.temperature = avg_temperature
             self.measured_torque = t
 
-            
         except AttributeError as e:
             traceback.print_exc()
             return True
@@ -314,11 +368,16 @@ class CubemarsMotor:
         Returns:
             tuple: pos, vel, torque
         """
-        if data == None:
-            return None
+        # if data == None:
+        #     return None, None, None, None
         # else:
         #    print(data[0],data[1], data)
-        id_val = data[0]
+        # id_val = data[0]
+
+        # Can messages are broadcast on all nodes, so we need to check the ID
+        # if id_val != self.params["ID"]:
+        #     return None, None, None, None
+        
         p_int = (data[1] << 8) | data[2]
         v_int = (data[3] << 4) | (data[4] >> 4)
         t_int = ((data[4] & 0xF) << 8) | data[5]
@@ -363,6 +422,6 @@ class CubemarsMotor:
         return msg
 
     def _send_message(self, data):
-        return can.Message(
-            arbitration_id=self.params["ID"], data=data, is_extended_id=False
-        )
+        # self.logger.info(f"Sent - ID: {self.params['ID']}, Data: {data}")
+        return can.Message(arbitration_id=self.params["ID"], data=data, is_extended_id=False)
+

@@ -104,22 +104,22 @@ def get_logger(log_name: str, session_manager: SessionManager, socket_server: So
     log_path = session_manager.session_dir / log_file
     log_path.touch(exist_ok=True)  # Ensure the file is created
 
-    # Extract profile details from log_name
-    parts = log_name.split('_')
-    numbers = [int(parts[i + 1]) for i in range(0, len(parts) - 1, 2) if parts[i + 1].isdigit()]
+    # Extract profile details from log_name CURERNTLY NOT USED
+    # parts = log_name.split('_')
+    # numbers = [int(parts[i + 1]) for i in range(0, len(parts) - 1, 2) if parts[i + 1].isdigit()]
 
     # Set up the CSV writer
     with open(log_path, "w") as fd:
         writer = csv.writer(fd)
         
-        if numbers:
-            # Add profile details force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time
-            writer.writerow(["force1_end_time", numbers[0]])
-            writer.writerow(["force1_peak_force", numbers[1]])
-            writer.writerow(["force2_start_time", numbers[2]])
-            writer.writerow(["force2_peak_time", numbers[3]])
-            writer.writerow(["force2_peak_force", numbers[4]])
-            writer.writerow(["force2_end_time", numbers[5]])
+        # if numbers:
+        #     # Add profile details force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time
+        #     writer.writerow(["force1_end_time", numbers[0]])
+        #     writer.writerow(["force1_peak_force", numbers[1]])
+        #     writer.writerow(["force2_start_time", numbers[2]])
+        #     writer.writerow(["force2_peak_time", numbers[3]])
+        #     writer.writerow(["force2_peak_force", numbers[4]])
+        #     writer.writerow(["force2_end_time", numbers[5]])
         
         # Write headers
         writer.writerow(["time"] + logged_vars)

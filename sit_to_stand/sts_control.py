@@ -209,8 +209,8 @@ def control_loop_and_log(
             motor_2.send_torque(desired_torque=0, safety=False)
 
         if t - print_time >= 0.05:
-            print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.measured_torque:.3f} Sent Torque: {tau_1}")
-            print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.measured_torque:.3f} Sent Torque: {tau_2}")
+            print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Torque: {motor_1.measured_torque:.3f} Temperature: {motor_1.temperature}")
+            print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} Torque: {motor_2.measured_torque:.3f} Temperature: {motor_2.temperature}")
             print(f"Body height: {-P_EE[0]}")
             print(f"Movement: {index:.0f}%. tau_1: {tau_1}, tau_2: {tau_2}")
             sys.stdout.write(f"\x1b[4A\x1b[2K")
@@ -387,6 +387,8 @@ def collect_unpowered_data(
 
             except KeyboardInterrupt:
                 print("Keyboard interrupt detected. Exiting...")
+                if imu_reader is not None:
+                    imu_reader.stop_reading_imu_data()
                 return
         # Will miss repetition if last iteration fails (maybe add getting the profile tag)
         if socket_server.repeat_flag:

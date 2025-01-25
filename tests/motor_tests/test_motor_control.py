@@ -7,10 +7,10 @@ import numpy as np
 from pathlib import Path
 
 from NeuroLocoMiddleware.SoftRealtimeLoop import SoftRealtimeLoop
-from assistive_arm.motor_control import CubemarsMotor
+from assistive_arm.motor_control import CubemarsMotor, setup_can_and_motors, shutdown_can_and_motors
 
 
-def single_motor_control_loop(motor_1: CubemarsMotor):
+def single_motor_control_loop(motor: CubemarsMotor):
     # Start control loop
     freq = 200  # Hz
 
@@ -20,16 +20,16 @@ def single_motor_control_loop(motor_1: CubemarsMotor):
     # General control loop
     try:
         for t in loop:
-            motor_1.send_torque(desired_torque=0.2, safety=False)
+            motor.send_torque(desired_torque=0.5, safety=False)
 
             if t - start_time > 0.1:
                 print(
-                    f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} Velocity: {motor_1.velocity:.3f}"
+                    f"{motor.type}: Angle: {np.rad2deg(motor.position):.3f} Velocity: {motor.velocity:.3f}"
                 )
                 sys.stdout.write(f"\x1b[1A\x1b[2K")
                 start_time = t
 
-            if motor_1._emergency_stop:
+            if motor._emergency_stop:
                 break
         del loop
 
@@ -46,17 +46,17 @@ def dual_motor_control_loop(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
     try:
         for t in loop:
             # Send commands to both motors
-            motor_1.send_torque(desired_torque=0.1, safety=False)
-            motor_2.send_torque(desired_torque=0.1, safety=False)  # Opposite torque for demonstration
+            motor_1.send_torque(desired_torque=1, safety=False)
+            motor_2.send_torque(desired_torque=-0.5, safety=False)  # Opposite torque for demonstration
 
             # Log data for both motors every 0.1 seconds
             if t - start_time > 0.1:
                 print(
-                    f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f} "
+                    f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f}, measured torque: {motor_1.measured_torque:.3f} "
                     f"Velocity: {motor_1.velocity:.3f}"
                 )
                 print(
-                    f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f} "
+                    f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f}, measured torque: {motor_2.measured_torque:.3f} "
                     f"Velocity: {motor_2.velocity:.3f}"
                 )
                 sys.stdout.write(f"\x1b[1A\x1b[2K")  # Clear last line for clean output
@@ -75,20 +75,69 @@ def dual_motor_control_loop(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
         print("Exiting control loop...")
         del loop
 
+import numpy as np
+
+
+def dual_motor_control_loop_sinusoid(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
+    """Control loop to operate both motors with sinusoidal torque signals."""
+    freq = 200  # Hz
+    signal_freq = 1  # Frequency of the sinusoidal signal (Hz)
+    amplitude_motor_1 = 0.5  # Amplitude of the sinusoidal signal for motor_1
+    amplitude_motor_2 = 0.5 # Amplitude of the sinusoidal signal for motor_2
+
+    loop = SoftRealtimeLoop(dt=1 / freq, report=True, fade=0)
+    start_time = 0
+
+    try:
+        for t in loop:
+            # Calculate sinusoidal torques
+            torque_1 = amplitude_motor_1 * np.sin(2 * np.pi * signal_freq * t)
+            torque_2 = amplitude_motor_2 * np.sin(2 * np.pi * signal_freq * t)
+
+            # Send sinusoidal torque commands to both motors
+            motor_1.send_torque(desired_torque=torque_1, safety=False)
+            motor_2.send_torque(desired_torque=torque_2, safety=False)
+
+            # Log data for both motors every 0.1 seconds
+            if t - start_time > 0.1:
+                print(
+                    f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f}, Measured Torque: {motor_1.measured_torque:.3f}, "
+                    f"Velocity: {motor_1.velocity:.3f}, Commanded Torque: {torque_1:.3f}"
+                )
+                print(
+                    f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f}, Measured Torque: {motor_2.measured_torque:.3f}, "
+                    f"Velocity: {motor_2.velocity:.3f}, Commanded Torque: {torque_2:.3f}"
+                )
+                sys.stdout.write(f"\x1b[1A\x1b[2K")  # Clear last line for clean output
+                sys.stdout.write(f"\x1b[1A\x1b[2K")
+                start_time = t
+
+            # Emergency stop check
+            if motor_1._emergency_stop or motor_2._emergency_stop:
+                print("Emergency stop activated. Exiting...")
+                break
+
+    except KeyboardInterrupt:
+        print("Keyboard interrupt detected. Shutting down...")
+
+    finally:
+        print("Exiting control loop...")
+        del loop
+
+
 
 if __name__ == "__main__":
-    os.system(f"sudo ip link set can0 up type can bitrate 1000000")
-    can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
+    can_bus, motor_1, motor_2 = setup_can_and_motors()
 
-    with CubemarsMotor("AK70-10", frequency=200, can_bus=can_bus) as motor_1, CubemarsMotor("AK60-6", frequency=200, can_bus=can_bus) as motor_2:
-        # Control loop for each motor (one after the other)
-        if True:
-            single_motor_control_loop(motor_1)
-            single_motor_control_loop(motor_2)
+    # Control loop for each motor (one after the other)
+    # if True:
+    #     single_motor_control_loop(motor_1)
+    #     single_motor_control_loop(motor_2)
 
-        # Control loop for both motors simultaneously
-        # if True:
-        #     dual_motor_control_loop(motor_1, motor_2)
+    # Control loop for both motors simultaneously
+    # if True:
+    for i in range(3):
+        dual_motor_control_loop(motor_1, motor_2)
+        dual_motor_control_loop_sinusoid(motor_1, motor_2)
 
-    can_bus.shutdown()
-    os.system(f"sudo ip link set can0 down")
+    shutdown_can_and_motors(can_bus, motor_1, motor_2)

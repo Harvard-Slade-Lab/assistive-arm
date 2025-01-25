@@ -29,7 +29,7 @@ def await_trigger_signal(mode: Literal["TRIGGER", "ENTER", "SOCKET"], socket_ser
         print("\nWaiting for socket start signal to start Trial")
         # Make sure we can exit if connection is lost, kind of an ugly solution, also tried demon thread with shared flag
         # as well as an exception handling approach, but this seems to be the most reliable.
-        while not socket_server.collect_flag and not interrupt_flag:
+        while not socket_server.collect_flag:
             if socket_server.kill_flag:
                 socket_server.stop()
                 break
@@ -37,9 +37,9 @@ def await_trigger_signal(mode: Literal["TRIGGER", "ENTER", "SOCKET"], socket_ser
                 break
             time.sleep(0.1)
 
-        if interrupt_flag:
-            # This is hacky but makes sense to exit to where we want to
-            socket_server.mode_flag = True
+            if interrupt_flag:
+                # This is hacky but makes sense to exit to where we want to
+                socket_server.mode_flag = True
 
 def countdown(duration: int=3):
     for i in range(duration, 0, -1):

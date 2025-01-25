@@ -8,7 +8,7 @@ import can
 from pathlib import Path
 
 from NeuroLocoMiddleware.SoftRealtimeLoop import SoftRealtimeLoop
-from assistive_arm.motor_control import CubemarsMotor
+from assistive_arm.motor_control import CubemarsMotor, setup_can_and_motors, shutdown_can_and_motors
 import os
 
 
@@ -97,6 +97,8 @@ def limit_tracking(motor: CubemarsMotor, direction="right", velocity=1):
 if __name__ == "__main__":
     freq = 200
 
+    can_bus, motor_1, motor_2 = setup_can_and_motors()
+
     while True:
         # Display the menu
         print("\nOptions:")
@@ -108,40 +110,31 @@ if __name__ == "__main__":
         choice = input("Enter your choice: ")
 
         if choice == '1':
-            os.system(f"sudo ip link set can0 up type can bitrate 1000000")
-            can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
-            with CubemarsMotor(motor_type="AK70-10", frequency=freq, can_bus=can_bus) as motor_1:
-                print(f"Calibrating {motor_1.type}... Do not touch.")
-                time.sleep(1)
-                limit_tracking(motor_1, direction="right", velocity=3)
-                print(f"Setting origin at 0º...")
-                print("Sleeping...")
-                time.sleep(0.1)
-                left_limit = limit_tracking(motor_1, direction="left", velocity=3)
-                print("Angle range: ", [0, left_limit])
-                time.sleep(1.5)
-            can_bus.shutdown()
-            os.system(f"sudo ip link set can0 down")
+            print(f"Calibrating {motor_1.type}... Do not touch.")
+            time.sleep(1)
+            limit_tracking(motor_1, direction="right", velocity=3)
+            print(f"Setting origin at 0º...")
+            print("Sleeping...")
+            time.sleep(0.1)
+            left_limit = limit_tracking(motor_1, direction="left", velocity=3)
+            print("Angle range: ", [0, left_limit])
+            # time.sleep(1.5)
 
         elif choice == '2':
-            os.system(f"sudo ip link set can0 up type can bitrate 1000000")
-            can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
-            with CubemarsMotor(motor_type="AK60-6", frequency=freq, can_bus=can_bus) as motor_2:
-                print("Calibrating motor... Do not touch.")
-                time.sleep(1)
-                limit_tracking(motor_2, direction='right', velocity=3)
-                print("Sleeping...")
-                time.sleep(2)
-                left_limit = limit_tracking(motor_2, direction='left', velocity=3)
-                print("Angle range: ", [0, np.rad2deg(left_limit)])
-                print(f"Setting zero position to {np.rad2deg(left_limit/2): .2f}º...")
-                time.sleep(1.5)
-                set_dh_origin(motor_2, left_limit / 2)
-            can_bus.shutdown()
-            os.system(f"sudo ip link set can0 down")
+            print("Calibrating motor... Do not touch.")
+            time.sleep(1)
+            limit_tracking(motor_2, direction='right', velocity=3)
+            print("Sleeping...")
+            time.sleep(2)
+            left_limit = limit_tracking(motor_2, direction='left', velocity=3)
+            print("Angle range: ", [0, np.rad2deg(left_limit)])
+            print(f"Setting zero position to {np.rad2deg(left_limit/2): .2f}º...")
+            time.sleep(1.5)
+            set_dh_origin(motor_2, left_limit / 2)
 
         elif choice == '0':
             print("Exiting...")
+            shutdown_can_and_motors(can_bus, motor_1, motor_2)
             break
         else:
             print("Invalid choice. Please enter 1, 2, or 0.")
