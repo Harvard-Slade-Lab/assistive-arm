@@ -1,5 +1,0 @@
-PySide6
-Vispy
-Scipy
-pythonnet
-numpy
