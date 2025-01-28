@@ -162,7 +162,7 @@ class ForceProfileOptimizer:
         while i <= self.iterations:
             # TODO find a better way to exit, if the mode flag is set
             if self.socket_server.mode_flag or self.socket_server.kill_flag:
-                break
+                raise Exception("Exiting optimization, flag triggered")
             print("\nReady to apply profile, iteration: ", i)
 
             current_profile_name = self.socket_server.profile_name

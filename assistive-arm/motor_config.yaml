@@ -1,0 +1,38 @@
+'AK70-10':
+  P_min: -12.5
+  P_max: 12.5
+  V_min: -50.0
+  V_max: 50.0
+  T_min: -24.0
+  T_max: 24.0
+  Kp_min: 0.0
+  Kp_max: 500.0
+  Kd_min: 0.0
+  Kd_max: 5.0
+  Vel_limit: 6 # rad/s
+  Kt_TMotor: 0.095 # from TMotor website (actually 1/Kvll)
+  Current_Factor: 0.59 # UNTESTED CONSTANT!
+  Kt_actual: 0.122 # UNTESTED CONSTANT!
+  GEAR_RATIO: 10.0
+  Use_derived_torque_constants: false # true if you have bettermodel
+  CAN: "can0"
+  ID: 0x01
+'AK60-6':
+  P_min: -12.5
+  P_max: 12.5
+  V_min: -50.0
+  V_max: 50.0
+  T_min: -9.0
+  T_max: 9.0
+  Kp_min: 0.0
+  Kp_max: 500.0
+  Kd_min: 0.0
+  Kd_max: 5.0
+  Vel_limit: 6 # rad/s
+  Kt_TMotor: 0.068 # from TMotor website (actually 1/Kvll)
+  Current_Factor: 0.59 # UNTESTED CONSTANT!
+  Kt_actual: 0.087 # UNTESTED CONSTANT!
+  GEAR_RATIO: 6.0
+  Use_derived_torque_constants: false # true if you have a better model
+  CAN: "can0"
+  ID: 0x02

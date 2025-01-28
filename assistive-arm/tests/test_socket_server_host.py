@@ -1,0 +1,136 @@
+# Test script to start a TCP socket server and accept a connection.
+import socket
+import threading
+import logging
+import time
+from typing import Literal
+
+# Configuration
+HOST = '0.0.0.0'  # Listen on all available interfaces
+PORT = 3000    # Arbitrary non-privileged port
+
+# control_flag = False
+# score = None
+
+def start_server():
+    """ Start a TCP socket server and accept a connection. """
+    global control_flag
+    global score
+
+    score = None
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind((HOST, PORT))
+        server_socket.listen()
+        print(f"Server listening on {HOST}:{PORT}")
+
+        conn, addr = server_socket.accept()
+        with conn:
+            print(f"Connected by {addr}")
+            while True:
+                data = conn.recv(1024)  # Buffer size of 1024 bytes
+
+                data_decoded = data.decode('utf-8', errors='replace')
+
+                if data_decoded == "Start":
+                    print("Start recording")
+                    control_flag = True
+                elif data_decoded == "Stop":
+                    print("Stop recording")
+                    control_flag = False
+                elif data_decoded == "Kill":
+                    break
+                elif not data:
+                    break
+                else:
+                    # Process the received data (print, save, etc.)
+                    print("Received data:", data_decoded)
+                    score = data_decoded
+
+def main():
+    client_thread = threading.Thread(target=start_server)
+    client_thread.start()
+
+    time.sleep(6000)
+
+    if control_flag:
+        for i in range(100):
+            print("Iteration:", i, "score:", score)
+            time.sleep(3)
+            if not control_flag:
+                break
+
+    client_thread.join()
+
+if __name__ == "__main__":
+    main()
+
+
+
+######################TEST#WITHOUT#THREADING############################################
+
+# def await_trigger_signal(mode: Literal["ENTER", "SOCKET"], conn: socket.socket = None):
+#     """ Wait for trigger signal OR Enter to start recording """
+#     if mode == "ENTER": 
+#         input("\nPress Enter to start recording...")
+
+#     elif mode == "SOCKET":
+#         print("\nWaiting for socket data to start recording")
+#         while True:
+#             # print("Waiting for data...")
+#             data = receive_data(conn)
+#             if data == "Start":
+#                 print("Socket data received:", data)
+#                 break
+
+
+# def start_server():
+#     """ Start a TCP socket server and accept a connection. """
+#     try:
+#         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#         server_socket.bind((HOST, PORT))
+#         server_socket.listen()
+#         print(f"Server listening on {HOST}:{PORT}")
+
+#         conn, addr = server_socket.accept()
+#         print(f"Connected by {addr}")
+#         return conn
+
+#     except socket.error as e:
+#         print(f"Failed to start the server: {e}")
+#         return None
+
+
+# def receive_data(conn: socket.socket):
+#     """ Function to receive data from the socket continuously without closing the connection. """
+#     try:
+#         data = conn.recv(1024)  # Buffer size of 1024 bytes
+#         if not data:  # Client sent empty data or closed connection
+#             return None
+#         return data.decode('utf-8', errors='replace')
+#     except ConnectionResetError:
+#         print("Connection lost. Client disconnected abruptly.")
+#         return None
+
+
+# def main():
+#     trigger_mode = "SOCKET"  # Change this to "ENTER" or "SOCKET"
+#     conn = None
+
+#     if trigger_mode == "SOCKET":
+#         conn = start_server()
+#         if conn is None:
+#             print("Error: Failed to start the server.")
+#             return  # Exit if the server can't start
+
+#     print("Server started")
+
+#     await_trigger_signal(mode=trigger_mode, conn=conn)
+
+#     if trigger_mode == "SOCKET":
+#         data = receive_data(conn)
+#         print("Socket data received:", data)
+#         if data == "Stop":
+#             print("Stopped recording, exiting...")
+#             # break
+

@@ -63,9 +63,10 @@ def calibrate_height(
         sts_start = time.time()
 
         for t in loop:
-            if socket_server.mode_flag or socket_server.kill_flag:
-                print("Stopped recording, exiting...")
-                break
+            if socket_server is not None:
+                if socket_server.mode_flag or socket_server.kill_flag:
+                    print("Stopped recording, exiting...")
+                    break
             if mode == "TRIGGER" and GPIO.input(17):
                 print("Stopped recording, exiting...")
                 break
@@ -85,10 +86,6 @@ def calibrate_height(
             if t - start_time >= 0.05:
                 print(f"Roll angle: {roll_angle}", end="\r")
                 start_time = t
-            
-            # Wait to avoid duplicates
-            # time.sleep(0.01)
-
         # Stop the IMU reader
         if imu_reader is not None:
             imu_reader.stop_reading_imu_data()
@@ -121,7 +118,7 @@ def calibrate_height(
             os.system(f"scp {yaml_path} macbook:{remote_path}")
         except Exception as e:
             print(f"Error transferring YAML file: {e}")
-        
+            
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
@@ -155,9 +152,10 @@ def control_loop_and_log(
     scale_start_torque = increment
 
     for t in loop:
-        if socket_server.mode_flag or socket_server.kill_flag:
-            print("Stopped recording, exiting...")
-            break
+        if socket_server is not None:
+            if socket_server.mode_flag or socket_server.kill_flag:
+                print("Stopped recording, exiting...")
+                break
         if mode == "TRIGGER" and GPIO.input(17):
             print("Stopped recording, exiting...")
             break
@@ -177,6 +175,13 @@ def control_loop_and_log(
                 roll_angle = imu_reader.imu_data.pitch
             else:
                 roll_angle = socket_server.roll_angle
+
+        # Stop if the roll angle is larger than the maximum roll angle
+        if roll_angle > session_manager.max_roll_angle-1.0:
+            print("Maximum roll angle exceeded. Stopping...")
+            if socket_server is not None:
+                socket_server.collect_flag = False
+            break
         
         if motor_1.swapped_motors:
             tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_2.position, theta_2=motor_1.position, current_roll_angle=roll_angle, profiles=profile)

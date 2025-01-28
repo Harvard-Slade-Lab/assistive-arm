@@ -97,6 +97,10 @@ class CubemarsMotor:
     ) -> None:
         self.type = motor_type
         self.params = MOTOR_PARAMS[motor_type]
+        if motor_type == "AK60-6":
+            self.other_params = MOTOR_PARAMS["AK70-10"]
+        else:
+            self.other_params = MOTOR_PARAMS["AK60-6"]
         self.log_vars = ["position", "velocity", "torque"]
         self.frequency = frequency
         self.can_bus = can_bus
@@ -408,7 +412,10 @@ class CubemarsMotor:
         # convert to floats
         p = uint_to_float(p_int, self.params["P_min"], self.params["P_max"], 16)
         v = uint_to_float(v_int, self.params["V_min"], self.params["V_max"], 12)
-        t = uint_to_float(t_int, self.params["T_min"], self.params["T_max"], 12)
+        if not self.swapped_motors:
+            t = uint_to_float(t_int, self.params["T_min"], self.params["T_max"], 12)
+        else:
+            t = uint_to_float(t_int, self.other_params["T_min"], self.other_params["T_max"], 12)
         te = uint_to_float(te_int, -40, 215, 8)
 
         return p, v, t, te  # position, velocity, torque, temperature

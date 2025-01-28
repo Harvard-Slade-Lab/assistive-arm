@@ -19,6 +19,7 @@ class SessionManager:
         self.subject_folder = Path(f"./subject_logs/subject_{subject_id}")
         self.session_dir, self.session_remote_dir = self.set_up_logging_dir()
         self.roll_angles = None
+        self.max_roll_angle = None
         self.yaml_path = None
 
         self.get_yaml_path("device_height_calibration")
@@ -60,6 +61,7 @@ class SessionManager:
                 self.roll_angles = pd.DataFrame(calibration_data["roll_angles"])
                 self.roll_angles.index = calibration_data["Percentage"]
                 self.roll_angles.columns = ["roll_angles"]
+                self.max_roll_angle = self.roll_angles["roll_angles"].max()
                 return 1
             else:
                 print("No calibration data found.")
