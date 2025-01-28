@@ -35,7 +35,7 @@ class States(Enum):
 
 if __name__ == "__main__":
 
-    subject_id = "Nathan"
+    subject_id = "test"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
     session_manager = SessionManager(subject_id=subject_id)
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     exploration_iterations = 5
     iterations_per_parameter_set = 5
     # Currently F_y is getting scaled by 2/3
-    max_force = 65
+    max_force = 55
     max_time = 360
     # Minimum width of the profile in percentage of the total time
     minimum_width_p = 0.1

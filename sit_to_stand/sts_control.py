@@ -177,13 +177,11 @@ def control_loop_and_log(
                 roll_angle = imu_reader.imu_data.pitch
             else:
                 roll_angle = socket_server.roll_angle
-
-        tau_1, tau_2, P_EE, index = get_target_torques(
-            theta_1=motor_1.position,
-            theta_2=motor_2.position,
-            current_roll_angle=roll_angle,
-            profiles=profile
-        )
+        
+        if motor_1.swapped_motors:
+            tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_2.position, theta_2=motor_1.position, current_roll_angle=roll_angle, profiles=profile)
+        else:
+            tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_1.position, theta_2=motor_2.position, current_roll_angle=roll_angle, profiles=profile)
 
         if apply_force and t >= 0.1:
             if not printed:
@@ -216,7 +214,10 @@ def control_loop_and_log(
             sys.stdout.write(f"\x1b[4A\x1b[2K")
                     
             print_time = t
-        logger.writerow([cur_time - start_time, index, roll_angle, tau_1, motor_1.measured_torque, motor_1.position, motor_1.velocity, tau_2, motor_2.measured_torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
+        if not motor_1.swapped_motors:
+            logger.writerow([cur_time - start_time, index, roll_angle, tau_1, motor_1.measured_torque, motor_1.position, motor_1.velocity, tau_2, motor_2.measured_torque, motor_2.position, motor_2.velocity, P_EE[0], P_EE[1]])
+        else:
+            logger.writerow([cur_time - start_time, index, roll_angle, tau_2, motor_2.measured_torque, motor_2.position, motor_2.velocity, tau_1, motor_1.measured_torque, motor_1.position, motor_1.velocity, P_EE[0], P_EE[1]])
     del loop
 
     motor_1.send_torque(desired_torque=0, safety=False)

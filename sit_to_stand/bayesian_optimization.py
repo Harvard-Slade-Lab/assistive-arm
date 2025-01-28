@@ -17,7 +17,7 @@ from sts_control import apply_simulation_profile
 
 
 class ForceProfileOptimizer:
-    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=65, max_time=360, minimum_width_p=0.1):   
+    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=55, max_time=360, minimum_width_p=0.1):   
         self.motor_1 = motor_1
         self.motor_2 = motor_2
         self.session_manager = session_manager
@@ -263,7 +263,7 @@ class ForceProfileOptimizer:
         force2_start_time = 70.0/360.0 * self.max_time
         force2_peak_time = 160.0/360.0 * self.max_time
         force2_end_time = 250.0/360.0 * self.max_time
-        force2_peak_force = 60.0
+        force2_peak_force = 55.0
 
         # Revert to the original values (for the dynamic constraints)
         force1_end_time_p = (force1_end_time - self.minimum_width_p * self.max_time) / (self.max_time * (1 - self.minimum_width_p))
@@ -290,32 +290,32 @@ class ForceProfileOptimizer:
         else:
             print("Informed points already in optimizer space.")
 
-        # Add profiles with extreme times and zero force
-        initial_points = {
-            "force1_end_time_p": 0.0,
-            "force1_peak_force_p": 0.0,
-            "force2_start_time_p": 0.0,
-            "force2_peak_time_p": 0.0,
-            "force2_peak_force_p": 0.0,
-            "force2_end_time_p": 0.0
-        }
-        if initial_points not in self.optimizer.space.params:
-            self.optimizer.probe(params=initial_points, lazy=True)
-        else:
-            print("Zero points already in optimizer space.")
+        # # Add profiles with extreme times and zero force
+        # initial_points = {
+        #     "force1_end_time_p": 0.0,
+        #     "force1_peak_force_p": 0.0,
+        #     "force2_start_time_p": 0.0,
+        #     "force2_peak_time_p": 0.0,
+        #     "force2_peak_force_p": 0.0,
+        #     "force2_end_time_p": 0.0
+        # }
+        # if initial_points not in self.optimizer.space.params:
+        #     self.optimizer.probe(params=initial_points, lazy=True)
+        # else:
+        #     print("Zero points already in optimizer space.")
 
-        initial_points = {
-            "force1_end_time_p": 1.0,
-            "force1_peak_force_p": 0.0,
-            "force2_start_time_p": 1.0,
-            "force2_peak_time_p": 1.0,
-            "force2_peak_force_p": 0.0,
-            "force2_end_time_p": 1.0
-        }
-        if initial_points not in self.optimizer.space.params:
-            self.optimizer.probe(params=initial_points, lazy=True)
-        else:
-            print("One points already in optimizer space.")
+        # initial_points = {
+        #     "force1_end_time_p": 1.0,
+        #     "force1_peak_force_p": 0.0,
+        #     "force2_start_time_p": 1.0,
+        #     "force2_peak_time_p": 1.0,
+        #     "force2_peak_force_p": 0.0,
+        #     "force2_end_time_p": 1.0
+        # }
+        # if initial_points not in self.optimizer.space.params:
+        #     self.optimizer.probe(params=initial_points, lazy=True)
+        # else:
+        #     print("One points already in optimizer space.")
 
     def explorate(self, init_points=1, n_iter=0):
         if not self.socket_server.kill_flag or self.socket_server.mode_flag:

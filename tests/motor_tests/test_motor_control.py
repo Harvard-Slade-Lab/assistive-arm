@@ -46,22 +46,24 @@ def dual_motor_control_loop(motor_1: CubemarsMotor, motor_2: CubemarsMotor):
     try:
         for t in loop:
             # Send commands to both motors
-            motor_1.send_torque(desired_torque=1, safety=False)
-            motor_2.send_torque(desired_torque=-0.5, safety=False)  # Opposite torque for demonstration
+            motor_1.send_torque(desired_torque=0.6, safety=False)
+            motor_2.send_torque(desired_torque=-0.2, safety=False)  # Opposite torque for demonstration
 
             # Log data for both motors every 0.1 seconds
             if t - start_time > 0.1:
-                print(
-                    f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f}, measured torque: {motor_1.measured_torque:.3f} "
-                    f"Velocity: {motor_1.velocity:.3f}"
-                )
-                print(
-                    f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f}, measured torque: {motor_2.measured_torque:.3f} "
-                    f"Velocity: {motor_2.velocity:.3f}"
-                )
-                sys.stdout.write(f"\x1b[1A\x1b[2K")  # Clear last line for clean output
-                sys.stdout.write(f"\x1b[1A\x1b[2K")
-                start_time = t
+                if not motor_1.swapped_motors:
+                    print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f}, measured torque: {motor_1.measured_torque:.3f} " f"Velocity: {motor_1.velocity:.3f}")
+                    print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f}, measured torque: {motor_2.measured_torque:.3f} "f"Velocity: {motor_2.velocity:.3f}")
+                    sys.stdout.write(f"\x1b[1A\x1b[2K")  # Clear last line for clean output
+                    sys.stdout.write(f"\x1b[1A\x1b[2K")
+                    start_time = t
+                else:
+                    print("SWAPPED!!!!")
+                    print(f"{motor_1.type}: Angle: {np.rad2deg(motor_2.position):.3f}, measured torque: {motor_2.measured_torque:.3f} " f"Velocity: {motor_2.velocity:.3f}")
+                    print(f"{motor_2.type}: Angle: {np.rad2deg(motor_1.position):.3f}, measured torque: {motor_1.measured_torque:.3f} "f"Velocity: {motor_1.velocity:.3f}")
+                    sys.stdout.write(f"\x1b[1A\x1b[2K")  # Clear last line for clean output
+                    sys.stdout.write(f"\x1b[1A\x1b[2K")
+                    start_time = t
 
             # Emergency stop check
             if motor_1._emergency_stop or motor_2._emergency_stop:
@@ -82,8 +84,8 @@ def dual_motor_control_loop_sinusoid(motor_1: CubemarsMotor, motor_2: CubemarsMo
     """Control loop to operate both motors with sinusoidal torque signals."""
     freq = 200  # Hz
     signal_freq = 1  # Frequency of the sinusoidal signal (Hz)
-    amplitude_motor_1 = 0.5  # Amplitude of the sinusoidal signal for motor_1
-    amplitude_motor_2 = 0.5 # Amplitude of the sinusoidal signal for motor_2
+    amplitude_motor_1 = 0.6  # Amplitude of the sinusoidal signal for motor_1
+    amplitude_motor_2 = 0.2 # Amplitude of the sinusoidal signal for motor_2
 
     loop = SoftRealtimeLoop(dt=1 / freq, report=True, fade=0)
     start_time = 0
@@ -100,17 +102,19 @@ def dual_motor_control_loop_sinusoid(motor_1: CubemarsMotor, motor_2: CubemarsMo
 
             # Log data for both motors every 0.1 seconds
             if t - start_time > 0.1:
-                print(
-                    f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f}, Measured Torque: {motor_1.measured_torque:.3f}, "
-                    f"Velocity: {motor_1.velocity:.3f}, Commanded Torque: {torque_1:.3f}"
-                )
-                print(
-                    f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f}, Measured Torque: {motor_2.measured_torque:.3f}, "
-                    f"Velocity: {motor_2.velocity:.3f}, Commanded Torque: {torque_2:.3f}"
-                )
-                sys.stdout.write(f"\x1b[1A\x1b[2K")  # Clear last line for clean output
-                sys.stdout.write(f"\x1b[1A\x1b[2K")
-                start_time = t
+                if not motor_1.swapped_motors:
+                    print(f"{motor_1.type}: Angle: {np.rad2deg(motor_1.position):.3f}, measured torque: {motor_1.measured_torque:.3f} " f"Velocity: {motor_1.velocity:.3f}")
+                    print(f"{motor_2.type}: Angle: {np.rad2deg(motor_2.position):.3f}, measured torque: {motor_2.measured_torque:.3f} "f"Velocity: {motor_2.velocity:.3f}")
+                    sys.stdout.write(f"\x1b[1A\x1b[2K")  # Clear last line for clean output
+                    sys.stdout.write(f"\x1b[1A\x1b[2K")
+                    start_time = t
+                else:
+                    print("SWAPPED!!!!")
+                    print(f"{motor_1.type}: Angle: {np.rad2deg(motor_2.position):.3f}, measured torque: {motor_2.measured_torque:.3f} " f"Velocity: {motor_2.velocity:.3f}")
+                    print(f"{motor_2.type}: Angle: {np.rad2deg(motor_1.position):.3f}, measured torque: {motor_1.measured_torque:.3f} "f"Velocity: {motor_1.velocity:.3f}")
+                    sys.stdout.write(f"\x1b[1A\x1b[2K")  # Clear last line for clean output
+                    sys.stdout.write(f"\x1b[1A\x1b[2K")
+                    start_time = t
 
             # Emergency stop check
             if motor_1._emergency_stop or motor_2._emergency_stop:

@@ -37,19 +37,22 @@ def setup_can_and_motors():
     for attempt in range(max_retries):
         try:
             print(f"Attempting to initialize CAN bus and connect motors (Attempt {attempt + 1}/{max_retries})...")
-            init_can_port("can1")
-            can_bus = can.interface.Bus(channel="can1", bustype="socketcan")
+            init_can_port("can0")
+            can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
             
             motor_1 = CubemarsMotor("AK70-10", frequency=200, can_bus=can_bus)
             motor_2 = CubemarsMotor("AK60-6", frequency=200, can_bus=can_bus)
 
+            if not motor_1.connected or not motor_2.connected:
+                raise Exception("Failed to connect to both motors")
+            
             print("Both motors connected successfully.")
             return can_bus, motor_1, motor_2
 
         except Exception as e:
             print(f"Error during motor setup: {e}")
             print("Reinitializing CAN bus...")
-            shutdown_can_port("can1")
+            shutdown_can_port("can0")
             # Adding a short delay before reinitialization can help in some cases
             time.sleep(1)
         print("Failed to connect both motors after multiple attempts.")
@@ -69,7 +72,7 @@ def shutdown_can_and_motors(can_bus, motor_1, motor_2):
         can_bus.shutdown()
     except Exception as e:
         print(f"Error shutting down CAN bus: {e}")
-    shutdown_can_port("can1")
+    shutdown_can_port("can0")
 
 def uint_to_float(x, xmin, xmax, bits):
     span = xmax - xmin
@@ -97,6 +100,9 @@ class CubemarsMotor:
         self.log_vars = ["position", "velocity", "torque"]
         self.frequency = frequency
         self.can_bus = can_bus
+        self.swapped_motors = False
+        self.switch_now = False
+        self.previous_id = None
 
         self.position = 0
         self.prev_velocity = 0
@@ -117,9 +123,12 @@ class CubemarsMotor:
         self._emergency_stop = False
         self._first_run = True
 
+        self.logging = False
+        if self.logging:
+            self.logger = self._setup_logger()
+
+        self.connected = False
         self._connect_motor()
-        # self.logger = self._setup_logger()
-        # self._set_filters()
 
     def _setup_logger(self):
         logger = logging.getLogger(f"Motor_{self.params['ID']}")
@@ -134,12 +143,6 @@ class CubemarsMotor:
             logger.addHandler(file_handler)
         return logger
     
-    # def _set_filters(self):
-    #     """Set CAN filters for this motor."""
-    #     filters = [{"can_id": self.params["ID"], "can_mask": 0x7FF, "extended": False}]
-    #     self.can_bus.set_filters(filters)
-    #     print(f"Filters set for motor ID: {self.params['ID']}")
-
     def _connect_motor(self, delay: float = 0.005, zero: bool = False) -> None:
         """Establish connection with motor
         Args:
@@ -153,10 +156,8 @@ class CubemarsMotor:
         # Command to enter motor control mode, can also be used to read the current state in stateless manner
         start_motor_mode = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC]
 
-        starting = False
-
         tries = 0
-        while not starting:
+        while not self.connected:
             print("\nSending starting command...")
             try:
                 self.can_bus.send(self._send_message(data=start_motor_mode))
@@ -167,7 +168,7 @@ class CubemarsMotor:
                 if response:
                     P, V, T, Te = self._read_motor_msg(response.data)
                     print(f"Motor {self.type} connected successfully")
-                    starting = True
+                    self.connected = True
                     if zero:
                         self.send_zero_position()
                 else:
@@ -302,15 +303,30 @@ class CubemarsMotor:
         self.can_bus.send(self._send_message(packed_cmd))
         new_msg = self.can_bus.recv(wait_time)
 
-        if new_msg is None:
-            # self.logger.info(f"Data: {new_msg}")
-            return
+        if self.logging:
+            self.logger.info(f"Data: {new_msg}")
 
-        # self.logger.info(f"Received - ID: {new_msg.arbitration_id}, Data: {new_msg}")
+        if new_msg is None:
+            return
 
         motor_id = new_msg.data[0]
+
         if motor_id != self.params["ID"]:
-            return
+            self.swapped_motors = True
+            if motor_id != self.previous_id:
+                self.switch_now = True
+                print("SWAPPED MOTORS")
+            else:
+                self.switch_now = False
+        else:
+            self.swapped_motors = False
+            if motor_id != self.previous_id:
+                self.switch_now = True
+                print("SWAPPED MOTORS")
+            else:
+                self.switch_now = False
+        
+        self.previous_id = motor_id
 
         # Must be after sending message to ensure motor stops
         if self._emergency_stop:
@@ -321,9 +337,14 @@ class CubemarsMotor:
         try:
             # Read position, velocity, and torque from the received message
             p, v, t, te = self._read_motor_msg(new_msg.data)
-            p *= -1 if self.type == "AK60-6" else 1
-            v *= -1 if self.type == "AK60-6" else 1
-            t *= -1 if self.type == "AK60-6" else 1
+            if not self.swapped_motors:
+                p *= -1 if self.type == "AK60-6" else 1
+                v *= -1 if self.type == "AK60-6" else 1
+                t *= -1 if self.type == "AK60-6" else 1
+            else:
+                p *= -1 if self.type == "AK70-10" else 1
+                v *= -1 if self.type == "AK70-10" else 1
+                t *= -1 if self.type == "AK70-10" else 1
 
             # Update the circular buffers
             self.position_buffer[self.buffer_index] = p
@@ -337,7 +358,7 @@ class CubemarsMotor:
             if self._emergency_stop:
                 self.velocity_buffer = [0] * self.buffer_size
             
-            if self._first_run: 
+            if self._first_run or self.switch_now: 
                 self.position_buffer = [p] * self.buffer_size
                 self.velocity_buffer = [v] * self.buffer_size
                 self.torque_buffer = [t] * self.buffer_size
@@ -422,6 +443,7 @@ class CubemarsMotor:
         return msg
 
     def _send_message(self, data):
-        # self.logger.info(f"Sent - ID: {self.params['ID']}, Data: {data}")
+        if self.logging:
+            self.logger.info(f"Sent - ID: {self.params['ID']}, Data: {data}")
         return can.Message(arbitration_id=self.params["ID"], data=data, is_extended_id=False)
 
