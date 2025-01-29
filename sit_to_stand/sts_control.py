@@ -96,8 +96,11 @@ def calibrate_height(
 
         # Calibration calculations
         roll_angles = np.array(roll_angles)
-        new_max = roll_angles.max()
-        new_min = roll_angles.min()
+        new_max = roll_angles.max() - 1
+        new_min = roll_angles.min() + 1
+
+        # Clip roll angles
+        roll_angles = np.clip(roll_angles, new_min, new_max)
 
         # Calculate the number of entries
         num_entries = int(sts_duration * freq)
@@ -177,7 +180,7 @@ def control_loop_and_log(
                 roll_angle = socket_server.roll_angle
 
         # Stop if the roll angle is larger than the maximum roll angle
-        if roll_angle > session_manager.max_roll_angle-1.0:
+        if roll_angle > session_manager.max_roll_angle-1.0 and t > 0.1:
             print("Maximum roll angle exceeded. Stopping...")
             if socket_server is not None:
                 socket_server.collect_flag = False

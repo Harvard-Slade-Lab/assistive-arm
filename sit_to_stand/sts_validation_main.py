@@ -17,6 +17,7 @@ from read_imu import IMUReader
 from sts_control import calibrate_height, collect_unpowered_data, apply_simulation_profile
 
 # This script is to validate the performance of single profiles
+# Ideally the person doing the validation did the optimization
 
 
 # Set options
@@ -48,6 +49,8 @@ if __name__ == "__main__":
     for file in os.listdir(validation_profiles_path):
         if file.endswith(".csv"):
             profile = pd.read_csv(os.path.join(validation_profiles_path, file))
+            # profile["percentage"] = np.linspace(0, 100, len(profile))
+            # profile.set_index("percentage", inplace=True)
             profiles[file] = profile
 
     trigger_mode = "SOCKET" # TRIGGER, ENTER or SOCKET

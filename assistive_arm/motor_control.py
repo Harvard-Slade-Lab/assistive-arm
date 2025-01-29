@@ -39,7 +39,7 @@ def setup_can_and_motors():
             print(f"Attempting to initialize CAN bus and connect motors (Attempt {attempt + 1}/{max_retries})...")
             init_can_port("can0")
             can_bus = can.interface.Bus(channel="can0", bustype="socketcan")
-            
+
             motor_1 = CubemarsMotor("AK70-10", frequency=200, can_bus=can_bus)
             motor_2 = CubemarsMotor("AK60-6", frequency=200, can_bus=can_bus)
 
@@ -53,10 +53,10 @@ def setup_can_and_motors():
             print(f"Error during motor setup: {e}")
             print("Reinitializing CAN bus...")
             shutdown_can_port("can0")
-            # Adding a short delay before reinitialization can help in some cases
-            time.sleep(1)
-        print("Failed to connect both motors after multiple attempts.")
-    return None
+            time.sleep(1)  # Delay before retrying
+    
+    print("Failed to connect both motors after multiple attempts.")
+    return None  # Only return None if all retries fail
 
 def shutdown_can_and_motors(can_bus, motor_1, motor_2):
     """Shutdown the motors and CAN bus."""

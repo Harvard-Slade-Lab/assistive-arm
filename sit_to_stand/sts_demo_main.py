@@ -69,11 +69,6 @@ if __name__ == "__main__":
 
     validation_profiles_path = "./sit_to_stand/validation_profiles"
     # Read all the profiles and add them to a list
-    # profiles = {}
-    # for file in os.listdir(validation_profiles_path):
-    #     if file.endswith(".csv"):
-    #         profile = pd.read_csv(os.path.join(validation_profiles_path, file))
-    #         profiles[file] = profile
 
     trigger_mode = "SOCKET" # TRIGGER, ENTER or SOCKET
 

@@ -1,11 +1,12 @@
 import socket
 import threading
 import struct
+import numpy as np
 
 # Configuration
 HOST = '0.0.0.0'  # Listen on all available interfaces
-PORT_ROLL_ANGLE = 3003  # Port for roll angles
-PORT_COMMANDS = 3004  # Port for commands
+PORT_ROLL_ANGLE = 3001  # Port for roll angles
+PORT_COMMANDS = 3002  # Port for commands
 
 class SocketServer:
     """Handles both roll angle and command servers."""
@@ -80,7 +81,7 @@ class SocketServer:
                             if data[0:1] == b'r':  # If the first byte indicates roll angle
                                 roll_angle = struct.unpack('!f', data[1:5])[0]
                                 with self.roll_lock:
-                                    self.roll_angle = roll_angle
+                                    self.roll_angle = np.degrees(roll_angle)
                 except socket.timeout:
                     continue
 
