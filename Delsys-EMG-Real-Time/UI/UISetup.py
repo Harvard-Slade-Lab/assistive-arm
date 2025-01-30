@@ -30,6 +30,7 @@ class UISetup:
         else:
             first_page_layout = QtWidgets.QVBoxLayout(first_page_buttons)
 
+        self.parent.record_mvic_button = QtWidgets.QPushButton("Record MVIC")
         self.parent.calibration_button = QtWidgets.QPushButton("Calibrate Height")
         self.parent.start_unassisted_button = QtWidgets.QPushButton("Start Unassisted Trial")
         self.parent.start_button = QtWidgets.QPushButton("Start Trial")
@@ -41,6 +42,7 @@ class UISetup:
             self.parent.autoscale_button = QtWidgets.QPushButton("Autoscale")
         self.parent.quit_button = QtWidgets.QPushButton("Quit")
 
+        first_page_layout.addWidget(self.parent.record_mvic_button)
         first_page_layout.addWidget(self.parent.calibration_button)
         first_page_layout.addWidget(self.parent.start_unassisted_button)
         first_page_layout.addWidget(self.parent.start_button)
@@ -83,6 +85,7 @@ class UISetup:
         second_page_buttons.hide()
 
         # Button actions
+        self.parent.record_mvic_button.clicked.connect(self.record_mvic)
         self.parent.calibration_button.clicked.connect(self.calibrate_height)
         self.parent.start_unassisted_button.clicked.connect(self.start_unassisted_trial)
         self.parent.start_button.clicked.connect(self.start_trial)
@@ -111,7 +114,18 @@ class UISetup:
         else:
             self.parent.test_button.setText("Test (OFF)")
 
+    def record_mvic(self):
+        self.parent.what = "MVIC"
+        self.parent.mvic = True
+        self.parent.calibration = False
+        self.parent.unassisted = False
+        self.parent.start_trial()
+        self.toggle_motor()
+        self.switch_to_second_page()
+
     def calibrate_height(self):
+        self.parent.what = "Calibration"
+        self.parent.mvic = False
         self.parent.calibration = True
         self.parent.unassisted = False
         self.parent.start_trial()
@@ -125,6 +139,8 @@ class UISetup:
             QtWidgets.QMessageBox.information(self.parent, "Error", "Please calibrate the height first.")
             return 
         else:
+            self.parent.what = "Unpowered"
+            self.parent.mvic = False
             self.parent.unassisted = True
             self.parent.calibration = False
             self.parent.start_trial()
@@ -142,6 +158,8 @@ class UISetup:
             QtWidgets.QMessageBox.information(self.parent, "Error", "Please collect unpowered data first.")
             return
         else:
+            self.parent.what = "Assisted"
+            self.parent.mvic = False
             self.parent.unassisted = False
             self.parent.calibration = False
             self.parent.start_trial()

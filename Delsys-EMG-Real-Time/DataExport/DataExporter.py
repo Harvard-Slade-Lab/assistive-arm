@@ -150,7 +150,7 @@ class DataExporter:
         subject_folder_log = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "Log")
         if not os.path.exists(subject_folder_log):
             os.makedirs(subject_folder_log)
-        log_filename = os.path.join(subject_folder_log, f"{self.parent.current_date}_Log_Data_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}.csv")
+        log_filename = os.path.join(subject_folder_log, f"Log_Data_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}.csv")
         log_df.to_csv(log_filename, index=False)
 
         # try:
@@ -161,6 +161,7 @@ class DataExporter:
         # except Exception as e:
         #     print(f"Error exporting data to remote host: {e}")
         # print("Data exported to Host.")
+
 
     def export_to_host(self):
         current_date = datetime.now()
@@ -201,9 +202,10 @@ class DataExporter:
 
         print("Subject folder exported to Host.")
 
+
     def export_sts_data_to_csv(self, emg_data_df, sensor_label):
         print("Exporting STS IMU data...")
-        filename_emg = f"{self.parent.current_date}_IMU_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_Sensor_{sensor_label}_stsnumber{len(self.parent.log_entries)+1}.csv"
+        filename_emg = f"IMU_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_Sensor_{sensor_label}_stsnumber{len(self.parent.log_entries)+1}.csv"
 
         # Save EMG data to CSV in the local subject folder
         subject_folder_sts = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "STS")
@@ -224,9 +226,9 @@ class DataExporter:
         #     print(f"Error exporting STS data to remote host: {e}")
 
     
-    def export_all_sts_data_to_csv(self, emg_data):
+    def export_all_sts_data_to_csv(self, emg_data, what):
         print("Exporting STS emg data...")
-        filename_emg = f"{self.parent.current_date}_EMG_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_all_Sensors_stsnumber{len(self.parent.log_entries)+1}.csv"
+        filename_emg = f"EMG_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_all_Sensors_stsnumber_{len(self.parent.log_entries)+1}_{what}.csv"
 
         # Save EMG data to CSV in the local subject folder
         subject_folder_sts = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", "STS")
@@ -287,6 +289,7 @@ class DataExporter:
         roll_angles = np.array([min_roll_angle, max_roll_angle])
         filepath_roll = os.path.join(subject_folder, filename_roll_angle)
         np.save(filepath_roll, roll_angles)
+
 
     def load_roll_angle_limits_from_npy(self):
         filename_roll_angle = "roll_angle_limits.npy"

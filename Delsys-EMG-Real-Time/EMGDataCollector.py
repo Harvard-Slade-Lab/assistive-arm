@@ -50,6 +50,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         self.log_entries = []
 
+        # Flag for MVIC
+        self.mvic = False
+
         # Variables to calculate reference scores
         self.unassisted = False
         self.unassisted_counter = 0
@@ -77,6 +80,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Flag to control motor with EMG
         self.emg_control = emg_control
+
+        # Name of process
+        self.what = None
 
         # Initialize attributes expected by TrignoBase
         self.EMGplot = None
@@ -414,8 +420,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         if self.socket:
             if not self.motor_running:
+                # Send stop signal at the end of a trial
                 self.socket_server.send_data("Stop")
-                if not self.or_channels_per_sensor:
+                # This is om=nly relevant for imu segmentation
+                if self.imu_processing:
                     self.processed_profile_name = self.assistive_profile_name
                     self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                     # Send profile label to socket server for next profile
@@ -428,7 +436,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
                 # Only start if the socket is connected and there are orientation channels
                 # if self.socket and self.or_channels_per_sensor:
-                if self.or_channels_per_sensor:
+                if self.or_channels_per_sensor and not self.mvic:
                     self.executor.submit(self.send_roll_angle)
 
     def select_raspi_mode(self):
@@ -452,21 +460,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             print("Stopping trial...")
             self.stop_collection()
-
-            what = None
-            if self.calibration:
-                what = "calibration"
-            elif self.unassisted:
-                what = "unpowered"
-            else:
-                what = "assisted"
         
             # time.sleep(2)  # Wait for last batch data
-            filename_emg = f"{self.current_date}_EMG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
-            filename_acc = f"{self.current_date}_ACC_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
-            filename_gyro = f"{self.current_date}_GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
-            filename_or = f"{self.current_date}_OR_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
-            filename_or_debug = f"{self.current_date}_OR_Debug_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{what}.csv"
+            filename_emg = f"EMG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
+            filename_acc = f"ACC_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
+            filename_gyro = f"GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
+            filename_or = f"OR_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
+            filename_or_debug = f"OR_Debug_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
             subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
             emg_folder = os.path.join(subject_folder, "Raw")
             if not os.path.exists(emg_folder):
@@ -484,12 +484,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Reset data logger
             self.log_entries = []
             self.trial_number += 1
-
-        # Ask for new assistive profile name
-        # assistive_profile_name, ok = QtWidgets.QInputDialog.getText(self, 'Assistive Profile Name', 'Enter new assistive profile name or cancel:')
-        # if ok:
-        #     self.trial_number = 1
-        #     self.assistive_profile_name = assistive_profile_name
 
     def start_collection(self):
         print("Starting data collection...")
@@ -559,19 +553,22 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     # Send roll angle rounded to 5 decimal places
                     self.socket_server.send_roll_angle_to_pi(round(roll_angle, 5))
 
-                if self.test_flag:
-                    print(f"Roll angle: {roll_angle}")
+                # if self.test_flag:
+                #     print(f"Roll angle: {roll_angle}")
 
                 if self.calibration:
                     roll_angles.append(roll_angle)
+                    print(f"Roll angle: {roll_angle}")
                 # Detect start of the motion
                 elif roll_angle >= self.min_roll_angle + 0.01 and not motion_detected:
                     motion_detected = True
                     # TODO check if this is the correct index
                     sts_start_idx_emg = len(self.complete_emg_data[emg_key])
                 # Detect end of the motion
-                elif roll_angle >= self.max_roll_angle - 0.01:
+                elif roll_angle >= self.max_roll_angle - 0.02:
                     # Toggle the motor, as if the button in the ui was pressed
+                    # Wait, so the motor can stop due to the wired imu
+                    time.sleep(0.5)
                     self.ui.toggle_motor()
                     print("Stopped motor.")
                     break
@@ -598,11 +595,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 sts_end_idx_emg = len(self.complete_emg_data[emg_key])
                 self.extract_relevant_emg_or(sts_start_idx_emg, sts_end_idx_emg, self.assistive_profile_name, emg_key)
             
-        self.processed_profile_name = self.assistive_profile_name
         self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+
         # Send profile label to socket server for next profile
         self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
-
         print("\nRoll angle thread stopped.")
 
 
@@ -633,7 +629,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 complete_emg_data[self.sensor_names[sensor_label]] = sensor_data
             
         # Log the extracted emg data as a single file
-        self.data_exporter.export_all_sts_data_to_csv(complete_emg_data)
+        self.data_exporter.export_all_sts_data_to_csv(complete_emg_data, self.what)
+
+        # Keep RF and VM data
+        # complete_emg_data = complete_emg_data[['RF_R', 'VM_R', 'RF_L', 'VM_L']]
+        # complete_emg_data = complete_emg_data[['VM_R', 'VM_L']]
 
         # Filter relevant_emg data
         relevant_emg_filtered, env_freq = filter_emg(complete_emg_data, sfreq=self.emg_sampling_frequencies[2])
@@ -655,7 +655,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 # Convert to max (TODO change naming if this works)
                 self.unassisted_mean = np.max(relevant_emg_filtered, axis=0)
             else:
-                self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered, axis=0)) / self.unassisted_counter
+                self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.max(relevant_emg_filtered, axis=0)) / self.unassisted_counter
 
             # Save the unassisted mean to a file
             self.data_exporter.export_unassisted_mean_to_npy(self.unassisted_mean)
@@ -671,10 +671,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         else: 
             # Compare score of assisted vs unassisted
-            assisted_mean = np.mean(relevant_emg_filtered, axis=0)
+            # assisted_mean = np.mean(relevant_emg_filtered, axis=0)
+            assisted_max = np.max(relevant_emg_filtered, axis=0)
 
             score = 0
-
             # Scale by how much we expect the muscle to change
             # rf_sim = self.simulation_means['rf_un']
             # vm_sim = self.simulation_means['vm_un']
@@ -683,13 +683,15 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             for i, sensor_label in enumerate(relevant_emg_filtered.keys()):
                 if 'RF' in sensor_label:
-                    score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                    score += rf_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
+                    # score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
                 elif 'VM' in sensor_label:
-                    score += vm_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                    score += vm_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
+                    # score += vm_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
 
             # Send comparison score to socket server
             if self.socket:
-                self.socket_server.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}")
+                self.socket_server.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}_")
                 print(f"Score: {score}", f"Tag: {current_assistive_profile_name}")
 
             # Log the extracted variables
@@ -853,7 +855,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     # Convert to max (TODO change naming if this works)
                     self.unassisted_mean = np.max(relevant_emg_filtered, axis=0)
                 else:
-                    self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.mean(relevant_emg_filtered, axis=0)) / self.unassisted_counter
+                    self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.max(relevant_emg_filtered, axis=0)) / self.unassisted_counter
 
                 # Save the unassisted mean to a file
                 self.data_exporter.export_unassisted_mean_to_npy(self.unassisted_mean)
@@ -871,9 +873,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             else: 
                 # Compare score of assisted vs unassisted
-                assisted_mean = np.mean(relevant_emg_filtered, axis=0)
-
-                score = 0
+                # assisted_mean = np.mean(relevant_emg_filtered, axis=0)
+                assisted_max = np.max(relevant_emg_filtered, axis=0)
 
                 # Scale by how much we expect the muscle to change
                 # rf_sim = self.simulation_means['rf_un']
@@ -881,11 +882,15 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 rf_sim = self.simulation_max['rf_un']
                 vm_sim = self.simulation_max['vm_un']
 
+                score = 0
+
                 for i, sensor_label in enumerate(relevant_emg_filtered.keys()):
                     if 'RF' in sensor_label:
-                        score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                        score += rf_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
+                        # score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
                     elif 'VM' in sensor_label:
-                        score += vm_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                        score += vm_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
+                        # score += vm_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
 
                 # Send comparison score to socket server
                 if self.socket:
