@@ -49,8 +49,8 @@ if __name__ == "__main__":
     for file in os.listdir(validation_profiles_path):
         if file.endswith(".csv"):
             profile = pd.read_csv(os.path.join(validation_profiles_path, file))
-            # profile["percentage"] = np.linspace(0, 100, len(profile))
-            # profile.set_index("percentage", inplace=True)
+            profile["percentage"] = np.linspace(0, 100, len(profile))
+            profile.set_index("percentage", inplace=True)
             profiles[file] = profile
 
     trigger_mode = "SOCKET" # TRIGGER, ENTER or SOCKET
@@ -132,13 +132,17 @@ if __name__ == "__main__":
                     can_bus, motor_1, motor_2 = setup_can_and_motors()
                     for profile_name, profile in profiles.items():
                         for i in range(iterations_per_condition):
+                            # Wait to get new name
+                            time.sleep(0.5)
                             current_profile_name = socket_server.profile_name
-                            parts = profile_name.split("Profile_")
-                            if len(parts) == 2:
-                                # Insert the current profile name after 'Profile_'
-                                new_filename = f"{parts[0]}Profile_{current_profile_name}_old_{parts[1]}"
-                
-                            profile_name = profile_name
+                            if "Profile_" in profile_name:
+                                parts = profile_name.split("Profile_")
+                                if len(parts) == 2:
+                                    # Insert the current profile name after 'Profile_'
+                                    new_filename = f"{parts[0]}Tag_{current_profile_name}"
+                            else:
+                                new_filename = profile_name.replace(".csv", f"_Tag_{current_profile_name}")
+
                             print(f"Running profile {profile_name}")
                             apply_simulation_profile(
                                 motor_1=motor_1,
@@ -159,11 +163,17 @@ if __name__ == "__main__":
                     # Go through profiles in inverted order
                     for profile_name, profile in reversed(profiles.items()):
                         for i in range(iterations_per_condition):
+                            # Wait to get new name
+                            time.sleep(0.5)  
                             current_profile_name = socket_server.profile_name
-                            parts = profile_name.split("Profile_")
-                            if len(parts) == 2:
-                                # Insert the current profile name after 'Profile_'
-                                new_filename = f"{parts[0]}Profile_{current_profile_name}_old_{parts[1]}"
+                            if "Profile_" in profile_name:
+                                parts = profile_name.split("Profile_")
+                                if len(parts) == 2:
+                                    # Insert the current profile name after 'Profile_'
+                                    new_filename = f"{parts[0]}Tag_{current_profile_name}"
+                            else:
+                                new_filename = profile_name.replace(".csv", f"_Tag_{current_profile_name}")
+
                             print(f"Running profile {profile_name}")
                             apply_simulation_profile(
                                 motor_1=motor_1,
@@ -171,7 +181,7 @@ if __name__ == "__main__":
                                 freq=freq,
                                 session_manager=session_manager,
                                 profile = profile,
-                                profile_name = profile_name,
+                                profile_name = new_filename,
                                 mode=trigger_mode,
                                 socket_server=socket_server,
                                 imu_reader=imu_reader
