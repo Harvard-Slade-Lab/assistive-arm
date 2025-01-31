@@ -319,14 +319,14 @@ class CubemarsMotor:
             self.swapped_motors = True
             if motor_id != self.previous_id:
                 self.switch_now = True
-                print(f"SWAPPED MOTORS, {self.params["ID"]}")
+                print(f"SWAPPED MOTORS, {self.params['ID']}")
             else:
                 self.switch_now = False
         else:
             self.swapped_motors = False
             if motor_id != self.previous_id:
                 self.switch_now = True
-                print(f"SWAPPED MOTORS, {self.params["ID"]}")
+                print(f"SWAPPED MOTORS, {self.params['ID']}")
             else:
                 self.switch_now = False
         

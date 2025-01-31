@@ -117,7 +117,7 @@ if __name__ == "__main__":
             print("Sleeping...")
             time.sleep(0.1)
             left_limit = limit_tracking(motor_1, direction="left", velocity=3)
-            print("Angle range: ", [0, left_limit])
+            print("Angle range: ", [0, np.rad2deg(left_limit)])
             # time.sleep(1.5)
 
         elif choice == '2':

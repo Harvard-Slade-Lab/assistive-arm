@@ -185,8 +185,9 @@ def control_loop_and_log(
         if roll_angle > session_manager.max_roll_angle-1.0 and t > 0.1:
             # Wait for emg collection to stop, so there is no mess with the file naming
             if socket_server is not None:
-                print("Maximum roll angle exceeded. Setting torques to zero.")
-                apply_force = False
+                if apply_force:
+                    print("Maximum roll angle exceeded. Setting torques to zero.")
+                    apply_force = False
             else:
                 print("Maximum roll angle exceeded. Stopping...")
                 break

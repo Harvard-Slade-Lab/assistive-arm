@@ -101,7 +101,6 @@ class IMUReader:
     def start_reading_imu_data(self):
         """Start a thread to read IMU data."""
         if not self._running:
-            self.setup_can_bus()
             self._running = True
             self._thread = threading.Thread(target=self.read_imu_data)
             self._thread.start()
@@ -114,7 +113,6 @@ class IMUReader:
         if self._running:
             self._running = False
             self._thread.join()
-            self.shutdown_can_bus()
             print("IMU data reading stopped.")
         else:
             print("IMU data reading is not running.")

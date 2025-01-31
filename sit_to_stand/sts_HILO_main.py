@@ -35,7 +35,7 @@ class States(Enum):
 
 if __name__ == "__main__":
 
-    subject_id = "Nathan"
+    subject_id = "max_optim"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
     session_manager = SessionManager(subject_id=subject_id)
 
@@ -67,6 +67,7 @@ if __name__ == "__main__":
     # Initialize the IMU reader
     if not emg_control:
         imu_reader = IMUReader()
+        imu_reader.setup_can_bus()
     else:
         imu_reader = None
 
@@ -188,6 +189,8 @@ if __name__ == "__main__":
 
     finally:
         # Ensure cleanup of GPIO and socket server resources
+        if imu_reader is not None:
+            imu_reader.shutdown_can_bus()
         GPIO.cleanup()
         if trigger_mode == "SOCKET":
             socket_server.stop()
