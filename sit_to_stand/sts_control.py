@@ -138,10 +138,9 @@ def control_loop_and_log(
         imu_reader: IMUReader,
         session_manager: SessionManager):
     
-    # Clear motor buffers
-    # Check motor_1.position_buffer -> works
-    motor_1.clear_buffers()
-    motor_2.clear_buffers()
+    # Reset the motor buffers
+    motor_1.new_run = True
+    motor_2.new_run = True
 
     print("Recording started. Please perform the sit-to-stand motion.")
     print("Press Ctrl + C or trigger to stop recording.\n")
@@ -151,8 +150,6 @@ def control_loop_and_log(
     loop = SoftRealtimeLoop(dt=1 / freq, report=False, fade=0)
     success = True
     printed = False
-    increment = 0.05
-    scale_start_torque = increment
 
     for t in loop:
         if socket_server is not None:
@@ -178,35 +175,28 @@ def control_loop_and_log(
                 roll_angle = imu_reader.imu_data.pitch
             else:
                 roll_angle = socket_server.roll_angle
-
-        # Stop if the roll angle is larger than the maximum roll angle
-        if roll_angle > session_manager.max_roll_angle-1.0 and t > 0.1:
-            print("Maximum roll angle exceeded. Stopping...")
-            if socket_server is not None:
-                socket_server.collect_flag = False
-            break
         
         if motor_1.swapped_motors:
             tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_2.position, theta_2=motor_1.position, current_roll_angle=roll_angle, profiles=profile)
         else:
             tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_1.position, theta_2=motor_2.position, current_roll_angle=roll_angle, profiles=profile)
 
+        # Stop if the roll angle is larger than the maximum roll angle
+        if roll_angle > session_manager.max_roll_angle-1.0 and t > 0.1:
+            # Wait for emg collection to stop, so there is no mess with the file naming
+            if socket_server is not None:
+                print("Maximum roll angle exceeded. Setting torques to zero.")
+                apply_force = False
+            else:
+                print("Maximum roll angle exceeded. Stopping...")
+                break
+
         if apply_force and t >= 0.1:
             if not printed:
                 print("\nGO!")
                 printed = True
-            # Continue from the start torque
-            # tau_1 = max(tau_1, 1)
-            # tau_2 = max(tau_2, -1)
             motor_1.send_torque(desired_torque=tau_1, safety=False)
             motor_2.send_torque(desired_torque=tau_2, safety=False)
-        # Start applying a small torque to get ready and avoid the initial jerk
-        # elif apply_force and t < 0.2:
-        #     # Cap start torque at 1 Nm
-        #     start_torque = min(scale_start_torque, 1)
-        #     motor_1.send_torque(desired_torque=start_torque, safety=False) 
-        #     motor_2.send_torque(desired_torque=-start_torque, safety=False)
-        #     scale_start_torque += increment
         else:
             if not printed:
                 print("\nGO!")

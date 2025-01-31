@@ -125,7 +125,7 @@ class CubemarsMotor:
         self.temperature_buffer = [0] * self.buffer_size
 
         self._emergency_stop = False
-        self._first_run = True
+        self.new_run = True
 
         self.logging = False
         if self.logging:
@@ -319,14 +319,14 @@ class CubemarsMotor:
             self.swapped_motors = True
             if motor_id != self.previous_id:
                 self.switch_now = True
-                print("SWAPPED MOTORS")
+                print(f"SWAPPED MOTORS, {self.params["ID"]}")
             else:
                 self.switch_now = False
         else:
             self.swapped_motors = False
             if motor_id != self.previous_id:
                 self.switch_now = True
-                print("SWAPPED MOTORS")
+                print(f"SWAPPED MOTORS, {self.params["ID"]}")
             else:
                 self.switch_now = False
         
@@ -362,12 +362,12 @@ class CubemarsMotor:
             if self._emergency_stop:
                 self.velocity_buffer = [0] * self.buffer_size
             
-            if self._first_run or self.switch_now: 
+            if self.new_run or self.switch_now: 
                 self.position_buffer = [p] * self.buffer_size
                 self.velocity_buffer = [v] * self.buffer_size
                 self.torque_buffer = [t] * self.buffer_size
                 self.temperature_buffer = [te] * self.buffer_size
-                self._first_run = False
+                self.new_run = False
             
             avg_position = sum(self.position_buffer) / self.buffer_size
             avg_velocity = sum(self.velocity_buffer) / self.buffer_size
@@ -393,16 +393,6 @@ class CubemarsMotor:
         Returns:
             tuple: pos, vel, torque
         """
-        # if data == None:
-        #     return None, None, None, None
-        # else:
-        #    print(data[0],data[1], data)
-        # id_val = data[0]
-
-        # Can messages are broadcast on all nodes, so we need to check the ID
-        # if id_val != self.params["ID"]:
-        #     return None, None, None, None
-        
         p_int = (data[1] << 8) | data[2]
         v_int = (data[3] << 4) | (data[4] >> 4)
         t_int = ((data[4] & 0xF) << 8) | data[5]

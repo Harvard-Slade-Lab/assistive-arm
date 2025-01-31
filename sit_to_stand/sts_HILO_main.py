@@ -49,11 +49,14 @@ if __name__ == "__main__":
     iterations_unassisted = 10
     # Chose how many repetitions for each condition
     iterations_per_parameter_set = 3
-    # Currently F_y is getting scaled by 2/3
+    # Peak force
     max_force = 55
+    # Scale factor for force in x
+    scale_factor_x = 2/3
+    # Maximum length (currently not used)
     max_time = 360
     # Minimum width of the profile in percentage of the total time
-    minimum_width_p = 0.1
+    minimum_width_p = 0.2
 
     # Flag to select, if the Gaussian Process should be informed by a parameter set, based on the simulation
     informed = True
@@ -142,6 +145,7 @@ if __name__ == "__main__":
                             socket_server = socket_server, 
                             imu_reader = imu_reader,
                             max_force=max_force,
+                            scale_factor_x=scale_factor_x,
                             max_time=max_time,
                             minimum_width_p=minimum_width_p,
                         )
