@@ -35,6 +35,23 @@ class States(Enum):
         if isinstance(other, int):
             return self.value == other
         return False
+    
+def calibrate_profile(profile, roll_angles):
+    roll_angles = np.asarray(roll_angles["roll_angles"]).flatten()
+
+    num_entries = len(profile)
+
+    new_min = min(roll_angles)
+    new_max = max(roll_angles)
+
+    # Generate the roll angles array
+    profile["roll_angles"] = np.linspace(new_min, new_max, num=num_entries).tolist()
+    # Generate the percentage array
+    profile["percentage"] = np.linspace(0, 100, num=num_entries).tolist()
+    # Set percentage as index
+    profile.set_index("percentage", inplace=True)
+
+    return profile
 
 
 if __name__ == "__main__":
@@ -45,13 +62,14 @@ if __name__ == "__main__":
 
     validation_profiles_path = "./sit_to_stand/validation_profiles"
     # Read all the profiles and add them to a list
-    profiles = {}
-    for file in os.listdir(validation_profiles_path):
-        if file.endswith(".csv"):
-            profile = pd.read_csv(os.path.join(validation_profiles_path, file))
-            profile["percentage"] = np.linspace(0, 100, len(profile))
-            profile.set_index("percentage", inplace=True)
-            profiles[file] = profile
+    # profiles = {}
+    # for file in os.listdir(validation_profiles_path):
+    #     if file.endswith(".csv"):
+    #         profile = pd.read_csv(os.path.join(validation_profiles_path, file))
+    #         profile["percentage"] = np.linspace(0, 100, len(profile))
+    #         profile.set_index("percentage", inplace=True)
+    #         profiles[file] = profile
+
 
     trigger_mode = "SOCKET" # TRIGGER, ENTER or SOCKET
 
@@ -66,6 +84,7 @@ if __name__ == "__main__":
     # Initialize the IMU reader
     if not emg_control:
         imu_reader = IMUReader()
+        imu_reader.setup_can_bus()
     else:
         imu_reader = None
 
@@ -99,6 +118,14 @@ if __name__ == "__main__":
             # Get user's choice and handle it based on selection
             try:
                 choice = int(input("Enter your choice: "))
+
+                if session_manager.load_device_height_calibration() is not None:
+                    profiles = {}
+                    for file in os.listdir(validation_profiles_path):
+                        if file.endswith(".csv"):
+                            base_profile = pd.read_csv(os.path.join(validation_profiles_path, file))
+                            converted_profile = calibrate_profile(base_profile, session_manager.roll_angles)
+                            profiles[file] = converted_profile
 
                 if choice == States.CALIBRATING:
                     can_bus, motor_1, motor_2 = setup_can_and_motors()

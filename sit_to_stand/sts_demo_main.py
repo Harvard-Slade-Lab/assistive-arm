@@ -38,28 +38,22 @@ class States(Enum):
     
 def calibrate_profile(profile, roll_angles):
     roll_angles = np.asarray(roll_angles["roll_angles"]).flatten()
-    
-    # Replace the roll angles in the profile with the according calibration values
-    # Create new indices based on the length of profile
-    old_indices = np.linspace(0, 1, len(roll_angles))  # Original roll_angles indices (normalized)
-    new_indices = np.linspace(0, 1, len(profile))  # Target indices for profile
 
-    # Interpolate roll_angles to match the length of profile
-    resampled_roll_angles = np.interp(new_indices, old_indices, roll_angles)
+    num_entries = len(profile)
 
-    # Replace roll angles in profile
-    profile["roll_angles"] = resampled_roll_angles
+    new_min = min(roll_angles)
+    new_max = max(roll_angles)
 
-    # Add percentage column (0 to 100)
-    profile["percentage"] = np.linspace(0, 100, len(profile))
+    # Generate the roll angles array
+    profile["roll_angles"] = np.linspace(new_min, new_max, num=num_entries).tolist()
+    # Generate the percentage array
+    profile["Percentage"] = np.linspace(0, 100, num=num_entries).tolist()
 
     # Set percentage as index
     profile.set_index("percentage", inplace=True)
 
     return profile
     
-
-
 
 if __name__ == "__main__":
 
@@ -83,6 +77,7 @@ if __name__ == "__main__":
     # Initialize the IMU reader
     if not emg_control:
         imu_reader = IMUReader()
+        imu_reader.setup_can_bus()
     else:
         imu_reader = None
 
