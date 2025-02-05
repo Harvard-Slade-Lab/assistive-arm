@@ -116,7 +116,7 @@ if __name__ == "__main__":
             print(f"Setting origin at 0º...")
             print("Sleeping...")
             time.sleep(0.1)
-            left_limit = limit_tracking(motor_1, direction="left", velocity=3)
+            left_limit = limit_tracking(motor_1, direction="left", velocity=1)
             print("Angle range: ", [0, np.rad2deg(left_limit)])
             # time.sleep(1.5)
 

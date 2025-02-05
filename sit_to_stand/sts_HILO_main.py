@@ -35,7 +35,7 @@ class States(Enum):
 
 if __name__ == "__main__":
 
-    subject_id = "max_optim"
+    subject_id = "mean_opt_1rep"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
     session_manager = SessionManager(subject_id=subject_id)
 
@@ -43,16 +43,16 @@ if __name__ == "__main__":
 
     # HYPERPARMAETERS
     kappa = 2.5
-    # Chose how much exploration is done
-    exploration_iterations = 5
+    # Chose how much exploration is done (add the amount of informed profiles)
+    exploration_iterations = 13
     # Chose how many unassisted iterations
     iterations_unassisted = 10
     # Chose how many repetitions for each condition
-    iterations_per_parameter_set = 3
+    iterations_per_parameter_set = 1
     # Peak force
-    max_force = 55
+    max_force = 47
     # Scale factor for force in x
-    scale_factor_x = 2/3
+    scale_factor_x = 1
     # Maximum length (currently not used)
     max_time = 360
     # Minimum width of the profile in percentage of the total time
@@ -150,6 +150,9 @@ if __name__ == "__main__":
                             max_time=max_time,
                             minimum_width_p=minimum_width_p,
                         )
+                    # Add informed profiles to the optimizer 8they are queued and evaluated in exploration
+                    if informed:
+                        profile_optimizer.informed_optimization()
                         
                     # Explorate the space exploration iterations - iterations done, so they are not done again when reloading
                     if exploration_iterations > len(profile_optimizer.optimizer.space):
@@ -158,10 +161,6 @@ if __name__ == "__main__":
                                 break
                             else:
                                 profile_optimizer.explorate()
-                    
-                    # Add informed profiles to the optimizer
-                    if informed:
-                        profile_optimizer.informed_optimization()
                         
                     # Optimize until the server stops (Kill command is sent) or the user exits
                     while not socket_server.stop_server and not socket_server.kill_flag and not socket_server.mode_flag:

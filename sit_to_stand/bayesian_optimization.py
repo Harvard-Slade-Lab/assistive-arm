@@ -17,7 +17,7 @@ from sts_control import apply_simulation_profile
 
 
 class ForceProfileOptimizer:
-    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=55, scale_factor_x=2/3, max_time=360, minimum_width_p=0.2):   
+    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=47, scale_factor_x=1, max_time=360, minimum_width_p=0.2):   
         self.motor_1 = motor_1
         self.motor_2 = motor_2
         self.session_manager = session_manager
@@ -106,6 +106,28 @@ class ForceProfileOptimizer:
         base_profile["force_Y"] = padded_curve_y
 
         return base_profile
+    
+    def get_profile_2(self, force1_peak_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time):
+        # Force 1 end time as peak time instead of end time
+        length = len(self.session_manager.roll_angles)
+        base_profile = pd.DataFrame({"force_X": np.zeros(length), "force_Y": np.zeros(length)})
+        base_profile.index = self.session_manager.roll_angles.index
+        base_profile = pd.concat([self.session_manager.roll_angles, base_profile], axis=1)
+
+        # X Force Profile
+        grf_x = self.cubic_hermite_spline([(0, 0, 0), (force1_peak_time, force1_peak_force, 0), (self.max_time, 0, 0)])
+        curve_x = [grf_x.get_state(i)[0] for i in range(self.max_time)]
+        padded_curve_x = np.concatenate([curve_x, np.zeros(length - len(curve_x))])
+
+        # Y Force Profile
+        grf_y = self.cubic_hermite_spline([(0, 0, 0), (force2_peak_time - force2_start_time, force2_peak_force, 0), (force2_end_time - force2_start_time, 0, 0)])
+        curve_y = [grf_y.get_state(i)[0] for i in range(int(np.round(force2_end_time - force2_start_time)))]
+        padded_curve_y = np.concatenate([np.zeros(int(np.round(force2_start_time))), curve_y, np.zeros(length - len(curve_y) - int(np.round(force2_start_time)))])
+
+        base_profile["force_X"] = padded_curve_x
+        base_profile["force_Y"] = padded_curve_y
+
+        return base_profile
 
     def objective(self, force1_end_time_p, force1_peak_force_p, force2_start_time_p, force2_peak_time_p, force2_peak_force_p, force2_end_time_p):
         # Catch zero force cases
@@ -114,23 +136,12 @@ class ForceProfileOptimizer:
             return 0
         
         # X-force profile
-        force1_end_time = self.minimum_width_p * self.max_time + force1_end_time_p * self.max_time * (1 - self.minimum_width_p)
+        # force1_end_time = self.minimum_width_p * self.max_time + force1_end_time_p * self.max_time * (1 - self.minimum_width_p)
+        force1_peak_time = force1_end_time_p * self.max_time * (1-self.minimum_width_p) + self.minimum_distance
         force1_peak_force = force1_peak_force_p * self.max_force * self.scale_factor_x
 
-        # Standard with check later on and returning -1 if constraints are violated
-        # force2_start_time = force2_start_time_p * self.max_time 
-        # force2_peak_time = force2_peak_time_p * self.max_time
-        # force2_peak_force = force2_peak_force_p * self.max_force
-        # force2_end_time = force2_end_time_p * self.max_time
-
-        # Constrain the time values to be within the range of 0.25 to 0.75 of the self.max time
-        # force2_start_time = force2_start_time_p * self.max_time * 0.25
-        # force2_peak_time = force2_peak_time_p * self.max_time * 0.5 + 0.25 * self.max_time
-        # force2_peak_force = force2_peak_force_p * self.max_force
-        # force2_end_time = force2_end_time_p * self.max_time * 0.25 + 0.75 * self.max_time
-
         # Dynamic constraints
-        force2_peak_time = force2_peak_time_p * self.max_time * 0.7 + 0.15 * self.max_time # 0.15 to 0.85
+        force2_peak_time = force2_peak_time_p * self.max_time * (1-self.minimum_width_p) + self.minimum_distance
         force2_start_time = (force2_peak_time - self.minimum_distance) * force2_start_time_p # minimum_distance off peak time
         force2_end_time = force2_peak_time + self.minimum_distance + force2_end_time_p * (self.max_time - force2_peak_time - self.minimum_distance) # minimum_distance off peak to max time
         force2_peak_force = force2_peak_force_p * self.max_force
@@ -139,9 +150,11 @@ class ForceProfileOptimizer:
         if not self.validate_constraints(force2_start_time, force2_peak_time, force2_end_time):
             print("violated constraints")
         
-        base_profile = self.get_profile(force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time)
+        # base_profile = self.get_profile(force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time)
+        base_profile = self.get_profile_2(force1_peak_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time)
 
-        profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{self.socket_server.profile_name}"
+        # profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{self.socket_server.profile_name}"
+        profile_name = f"t11_{int(np.round(force1_peak_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{self.socket_server.profile_name}"
 
         # Configure a new logger for each call
         profile_path = self.profile_dir / f"profile_{profile_name}.csv"
@@ -149,7 +162,8 @@ class ForceProfileOptimizer:
 
         # Log the initial inputs and calculated values
         logger.info(f"Inputs: force1_end_time_p={force1_end_time_p}, force1_peak_force_p={force1_peak_force_p}, force2_start_time_p={force2_start_time_p}, force2_peak_time_p={force2_peak_time_p}, force2_peak_force_p={force2_peak_force_p}, force2_end_time_p={force2_end_time_p}")
-        logger.info(f"Calculated Values: force1_end_time={force1_end_time}, force1_peak_force={force1_peak_force}, force2_start_time={force2_start_time}, force2_peak_time={force2_peak_time}, force2_peak_force={force2_peak_force}, force2_end_time={force2_end_time}")
+        # logger.info(f"Calculated Values: force1_end_time={force1_end_time}, force1_peak_force={force1_peak_force}, force2_start_time={force2_start_time}, force2_peak_time={force2_peak_time}, force2_peak_force={force2_peak_force}, force2_end_time={force2_end_time}")
+        logger.info(f"Calculated Values: force1_end_time={force1_peak_time}, force1_peak_force={force1_peak_force}, force2_start_time={force2_start_time}, force2_peak_time={force2_peak_time}, force2_peak_force={force2_peak_force}, force2_end_time={force2_end_time}")
 
         # Save the profile as CSV
         profile_path = self.profile_dir / f"profile_{profile_name}.csv"
@@ -170,7 +184,8 @@ class ForceProfileOptimizer:
             print("\nReady to apply profile, iteration: ", i)
 
             current_profile_name = self.socket_server.profile_name
-            profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{current_profile_name}"
+            # profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{current_profile_name}"
+            profile_name = f"t11_{int(np.round(force1_peak_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{current_profile_name}"
 
             print(f"motor1 type (70-10): {self.motor_1.type}, motor2 type (60-6): {self.motor_2.type}")
 
@@ -211,7 +226,7 @@ class ForceProfileOptimizer:
             # Ask the user if the iteration should be repeated
             if not local_repeat_flag:
                 repeat = input("Accept iteration? (y/n): ")
-                if repeat == "y":
+                if repeat == "y" or repeat == "":
                     print("Continuing optimization...")
                 else:
                     local_repeat_flag = True
@@ -266,28 +281,83 @@ class ForceProfileOptimizer:
 
     def log_to_remote(self):
         try:
+            # Export optimizer log
             os.system(f"scp {self.optimizer_path} macbook:{self.session_manager.session_remote_dir}")
+            # Export profile to delete
+            os.system(f"scp {self.path_to_delete} macbook:{self.session_manager.session_remote_dir}")
         except:
             print("Could not send optimizer logs to remote host.")
 
     def informed_optimization(self):
-        # Points for profile (similar to camille's)
-        force1_end_time = 150.0/360.0 * self.max_time
-        force1_peak_force = 20.0
+        # # Points for profile (similar to camille's)
+        # force1_end_time = 150.0/360.0 * self.max_time
+        # force1_peak_force = 20.0
 
-        force2_start_time = 70.0/360.0 * self.max_time
-        force2_peak_time = 160.0/360.0 * self.max_time
-        force2_end_time = 250.0/360.0 * self.max_time
-        force2_peak_force = 55.0
+        # force2_start_time = 70.0/360.0 * self.max_time
+        # force2_peak_time = 160.0/360.0 * self.max_time
+        # force2_end_time = 250.0/360.0 * self.max_time
+        # force2_peak_force = 55.0
 
-        # Revert to the original values (for the dynamic constraints)
-        force1_end_time_p = (force1_end_time - self.minimum_width_p * self.max_time) / (self.max_time * (1 - self.minimum_width_p))
-        force1_peak_force_p = force1_peak_force / (self.scale_factor_x * self.max_force)
+        # # Revert to the original values (for the dynamic constraints)
+        # force1_end_time_p = (force1_end_time - self.minimum_width_p * self.max_time) / (self.max_time * (1 - self.minimum_width_p))
+        # force1_peak_force_p = force1_peak_force / (self.scale_factor_x * self.max_force)
 
-        force2_start_time_p = force2_start_time / (force2_peak_time - self.minimum_distance)
-        force2_peak_time_p = (force2_peak_time - 0.15 * self.max_time) / (0.7 * self.max_time)
-        force2_end_time_p = (force2_end_time - force2_peak_time - self.minimum_distance) / (self.max_time - force2_peak_time - self.minimum_distance)
-        force2_peak_force_p = force2_peak_force / self.max_force
+        # force2_start_time_p = force2_start_time / (force2_peak_time - self.minimum_distance)
+        # force2_peak_time_p = (force2_peak_time - 0.15 * self.max_time) / (0.7 * self.max_time)
+        # force2_end_time_p = (force2_end_time - force2_peak_time - self.minimum_distance) / (self.max_time - force2_peak_time - self.minimum_distance)
+        # force2_peak_force_p = force2_peak_force / self.max_force
+
+        # # Define the initial points
+        # initial_points = {
+        #     "force1_end_time_p": force1_end_time_p,
+        #     "force1_peak_force_p": force1_peak_force_p,
+        #     "force2_start_time_p": force2_start_time_p,
+        #     "force2_peak_time_p": force2_peak_time_p,
+        #     "force2_peak_force_p": force2_peak_force_p,
+        #     "force2_end_time_p": force2_end_time_p
+        # }
+
+        # # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
+        # if initial_points not in self.optimizer.space.params:
+        #     # Add points to optimizer, lazy=True allows adding multiple probe points before executing them in a batch
+        #     self.optimizer.probe(params=initial_points, lazy=True)
+        # else:
+        #     print("Informed points already in optimizer space.")
+
+
+        # Added profile
+        force1_end_time_p = 0.8
+        force1_peak_force_p = 1.0
+
+        force2_start_time_p = 0.2
+        force2_peak_time_p = 0.65
+        force2_end_time_p = 1.0
+        force2_peak_force_p = 0.7
+
+        # Define the initial points
+        initial_points = {
+            "force1_end_time_p": force1_end_time_p,
+            "force1_peak_force_p": force1_peak_force_p,
+            "force2_start_time_p": force2_start_time_p,
+            "force2_peak_time_p": force2_peak_time_p,
+            "force2_peak_force_p": force2_peak_force_p,
+            "force2_end_time_p": force2_end_time_p
+        }
+
+        # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
+        if initial_points not in self.optimizer.space.params:
+            self.optimizer.probe(params=initial_points, lazy=True)
+        else:
+            print("Informed points already in optimizer space.")
+
+        # Added profile
+        force1_end_time_p = 0.5
+        force1_peak_force_p = 0.5
+
+        force2_start_time_p = 0.2
+        force2_peak_time_p = 0.5
+        force2_end_time_p = 1.0
+        force2_peak_force_p = 0.9
 
         # Define the initial points
         initial_points = {
@@ -307,13 +377,13 @@ class ForceProfileOptimizer:
 
 
         # Added profile
-        force1_end_time_p = 1.0
+        force1_end_time_p = 0.8
         force1_peak_force_p = 1.0
 
         force2_start_time_p = 0.2
-        force2_peak_time_p = 0.65
+        force2_peak_time_p = 0.7
         force2_end_time_p = 1.0
-        force2_peak_force_p = 0.7
+        force2_peak_force_p = 0.4
 
         # Define the initial points
         initial_points = {
