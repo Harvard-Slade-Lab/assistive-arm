@@ -12,23 +12,7 @@ from copy import deepcopy
 from chspy import CubicHermiteSpline
 
 from assistive_arm.utils.data_preprocessing import read_headers
-
-
-def percentage_to_actual(force1_end_time_p, force1_peak_force_p, force2_start_time_p, force2_peak_time_p, force2_peak_force_p, force2_end_time_p, max_time):
-    max_force = 65
-    minimum_width_p = 0.1
-    minimum_distance = max_time * minimum_width_p / 2
-    
-    force1_end_time = minimum_width_p * max_time + force1_end_time_p * max_time * (1 - minimum_width_p)
-    force1_peak_force = force1_peak_force_p * max_force * 2/3
-    # Dynamic constraints
-    force2_peak_time = force2_peak_time_p * max_time * 0.8 + 0.1 * max_time # 0.1 to 0.9
-    force2_start_time = (force2_peak_time - minimum_distance) * force2_start_time_p # 0 to 0.05 of peak time
-    force2_end_time = force2_peak_time + minimum_distance + force2_end_time_p * (max_time - force2_peak_time - minimum_distance) # 0.05 of peak to max time
-    force2_peak_force = force2_peak_force_p * max_force
-
-    return force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time
-
+from assistive_arm.utils.parametrize_profiles_functions import *
 
 def sanity_check(session_data, name_tag_mapping, roll_angles):
     """
@@ -92,44 +76,6 @@ def cubic_hermite_spline(points):
         spline.add((t, [value], [derivative]))
     return spline
 
-
-def get_profile(force1_end_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time, roll_angles):
-    """
-    Generate force profiles for X and Y forces based on given parameters and roll angles.
-
-    Args:
-        force1_end_time (float): End time for the X force profile.
-        force1_peak_force (float): Peak force for the X force profile.
-        force2_start_time (float): Start time for the Y force profile.
-        force2_peak_time (float): Peak time for the Y force profile.
-        force2_peak_force (float): Peak force for the Y force profile.
-        force2_end_time (float): End time for the Y force profile.
-        roll_angles (pd.DataFrame): DataFrame containing roll angles with time indices.
-
-    Returns:
-        pd.DataFrame: DataFrame containing time-aligned force profiles for X and Y.
-    """
-    length = len(roll_angles)
-    base_profile = pd.DataFrame({"force_X": np.zeros(length), "force_Y": np.zeros(length)})
-    base_profile.index = roll_angles.index
-    base_profile = pd.concat([roll_angles, base_profile], axis=1)
-
-    # X Force Profile
-    grf_x = cubic_hermite_spline([(0, 0, 0), (force1_end_time / 2, force1_peak_force, 0), (force1_end_time, 0, 0)])
-    curve_x = [grf_x.get_state(i)[0] for i in range(int(np.round(force1_end_time)))]
-    padded_curve_x = np.concatenate([curve_x, np.zeros(length - len(curve_x))])
-
-    # Y Force Profile
-    grf_y = cubic_hermite_spline([(0, 0, 0), (force2_peak_time - force2_start_time, force2_peak_force, 0), (force2_end_time - force2_start_time, 0, 0)])
-    curve_y = [grf_y.get_state(i)[0] for i in range(int(np.round(force2_end_time - force2_start_time)))]
-    padded_curve_y = np.concatenate([np.zeros(int(np.round(force2_start_time))), curve_y, np.zeros(length - len(curve_y) - int(np.round(force2_start_time)))])
-
-    base_profile["force_X"] = padded_curve_x
-    base_profile["force_Y"] = padded_curve_y
-
-    return base_profile
-
-
 def detect_peak_and_crop(df):
     df = df.iloc[2000:].reset_index(drop=True)
 
@@ -151,23 +97,37 @@ def process_emg_data(session_data, mode):
         
         # Initialize an accumulator for the tag mean
         tag_accumulator = None
+        peak_accumulator = None
         tag_dfs_count = 0  # Count the number of DataFrames for the tag
         
         for filtered_emg in filtered_emg_cond:
             # Apply detect_peak_and_crop
             cropped_emg = detect_peak_and_crop(filtered_emg)
+
+            # Cut 0.25*2148.148 off of each side
+            # crop_size = int(0.25 * 2148.148)  # Convert to integer
+
+            # # Crop the signal
+            # cropped_emg = filtered_emg.iloc[crop_size:-crop_size]
+            # cropped_emg = filtered_emg
             
             # Accumulate DataFrames for the tag
             if tag_accumulator is None:
                 tag_accumulator = cropped_emg.copy()
+                peak_accumulator = np.max(cropped_emg, axis=0)
             else:
                 tag_accumulator += cropped_emg
+                peak_accumulator += np.max(cropped_emg, axis=0)
             
             tag_dfs_count += 1
 
         # Compute the mean for the current tag
         tag_mean = tag_accumulator / tag_dfs_count
-        session_data[mode][tag]["EMG"]["Mean"] = tag_mean  # Optional: store the tag mean
+        session_data[mode][tag]["EMG"]["Mean"] = tag_mean  # Store the tag mean
+
+        # Compute the mean peak value for the current tag
+        peak_mean = peak_accumulator / tag_dfs_count
+        session_data[mode][tag]["EMG"]["Peak"] = peak_mean 
 
         # Add the tag accumulator to the overall accumulator
         if overall_accumulator is None:
@@ -179,5 +139,4 @@ def process_emg_data(session_data, mode):
 
     # Compute the overall mean across all tags
     overall_mean = overall_accumulator / total_dfs
-    session_data[mode]["Overall_Mean"] = overall_mean  # Optional: store the overall mean
-    return overall_mean
+    session_data[mode]["Overall_Mean"] = overall_mean

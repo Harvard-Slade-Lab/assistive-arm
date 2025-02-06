@@ -11,6 +11,20 @@ import matplotlib.gridspec as gridspec
 from assistive_arm.utils.analyze_emg_data_processing import *
 
 
+def plot_force_profile(profile, save_dir, name):
+    fig, ax = plt.subplots()
+    ax.plot(profile["force_X"], label=r"$F_X$", color="blue")
+    ax.plot(profile["force_Y"], label=r"$F_Y$", color="orange")
+
+    ax.set_ylabel("Forces (N)")  # Correct method for an Axes object
+    ax.legend()  # Show legend
+    
+    if save_dir is not None:
+        fig.savefig(os.path.join(save_dir, name + ".png"))
+        plt.close()
+    else:
+        plt.show()
+
 
 def plot_scores(subject_name, session_data, name_tag_mapping, save_path):
     """
@@ -45,13 +59,86 @@ def plot_scores(subject_name, session_data, name_tag_mapping, save_path):
         ax.plot(x_values, group_scores, color=colors[tag_index], label=name_tag_mapping[tag])
 
     # Customize plot
-    plt.ylim((0, 3))
+    # plt.ylim((-0.1, 0.4))
     ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
     plt.tight_layout()
 
     # Save the plot
-    plt.savefig(save_path / f"{subject_name}_scores.svg", dpi=500, bbox_inches="tight", format="svg")
+    plt.savefig(save_path / f"{subject_name}_scores.svg", dpi=500, bbox_inches="tight")
     # plt.show()
+
+
+def plot_mean_std_score(subject_name, session_data, name_tag_mapping, save_path):
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.set_title(f"Subject {subject_name}, Scores over time")
+    ax.set_xlabel("Trial")
+    ax.set_ylabel("Score")
+
+    # Generate colors for each tag
+    colors = plt.cm.viridis(np.linspace(0, 1, len(session_data["ASSISTED"]["FIRST_TAGS"])))
+
+    # Variables for pooled standard deviation calculation
+    all_std_devs = []
+    all_sample_sizes = []
+
+    cv_values = []  # Store Coefficient of Variation (CV) for each tag
+    peak_cv_values = []  # Store peak CV for each tag
+
+    # Plot scores for each tag
+    i = 0
+    for tag_index, tag in enumerate(session_data["ASSISTED"]["FIRST_TAGS"]):
+        tag_info = session_data["ASSISTED"][tag]["LOG_INFO"]
+        group_scores = np.array([info[3] for info in tag_info])
+        
+        # Compute mean and standard deviation
+        mean_score = np.mean(group_scores)
+        max_score = np.max(group_scores)
+        std_score = np.std(group_scores, ddof=1)  # ddof=1 for sample std dev
+        
+        # Compute Coefficient of Variation (CV)
+        if mean_score != 0:
+            cv_values.append(std_score / mean_score)
+            peak_cv_values.append(std_score / max_score)
+
+        
+        # Store for pooled standard deviation
+        all_std_devs.append(std_score)
+        all_sample_sizes.append(len(group_scores))
+        
+        # Determine x-axis values
+        x_values = np.arange(i, i + len(group_scores))
+        i += len(group_scores)
+        
+        # Plot the group scores
+        ax.plot(x_values, group_scores, color=colors[tag_index], label=name_tag_mapping[tag])
+        
+        # Plot mean as a horizontal line
+        # ax.axhline(mean_score, color=colors[tag_index], linestyle="dashed", alpha=0.7)
+        
+        # Fill region for standard deviation
+        ax.fill_between(
+            x_values, mean_score - std_score, mean_score + std_score,
+            color=colors[tag_index], alpha=0.2
+        )
+
+    # Compute average CV
+    average_cv = np.mean(cv_values) if cv_values else 0
+    peak_cv = np.mean(peak_cv_values) if peak_cv_values else 0
+
+    # Print noise metrics
+    print(f"Average Coefficient of Variation (CV): {average_cv:.4f}")
+    print(f"Average Peak Coefficient of Variation (CV): {peak_cv:.4f}")
+
+    # Customize plot
+    plt.ylim((-0.1, 0.4))
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig(save_path / f"{subject_name}_mean_std_scores.svg", dpi=500, bbox_inches="tight")
+
+
+
 
 
 
@@ -100,7 +187,7 @@ def plot_mvic_data(subject, session_data, emg_config, mvic_dir):
     fig.legend(handles, labels, loc='upper right', fontsize=10, bbox_to_anchor=(0.85, 1))
 
     plt.tight_layout()
-    plt.savefig(mvic_dir / f"{subject}_MVIC.svg", dpi=500, bbox_inches='tight', format='svg')
+    plt.savefig(mvic_dir / f"{subject}_MVIC.svg", dpi=500, bbox_inches='tight')
 
 
 
@@ -158,10 +245,11 @@ def plot_all_force_profiles(subjects, subject_data, subject_dirs):
                     ax.plot(profile[f"force_{direction}"], label=f"Profile {index} - {direction} Force")
 
                 # Save and display the plot
-                plt.savefig(profile_plot_dir / f"{subject.name}_all_profiles_{direction}.svg", dpi=500, bbox_inches='tight', format='svg')
+                plt.savefig(profile_plot_dir / f"{subject.name}_all_profiles_{direction}.svg", dpi=500, bbox_inches='tight')
+                plt.close()
 
 
-def plot_emg_and_force_profiles_with_means(session_data, name_tag_mapping, assisted_mean, unpowered_mean, save_dir, sampling_frequency):
+def plot_emg_and_force_profiles_with_means(session_data, name_tag_mapping, assisted_mean, unpowered_means, save_dir, sampling_frequency):
     """
     Plot EMG means for each muscle in stacked subplots with overall means and a combined force profile plot at the bottom.
     Time is computed from the sampling frequency and used for the x-axis.
@@ -206,15 +294,10 @@ def plot_emg_and_force_profiles_with_means(session_data, name_tag_mapping, assis
                 ax.plot(cropped_time, cropped_mean[muscle], linestyle="--", alpha=0.6, color=gray_shades[idx])
 
             # Plot overall means and tag mean
-            ax.plot(
-                time, unpowered_mean[muscle], label="Unpowered Mean", color=colors["unpowered_mean"], linewidth=2
-            )
-            ax.plot(
-                time, assisted_mean[muscle], label="Assisted Mean", color=colors["assisted_mean"], linewidth=2
-            )
-            ax.plot(
-                time, tag_mean[muscle], label=f"{tag} Mean", color=colors["tag_mean"], linewidth=2
-            )
+            for iter, unpowered_mean in enumerate(unpowered_means):
+                ax.plot(unpowered_mean[muscle], label=f"Unpowered_{iter}", linewidth=2)
+            ax.plot(time, assisted_mean[muscle], label="Assisted Mean", color=colors["assisted_mean"], linewidth=2)
+            ax.plot(time, tag_mean[muscle], label=f"{tag} Mean", color=colors["tag_mean"], linewidth=2)
 
             # Title and labels
             ax.set_title(f"{muscle} - EMG Signals")
@@ -239,11 +322,12 @@ def plot_emg_and_force_profiles_with_means(session_data, name_tag_mapping, assis
         plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust layout to avoid overlaps
         plt.suptitle(f"EMG and Force Profiles for {name_tag_mapping[tag]}")
         save_path = save_dir / f"{name_tag_mapping[tag]}_emg_force_profiles_with_means.svg"
-        plt.savefig(save_path, dpi=500, bbox_inches="tight", format="svg")
+        plt.savefig(save_path, dpi=500, bbox_inches="tight")
         plt.show()
+        plt.close()
 
 
-def plot_tag_means_with_individuals(session_data, assisted_mean, unpowered_mean, name_tag_mapping, save_dir):
+def plot_tag_means_with_individuals(session_data, assisted_mean, unpowered_means, name_tag_mapping, save_dir):
     # Iterate through the assisted tags
     for tag in session_data["ASSISTED"]["FIRST_TAGS"]:
         tags = session_data["ASSISTED"][tag]["PROFILE_TAGS"]
@@ -268,8 +352,9 @@ def plot_tag_means_with_individuals(session_data, assisted_mean, unpowered_mean,
             # Plot the overall assisted mean
             ax.plot(assisted_mean[muscle], label="Overall Assisted Mean", color=colors[0], linewidth=2)
 
-            # Plot the overall unpowered mean
-            ax.plot(unpowered_mean[muscle], label="Overall Unpowered Mean", color=colors[1], linewidth=2)
+            # Plot unpowered mean
+            for iter, unpowered_mean in enumerate(unpowered_means):
+                ax.plot(unpowered_mean[muscle], label=f"Unpowered_{iter}", linewidth=2)
 
             # Plot the tag mean
             ax.plot(tag_mean[muscle], label=f"{tag} Mean", color=colors[2], linewidth=2)
@@ -292,11 +377,11 @@ def plot_tag_means_with_individuals(session_data, assisted_mean, unpowered_mean,
         plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust spacing
 
         # Save the plot
-        plt.savefig(save_dir / f"{name_tag_mapping[tag]}.svg", dpi=500, bbox_inches="tight", format="svg")
-        plt.show()
+        plt.savefig(save_dir / f"{name_tag_mapping[tag]}.svg", dpi=500, bbox_inches="tight")
+        plt.close()
 
 
-def plot_means(assisted_mean, unpowered_mean, save_dir):
+def plot_means(assisted_mean, unpowered_means, save_dir):
     # Create a new figure with 2x2 subplots
     fig, axes = plt.subplots(2, 2, figsize=(12, 8))
     axes = axes.flatten()  # Flatten the 2x2 array of axes
@@ -313,7 +398,8 @@ def plot_means(assisted_mean, unpowered_mean, save_dir):
         ax.plot(assisted_mean[muscle], label="Assisted", color=colors[0], linewidth=2)
 
         # Plot unpowered mean
-        ax.plot(unpowered_mean[muscle], label="Unpowered", color=colors[1], linewidth=2)
+        for iter, unpowered_mean in enumerate(unpowered_means):
+            ax.plot(unpowered_mean[muscle], label=f"Unpowered_{iter}", linewidth=2)
 
         # Add title and legend for the subplot
         ax.set_title(muscle)
@@ -328,5 +414,129 @@ def plot_means(assisted_mean, unpowered_mean, save_dir):
     plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust spacing
 
     # Save the plot
-    plt.savefig(save_dir / "assisted_vs_unassisted_means.svg", dpi=500, bbox_inches="tight", format="svg")
-    plt.show()
+    plt.savefig(save_dir / "assisted_vs_unassisted_means.svg", dpi=500, bbox_inches="tight")
+    plt.close()
+
+
+def plot_overall_deltas(delta_dir, session_data, name_tag_mapping, muscles, subject, session):
+    deltas = {muscle: [] for muscle in muscles}
+    
+    # Compute mean of unassisted trials
+    unpowered_means = {muscle: 0 for muscle in muscles}
+    num_unpowered = len(session_data["UNPOWERED"]["FIRST_TAGS"])
+
+    for tag in session_data["UNPOWERED"]["FIRST_TAGS"]:
+        for muscle in muscles:
+            unpowered_means[muscle] += session_data["UNPOWERED"][tag]["EMG"]["Mean"][muscle]
+
+    # Get the average unassisted values
+    for muscle in muscles:
+        unpowered_means[muscle] /= num_unpowered
+
+    # Compute deltas for assisted trials
+    for tag in session_data["ASSISTED"]["FIRST_TAGS"]:
+        profile_name = name_tag_mapping[tag]
+        profile_mean = session_data["ASSISTED"][tag]["EMG"]["Mean"]
+
+        for muscle in muscles:
+            delta = (unpowered_means[muscle] - profile_mean[muscle]) / unpowered_means[muscle]
+            deltas[muscle].append(delta)
+
+    # Compute mean delta per muscle
+    mean_deltas = {muscle: np.mean(deltas[muscle]) for muscle in muscles}
+
+    # Plot results
+    fig, ax = plt.subplots(figsize=(8, 5))
+    labels = ["RF", "VM"]
+    left_means = [mean_deltas["RF_L"], mean_deltas["VM_L"]]
+    right_means = [mean_deltas["RF_R"], mean_deltas["VM_R"]]
+
+    x = np.arange(len(labels))  # Label locations
+    width = 0.35  # Bar width
+
+    rects1 = ax.bar(x - width/2, left_means, width, label="Left")
+    rects2 = ax.bar(x + width/2, right_means, width, label="Right")
+
+    ax.set_ylabel("Mean EMG Reduction (%)")
+    ax.set_title(f"EMG Reduction for {subject.name} - Session {session}")
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.legend()
+
+    plt.savefig(delta_dir / f"emg_deltas_{subject.name}_{session}.png")
+    plt.close()
+
+
+
+
+def plot_all_motor_data(subject_data, name_tag_mapping, plot_dir):
+
+    for profile in subject_data["session_data"]["ASSISTED"]["FIRST_TAGS"]:
+        i = 0
+        for motor_log in subject_data["session_data"]["ASSISTED"][profile]["MOTOR_DATA"]:
+            i += 1
+
+            colors = iter(rcParams['axes.prop_cycle'].by_key()['color'])
+
+            filename = plot_dir / f"motor_{name_tag_mapping[profile]}_{i}.svg"
+
+            # Use GridSpec to control subplot layouts
+            fig = plt.figure(figsize=(8, 9))
+            gs = gridspec.GridSpec(5, 1, height_ratios=[1, 1, 1, 1, 1.2])  # Last subplot is slightly taller
+            fig.suptitle(name_tag_mapping[profile])
+
+            # Subplots with shared x-axis
+            ax0 = fig.add_subplot(gs[0])
+            ax1 = fig.add_subplot(gs[1], sharex=ax0)
+            ax2 = fig.add_subplot(gs[2], sharex=ax0)
+            ax3 = fig.add_subplot(gs[3], sharex=ax0)
+
+            # Subplot with independent x-axis
+            ax4 = fig.add_subplot(gs[4])
+
+            # Plot theta_2
+            ax0.plot(motor_log.index, motor_log["theta_2"], label=r"$\theta_2$", color=colors.__next__())
+            ax0.set_ylabel(r"$\theta_2$ (rad)")
+            handles0, labels0 = ax0.get_legend_handles_labels()
+
+            # Plot torques
+            ax1.plot(motor_log.index, motor_log["target_tau_1"], label=r"Target $\tau_1$", color=colors.__next__())
+            ax1.plot(motor_log.index, motor_log["measured_tau_1"], label=r"Measured $\tau_1$", color=colors.__next__())
+            ax1.plot(motor_log.index, motor_log["target_tau_2"], label=r"Target $\tau_2$", color=colors.__next__())
+            ax1.plot(motor_log.index, motor_log["measured_tau_2"], label=r"Measured $\tau_2$", color=colors.__next__())
+            ax1.set_ylabel("Torques (Nm)", fontsize=12)
+            handles1, labels1 = ax1.get_legend_handles_labels()
+
+            # Plot forces F_X and F_Y
+            ax2.plot(motor_log.index, motor_log["F_X"], label=r"$F_X$", color=colors.__next__())
+            ax2.plot(motor_log.index, motor_log["F_Y"], label=r"$F_Y$", color=colors.__next__())
+            ax2.set_ylabel("Forces (N)")
+            handles2, labels2 = ax2.get_legend_handles_labels()
+
+            # Plot STS percentage
+            ax3.plot(motor_log.index, motor_log["Percentage"], label="STS %", color=colors.__next__())
+            ax3.axhline(y=100, linestyle="--", color="black")
+            ax3.axhline(y=0, linestyle="--", color="black")
+            ax3.set_ylabel("STS %")
+            ax3.set_xlabel('Time (s)')
+            handles3, labels3 = ax3.get_legend_handles_labels()
+
+            # Plot actual forces with a different x-axis
+            profile_data = subject_data["session_data"]["ASSISTED"][profile]["FORCE_PROFILE"]
+            ax4.plot(profile_data.index, profile_data["force_X"], label=r"Actual $F_X$", color=colors.__next__())
+            ax4.plot(profile_data.index, profile_data["force_Y"], label=r"Actual $F_Y$", color=colors.__next__())
+            ax4.set_ylabel("Forces (N)")
+            ax4.set_xlabel('Index')
+            handles4, labels4 = ax4.get_legend_handles_labels()
+
+            # Combine all legend handles and labels
+            handles = handles0 + handles1 + handles2 + handles3 + handles4
+            labels = labels0 + labels1 + labels2 + labels3 + labels4
+            fig.legend(handles, labels, loc='upper center', ncols=6, bbox_to_anchor=(0.5, 0.97), fontsize=10)
+
+            # Adjust layout
+            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+            # Save the plot
+            plt.savefig(filename.with_suffix('.png'), dpi=500, format='png')
+            plt.close()

@@ -169,9 +169,13 @@ def group_paths_by_iteration(paths):
 def group_paths_by_profile(paths):
     # Extract the prefix (everything before "_Profile") from the filename
     def extract_prefix(path):
-        filename = Path(path).name
-        return filename.split("_Profile")[0]
-    
+        if "Profile" in Path(path).name:
+            filename = Path(path).name
+            return filename.split("_Profile")[0]
+        elif "Tag" in Path(path).name:
+            filename = Path(path).name
+            return filename.split("_Tag")[0]
+        
     # Group paths by their extracted prefix
     paths.sort(key=extract_prefix)  # Ensure paths are sorted by prefix
     grouped = groupby(paths, key=extract_prefix)
@@ -180,7 +184,7 @@ def group_paths_by_profile(paths):
     return [list(group) for _, group in grouped]
 
 
-def load_motor_data_hilo(subject_data, subject_dirs, subjects):
+def load_motor_data_hilo(subject_data, subject_dirs, subjects, validation):
     # LOAD MOTOR DATA
     session_dict = {}
     session_dict["MVIC"] = {"Unfiltered": [], "Filtered": []}
@@ -204,7 +208,24 @@ def load_motor_data_hilo(subject_data, subject_dirs, subjects):
             session_data = deepcopy(session_dict)
             motor_dir = subject_dirs[subject.name][session]["motor_dir"]
 
+            profile_to_delete = set(subject_data[subject.name][session]["profile_to_delete"])
+
+            # Use list to filter out unwanted files
             sorted_files = sorted(motor_dir.iterdir(), key=lambda f: f.stat().st_ctime)
+
+            for file in sorted_files:
+                if file.is_file():
+                    # Check if the file name contains any of the iterations to delete
+                    for iteration in profile_to_delete:
+                        if iteration in file.stem:
+                            sorted_files.remove(file)
+                            if "Profile" in file.stem:
+                                tag = re.search(r"Profile_(\d+)_", file.stem).group(1)
+                                print(f"Removing Profile {tag} from session {session}")
+                            elif "Tag" in file.stem:
+                                tag = re.search(r"Tag_(\d+)_", file.stem).group(1)
+                                print(f"Removing Tag {tag} from session {session}")
+
 
             # Lists to hold unpowered and assisted files
             unpowered_files = []
@@ -219,9 +240,12 @@ def load_motor_data_hilo(subject_data, subject_dirs, subjects):
                             unpowered_files.append(file_path)
                             tag = re.search(r"tag_(\d+)_", file_path.stem).group(1)
                             session_data["UNPOWERED"]["ALL_TAGS"].append(tag)
-                        elif "t11" in file_path.stem:
+                        else:
                             assisted_files.append(file_path)
-                            tag = re.search(r"Profile_(\d+)_", file_path.stem).group(1)
+                            if "Profile" in file_path.stem:
+                                tag = re.search(r"Profile_(\d+)_", file_path.stem).group(1)
+                            elif "Tag" in file_path.stem:
+                                tag = re.search(r"Tag_(\d+)_", file_path.stem).group(1)
                             session_data["ASSISTED"]["ALL_TAGS"].append(tag)
                     else:
                         print(f"File {file_path} is empty")
@@ -251,7 +275,10 @@ def load_motor_data_hilo(subject_data, subject_dirs, subjects):
 
 
             # Sort assisted files according to the number after ..Profile_number_... (chronological)
-            assisted_files = sorted(assisted_files, key=lambda f: int(re.search(r"Profile_(\d+)_", f.stem).group(1)))
+            if "Profile" in assisted_files[0].stem:
+                assisted_files = sorted(assisted_files, key=lambda f: int(re.search(r"Profile_(\d+)_", f.stem).group(1)))
+            elif "Tag" in assisted_files[0].stem:
+                assisted_files = sorted(assisted_files, key=lambda f: int(re.search(r"Tag_(\d+)_", f.stem).group(1)))
             # Go through assisted files and group them according to the force profile
             assisted_groups = group_paths_by_profile(assisted_files)
             for group in assisted_groups:
@@ -259,19 +286,28 @@ def load_motor_data_hilo(subject_data, subject_dirs, subjects):
                 parts = re.split('_', assisted_first_file.stem)
 
                 df = pd.read_csv(assisted_first_file, index_col="time").loc[skip_first:]
-                first_tag = re.search(r"Profile_(\d+)_", assisted_first_file.stem).group(1)
+                if "Profile" in assisted_first_file.stem:
+                    first_tag = re.search(r"Profile_(\d+)_", assisted_first_file.stem).group(1)
+                elif "Tag" in assisted_first_file.stem:
+                    first_tag = re.search(r"Tag_(\d+)_", assisted_first_file.stem).group(1)
                 if first_tag not in session_data["ASSISTED"].keys():
                     session_data["ASSISTED"][first_tag] = deepcopy(data_dict)
                 session_data["ASSISTED"]["FIRST_TAGS"].append(first_tag)
                 session_data["ASSISTED"][first_tag]["PROFILE_TAGS"].append(first_tag)
                 session_data["ASSISTED"][first_tag]["MOTOR_DATA"].append(df)
-                name_tag_mapping[first_tag] = f"Assisted X-force(t11_{parts[1]}, f11_{parts[3]}), Y-force(t21_{parts[5]}, t22_{parts[7]}, t23_{parts[9]}, f21_{parts[11]})"
+                if not validation:
+                    name_tag_mapping[first_tag] = f"Assisted X-force(t11_{parts[1]}, f11_{parts[3]}), Y-force(t21_{parts[5]}, t22_{parts[7]}, t23_{parts[9]}, f21_{parts[11]})"
+                else:
+                    name_tag_mapping[first_tag] = f"{assisted_first_file.stem}"
 
-                # Go throught he rest of the files in the group
+                # Go throught the rest of the files in the group
                 for file_path in group[1:]:
                     df = pd.read_csv(file_path, index_col="time").loc[skip_first:]
                     session_data["ASSISTED"][first_tag]["MOTOR_DATA"].append(df)
-                    tag = re.search(r"Profile_(\d+)_", file_path.stem).group(1)
+                    if "Profile" in file_path.stem:
+                        tag = re.search(r"Profile_(\d+)_", file_path.stem).group(1)
+                    elif "Tag" in file_path.stem:
+                        tag = re.search(r"Tag_(\d+)_", file_path.stem).group(1)
                     session_data["ASSISTED"][first_tag]["PROFILE_TAGS"].append(tag)
 
             subject_data[subject.name][session]["session_data"] = session_data
@@ -538,10 +574,6 @@ def load_segmented_emg_data_hilo(subject_data, subject_dirs, subjects):
                         df.rename(columns=emg_config["MAPPING"], inplace=True)
                         df.sort_index(axis=1, inplace=True)
 
-                        match = re.search(r'Profile_(.*?)_Trial', file_path.stem)
-                        if match:
-                            profile = match.group(1)
-
                         # Create the "TIME" column
                         num_samples = len(df)
                         time_column = pd.Series([i * sampling_interval for i in range(num_samples)], name="TIME")
@@ -555,27 +587,38 @@ def load_segmented_emg_data_hilo(subject_data, subject_dirs, subjects):
                                     session_data["ASSISTED"][tag]["EMG"]["Unfiltered"].append(df)
                                     session_data["ASSISTED"][tag]["EMG"]["Filtered"].append(filtered_df)
                                 else:
-                                    closest_first_tag = find_closest_past_tag(session_data["ASSISTED"]["FIRST_TAGS"], tag)
-                                    if closest_first_tag is not None:
-                                        session_data["ASSISTED"][closest_first_tag]["EMG"]["Unfiltered"].append(df)
-                                        session_data["ASSISTED"][closest_first_tag]["EMG"]["Filtered"].append(filtered_df)
-                                    else:
-                                        print(f"File {file_path.stem} not found in session data")
+                                    # closest_first_tag = find_closest_past_tag(session_data["ASSISTED"]["FIRST_TAGS"], tag)
+                                    # if closest_first_tag is not None:
+                                    #     session_data["ASSISTED"][closest_first_tag]["EMG"]["Unfiltered"].append(df)
+                                    #     session_data["ASSISTED"][closest_first_tag]["EMG"]["Filtered"].append(filtered_df)
+                                    # else:
+                                    #     print(f"Finding closest first tag failed") 
+                                    for first_tag in session_data["ASSISTED"]["FIRST_TAGS"]:
+                                        if tag in session_data["ASSISTED"][first_tag]["PROFILE_TAGS"]:
+                                            session_data["ASSISTED"][first_tag]["EMG"]["Unfiltered"].append(df)
+                                            session_data["ASSISTED"][first_tag]["EMG"]["Filtered"].append(filtered_df)
+                                            continue
+                                        
                             else:
                                 print(f"File {file_path.stem} not found in session data")
                         
-                        elif "Unpowered" in file_path.stem:
+                        if "Unpowered" in file_path.stem:
                             if tag in session_data["UNPOWERED"]["ALL_TAGS"]:
                                 if tag in session_data["UNPOWERED"]["FIRST_TAGS"]:
                                     session_data["UNPOWERED"][tag]["EMG"]["Unfiltered"].append(df)
                                     session_data["UNPOWERED"][tag]["EMG"]["Filtered"].append(filtered_df)
                                 else:
-                                    closest_first_tag = find_closest_past_tag(session_data["UNPOWERED"]["FIRST_TAGS"], tag)
-                                    if closest_first_tag is not None:
-                                        session_data["UNPOWERED"][closest_first_tag]["EMG"]["Unfiltered"].append(df)
-                                        session_data["UNPOWERED"][closest_first_tag]["EMG"]["Filtered"].append(filtered_df)
-                                    else:
-                                        print(f"File {file_path.stem} not found in session data")   
+                                    # closest_first_tag = find_closest_past_tag(session_data["UNPOWERED"]["FIRST_TAGS"], tag)
+                                    # if closest_first_tag is not None:
+                                    #     session_data["UNPOWERED"][closest_first_tag]["EMG"]["Unfiltered"].append(df)
+                                    #     session_data["UNPOWERED"][closest_first_tag]["EMG"]["Filtered"].append(filtered_df)
+                                    # else:
+                                    #     print(f"Finding closest first tag failed")   
+                                    for first_tag in session_data["UNPOWERED"]["FIRST_TAGS"]:
+                                        if tag in session_data["UNPOWERED"][first_tag]["PROFILE_TAGS"]:
+                                            session_data["UNPOWERED"][first_tag]["EMG"]["Unfiltered"].append(df)
+                                            session_data["UNPOWERED"][first_tag]["EMG"]["Filtered"].append(filtered_df)
+                                            continue
                             else:
                                 print(f"File {file_path.stem} not found in session data")
 
@@ -662,21 +705,29 @@ def load_log_data_hilo(subject_data, subject_dirs, subjects):
                                 if tag in session_data["ASSISTED"]["FIRST_TAGS"]:
                                     session_data["ASSISTED"][tag]["LOG_INFO"].append(info)
                                 else:
-                                    closest_first_tag = find_closest_past_tag(session_data["ASSISTED"]["FIRST_TAGS"], tag)
-                                    if closest_first_tag is not None:
-                                        session_data["ASSISTED"][closest_first_tag]["LOG_INFO"].append(info)
-                                    else:
-                                        print(f"Tag {tag} not found in session data, duration was {duration}")
+                                    # closest_first_tag = find_closest_past_tag(session_data["ASSISTED"]["FIRST_TAGS"], tag)
+                                    # if closest_first_tag is not None:
+                                    #     session_data["ASSISTED"][closest_first_tag]["LOG_INFO"].append(info)
+                                    # else:
+                                    #     print(f"Tag {tag} not found in session data, duration was {duration}")
+                                    for first_tag in session_data["ASSISTED"]["FIRST_TAGS"]:
+                                        if tag in session_data["ASSISTED"][first_tag]["PROFILE_TAGS"]:
+                                            session_data["ASSISTED"][first_tag]["LOG_INFO"].append(info)
+                                            continue
 
                             elif tag in session_data["UNPOWERED"]["ALL_TAGS"]:
                                 if tag in session_data["UNPOWERED"]["FIRST_TAGS"]:
                                     session_data["UNPOWERED"][tag]["LOG_INFO"].append(info)
                                 else:
-                                    closest_first_tag = find_closest_past_tag(session_data["UNPOWERED"]["FIRST_TAGS"], tag)
-                                    if closest_first_tag is not None:
-                                        session_data["UNPOWERED"][closest_first_tag]["LOG_INFO"].append(info)
-                                    else:
-                                        print(f"Tag {tag} not found in session data, duration was {duration}")
+                                    # closest_first_tag = find_closest_past_tag(session_data["UNPOWERED"]["FIRST_TAGS"], tag)
+                                    # if closest_first_tag is not None:
+                                    #     session_data["UNPOWERED"][closest_first_tag]["LOG_INFO"].append(info)
+                                    # else:
+                                    #     print(f"Tag {tag} not found in session data, duration was {duration}")
+                                    for first_tag in session_data["UNPOWERED"]["FIRST_TAGS"]:
+                                        if tag in session_data["UNPOWERED"][first_tag]["PROFILE_TAGS"]:
+                                            session_data["UNPOWERED"][first_tag]["LOG_INFO"].append(info)
+                                            continue
                
             subject_data[subject.name][session.name]["session_data"] = session_data
     
