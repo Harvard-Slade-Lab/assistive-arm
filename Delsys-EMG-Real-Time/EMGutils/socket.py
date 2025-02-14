@@ -6,7 +6,7 @@ class SocketServer:
     Handles socket communication with the Raspberry Pi server.
     Manages separate connections for roll angles and other data.
     """
-    def __init__(self, host='10.250.16.32', roll_port=3001, data_port=3002):
+    def __init__(self, host='10.250.128.13', roll_port=3001, data_port=3002):
         self.host = host
         self.roll_port = roll_port
         self.data_port = data_port
