@@ -159,29 +159,32 @@ if __name__ == "__main__":
                     can_bus, motor_1, motor_2 = setup_can_and_motors()
                     for profile_name, profile in profiles.items():
                         for i in range(iterations_per_condition):
-                            # Wait to get new name
-                            time.sleep(0.5)
-                            current_profile_name = socket_server.profile_name
-                            if "Profile_" in profile_name:
-                                parts = profile_name.split("Profile_")
-                                if len(parts) == 2:
-                                    # Insert the current profile name after 'Profile_'
-                                    new_filename = f"{parts[0]}Tag_{current_profile_name}"
+                            if socket_server.mode_flag or socket_server.kill_flag:
+                                break
                             else:
-                                new_filename = profile_name.replace(".csv", f"_Tag_{current_profile_name}")
+                                # Wait to get new name
+                                time.sleep(0.5)
+                                current_profile_name = socket_server.profile_name
+                                if "Profile_" in profile_name:
+                                    parts = profile_name.split("Profile_")
+                                    if len(parts) == 2:
+                                        # Insert the current profile name after 'Profile_'
+                                        new_filename = f"{parts[0]}Tag_{current_profile_name}"
+                                else:
+                                    new_filename = profile_name.replace(".csv", f"_Tag_{current_profile_name}")
 
-                            print(f"Running profile {profile_name}")
-                            apply_simulation_profile(
-                                motor_1=motor_1,
-                                motor_2=motor_2,
-                                freq=freq,
-                                session_manager=session_manager,
-                                profile = profile,
-                                profile_name = new_filename,
-                                mode=trigger_mode,
-                                socket_server=socket_server,
-                                imu_reader=imu_reader
-                            )
+                                print(f"Running profile {profile_name} \n iteration {i}")
+                                apply_simulation_profile(
+                                    motor_1=motor_1,
+                                    motor_2=motor_2,
+                                    freq=freq,
+                                    session_manager=session_manager,
+                                    profile = profile,
+                                    profile_name = new_filename,
+                                    mode=trigger_mode,
+                                    socket_server=socket_server,
+                                    imu_reader=imu_reader
+                                )
                     shutdown_can_and_motors(can_bus, motor_1, motor_2)
                     time.sleep(1)
 
@@ -190,29 +193,32 @@ if __name__ == "__main__":
                     # Go through profiles in inverted order
                     for profile_name, profile in reversed(profiles.items()):
                         for i in range(iterations_per_condition):
-                            # Wait to get new name
-                            time.sleep(0.5)  
-                            current_profile_name = socket_server.profile_name
-                            if "Profile_" in profile_name:
-                                parts = profile_name.split("Profile_")
-                                if len(parts) == 2:
-                                    # Insert the current profile name after 'Profile_'
-                                    new_filename = f"{parts[0]}Tag_{current_profile_name}"
+                            if socket_server.mode_flag or socket_server.kill_flag:
+                                break
                             else:
-                                new_filename = profile_name.replace(".csv", f"_Tag_{current_profile_name}")
+                                # Wait to get new name
+                                time.sleep(0.5)  
+                                current_profile_name = socket_server.profile_name
+                                if "Profile_" in profile_name:
+                                    parts = profile_name.split("Profile_")
+                                    if len(parts) == 2:
+                                        # Insert the current profile name after 'Profile_'
+                                        new_filename = f"{parts[0]}Tag_{current_profile_name}"
+                                else:
+                                    new_filename = profile_name.replace(".csv", f"_Tag_{current_profile_name}")
 
-                            print(f"Running profile {profile_name}")
-                            apply_simulation_profile(
-                                motor_1=motor_1,
-                                motor_2=motor_2,
-                                freq=freq,
-                                session_manager=session_manager,
-                                profile = profile,
-                                profile_name = new_filename,
-                                mode=trigger_mode,
-                                socket_server=socket_server,
-                                imu_reader=imu_reader
-                            )
+                                print(f"Running profile {profile_name} \n iteration {i}")
+                                apply_simulation_profile(
+                                    motor_1=motor_1,
+                                    motor_2=motor_2,
+                                    freq=freq,
+                                    session_manager=session_manager,
+                                    profile = profile,
+                                    profile_name = new_filename,
+                                    mode=trigger_mode,
+                                    socket_server=socket_server,
+                                    imu_reader=imu_reader
+                                )
                     shutdown_can_and_motors(can_bus, motor_1, motor_2)
                     time.sleep(1)
 
