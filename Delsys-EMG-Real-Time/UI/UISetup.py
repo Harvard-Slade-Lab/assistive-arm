@@ -135,7 +135,7 @@ class UISetup:
     def start_unassisted_trial(self):
         self.parent.check_calibration()
 
-        if self.parent.max_roll_angle is None:
+        if self.parent.max_roll_angle is None and self.parent.real_time_processing and not self.parent.imu_processing:
             QtWidgets.QMessageBox.information(self.parent, "Error", "Please calibrate the height first.")
             return 
         else:
@@ -151,10 +151,10 @@ class UISetup:
         self.parent.check_calibration()
         self.parent.check_unassisted()
 
-        if self.parent.max_roll_angle is None:
+        if self.parent.max_roll_angle is None and self.parent.real_time_processing and not self.parent.imu_processing:
             QtWidgets.QMessageBox.information(self.parent, "Error", "Please calibrate the height first.")
             return
-        elif self.parent.unassisted_mean is None:
+        elif self.parent.unassisted_mean is None and self.parent.real_time_processing:
             QtWidgets.QMessageBox.information(self.parent, "Error", "Please collect unpowered data first.")
             return
         else:

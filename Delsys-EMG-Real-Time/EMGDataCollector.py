@@ -27,7 +27,7 @@ from EMGutils.socket import SocketServer
 from concurrent.futures import ThreadPoolExecutor
 
 class EMGDataCollector(QtWidgets.QMainWindow):
-    def __init__(self, plot=False, socket=False, imu_processing=False, emg_control=False, window_duration=5, data_directory="Data"):
+    def __init__(self, plot=False, socket=False, imu_processing=False, mixed_processing=False, emg_control=False, real_time_processing = False, window_duration=5, data_directory="Data"):
         super().__init__()
         self.window_duration = window_duration
         self.data_directory = data_directory
@@ -38,13 +38,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.collection_data_handler = self
 
         # Variables for data processing
+        self.imu_sensor_label = None
+        self.emg_sensor_label = 2 # Currently just first normal EMG sensor, maybe come up with a better idea
         self.analysed_segments = 0
         self.segment_start_idx_imu = 0
         self.segment_end_idx_imu = 0
-        self.sts_start_idx_imu = 0
-        self.sts_end_idx_imu = 0
-        self.sts_start_idx_emg = 0
-        self.sts_end_idx_emg = 0
         self.count_peak = 0
         self.peak = False
 
@@ -63,6 +61,12 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Flag to select if motion detection and score calculation should be done in relat itme with imu signals
         self.imu_processing = imu_processing
+
+        # Flag to select mixed processing
+        self.mixed_processing = mixed_processing
+
+        # Flag to select if data should be segmented in real time
+        self.real_time_processing = real_time_processing
 
         # Flag to test things
         self.test_flag = False
@@ -233,8 +237,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     print(f"Set mode '{default_mode}' for sensor {label}")
 
         if project_name == 'sts':
-            # id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L", "0001416e": "OR"}
-            id_to_name = {"000140e7": "VM_R", "00014173": "RF_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L", "0001416e": "OR"}
+            id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L", "0001416e": "OR"}
+            # id_to_name = {"000140e7": "VM_R", "00014173": "RF_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L", "0001416e": "OR"}
 
             self.sensor_label_to_index = {}
             for idx, sensor in enumerate(self.base.all_scanned_sensors):
@@ -380,6 +384,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     self.or_channels_per_sensor[label]['indices'].append(idx)
                     self.or_channels_per_sensor[label]['labels'].append(ch_label)
 
+            self.imu_sensor_label = next(iter(self.gyro_channels_per_sensor))
+
         print("Sensors configured.")
 
     def start_trial(self):
@@ -416,31 +422,44 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def toggle_motor(self):
         self.motor_running = not self.motor_running
 
-        # Without socket connection
-        if self.motor_running and not self.socket:
-            if not self.mvic:
-                self.executor.submit(self.send_roll_angle)
+        if not self.mvic:
+            # Basics need to work without socket connection for debugging
+            if self.motor_running:
+                if self.imu_processing or not self.real_time_processing:
+                    # Get start index
+                    self.segment_start_idx_imu = len(self.complete_gyro_data[self.imu_sensor_label]['X'])
+                elif self.or_channels_per_sensor:
+                    self.executor.submit(self.send_roll_angle)
+            else:
+                if not self.real_time_processing:
+                    self.segment_end_idx_imu = len(self.complete_gyro_data[self.imu_sensor_label]['X'])
+                    imu_start_idx = self.segment_start_idx_imu
+                    self.segment_and_safe_data(imu_start_idx, len(self.complete_gyro_data[self.imu_sensor_label]['X']))
+                if self.imu_processing and not self.calibration:
+                    # If we process the imu data we will enter the extract relevant function in the thread
+                    # Get current segment indices, so they cannot get overwritten
+                    imu_key = next(iter(self.gyro_channels_per_sensor))
+                    current_segment_start_idx_imu = self.segment_start_idx_imu
+                    current_segment_end_idx_imu = len(self.complete_gyro_data[imu_key]['X'])
+                    current_profile_name = self.processed_profile_name
+                    # Process the data in a separate thread
+                    self.extract_relevant_emg_imu(current_segment_start_idx_imu, current_segment_end_idx_imu, current_profile_name)
 
-        if self.socket:
-            if not self.motor_running:
-                # Send stop signal at the end of a trial
-                self.socket_server.send_data("Stop")
-                # This is om=nly relevant for imu segmentation
-                if self.imu_processing:
+                if self.imu_processing or not self.real_time_processing:
                     self.processed_profile_name = self.assistive_profile_name
                     self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-                    # Send profile label to socket server for next profile
-                    self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
-            else:
-            #     imu_sensor_label = next(iter(self.gyro_channels_per_sensor))
-            #     # Get start index
-            #     self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label]['X'])
-                self.socket_server.send_data("Start")
-
-                # Only start if the socket is connected and there are orientation channels
-                # if self.socket and self.or_channels_per_sensor:
-                if self.or_channels_per_sensor and not self.mvic:
-                    self.executor.submit(self.send_roll_angle)
+                    
+            if self.socket:
+                if self.motor_running:
+                    # Send start signal at the beginning of a trial
+                    self.socket_server.send_data("Start")
+                else:
+                    # Send stop signal at the end of a trial
+                    self.socket_server.send_data("Stop")
+                    # This is only relevant for imu segmentation, if the send_roll_angle function is not used
+                    if self.imu_processing or not self.real_time_processing:
+                        # Send profile label to socket server for next profile
+                        self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
 
     def select_raspi_mode(self):
         if self.socket:
@@ -455,8 +474,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def stop_trial(self):
         if self.is_collecting:
             # This is used if single profiles are run and only one sts is performed
-            if self.count_peak == 0 and self.imu_processing and self.socket:
-                self.calculate_score(0, len(self.complete_gyro_data[0]["X"]))
+            # if self.count_peak == 0 and self.imu_processing and self.socket:
+            #     self.calculate_score(0, len(self.complete_gyro_data[0]["X"]))
 
             while not self.data_queue.empty():
                 time.sleep(0.1)
@@ -516,6 +535,34 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.executor.submit(self.stream_data)
         self.executor.submit(self.data_processor.process_data)
 
+    def segment_and_safe_data(self, imu_start_idx, imu_end_idx):
+        # Convert start and end indices from imu to emg indices
+        ratio = self.emg_sampling_frequencies[2] / self.acc_sample_rates[self.imu_sensor_label]
+        emg_start_idx = int(np.round(imu_start_idx * ratio))
+        emg_end_idx = int(np.round(imu_end_idx * ratio))
+
+        complete_emg_data = pd.DataFrame()
+
+        # Extract relevant_emg data, one sensor at a time
+        for sensor_label in self.complete_emg_data.keys():
+            if self.sensor_names[sensor_label] == 'IMU':
+                with self.plot_data_lock:
+                    gyro_data = {k: v[imu_start_idx:imu_end_idx].copy() for k, v in self.complete_gyro_data[sensor_label].items()}
+                    acc_data = {k: v[imu_start_idx:imu_end_idx].copy() for k, v in self.complete_acc_data[sensor_label].items()}
+                sensor_data = pd.concat([pd.DataFrame(gyro_data), pd.DataFrame(acc_data)], axis=1)
+                sensor_data.columns = ['GYRO X', 'GYRO Y', 'GYRO Z', 'ACC X', 'ACC Y', 'ACC Z']
+                # Save IMU data
+                self.data_exporter.export_sts_data_to_csv(sensor_data, self.sensor_names[sensor_label])
+            elif self.sensor_names[sensor_label] == 'OR':
+                continue
+            else:
+                with self.plot_data_lock:
+                    sensor_data = self.complete_emg_data[sensor_label][emg_start_idx:emg_end_idx].copy()
+                complete_emg_data[self.sensor_names[sensor_label]] = sensor_data
+            
+        # Log the extracted emg data as a single file
+        self.data_exporter.export_all_sts_data_to_csv(complete_emg_data, self.what)
+
     def send_roll_angle(self):
         " Calculates roll angle according to https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles"
         # I have also tried to calculate the roll angle directly in the data processor but it was too slow
@@ -525,12 +572,16 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Access the key for the (first) OR sensor (change if you want to use another sensor)
         or_key = next(iter(self.or_channels_per_sensor))
-        # Key for the VM-EMG sensor (change if you want to use another sensor)
-        emg_key = 2
-        # Collect roll angles for claibration:
+        # Collect roll angles for calibration:
         roll_angles = []
         # Set motion_detected to False
         motion_detected = False
+
+        # If imu segmentation
+        # if self.mixed_processing:
+        #     imu_key = next(iter(self.gyro_channels_per_sensor))
+        #     # Get the start index of the STS motion
+        #     self.segment_start_idx_imu = len(self.complete_gyro_data[imu_key]['X'])
 
         # Wait, so data is not empty
         while not self.complete_or_data[or_key]['W']:
@@ -558,17 +609,16 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     # Send roll angle rounded to 5 decimal places
                     self.socket_server.send_roll_angle_to_pi(round(roll_angle, 5))
 
-                # if self.test_flag:
-                #     print(f"Roll angle: {roll_angle}")
-
                 if self.calibration:
                     roll_angles.append(roll_angle)
                     print(f"Roll angle: {roll_angle}")
+
                 # Detect start of the motion
                 elif roll_angle >= self.min_roll_angle + 0.01 and not motion_detected:
                     motion_detected = True
                     # TODO check if this is the correct index
-                    sts_start_idx_emg = len(self.complete_emg_data[emg_key])
+                    sts_start_idx_emg = len(self.complete_emg_data[self.emg_sensor_label])
+
                 # Detect end of the motion
                 elif roll_angle >= self.max_roll_angle - 0.02 and time.time() - start_time > 1:
                     # Toggle the motor, as if the button in the ui was pressed
@@ -596,10 +646,18 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # If the score calculation should be done based on the orientation data
             if not self.imu_processing:
                 # Get the end index of the STS motion
-                sts_end_idx_emg = len(self.complete_emg_data[emg_key])
+                sts_end_idx_emg = len(self.complete_emg_data[self.emg_sensor_label])
                 current_assistive_profile_name = self.assistive_profile_name
-                self.extract_relevant_emg_or(sts_start_idx_emg, sts_end_idx_emg, current_assistive_profile_name, emg_key)
-            
+                self.extract_relevant_emg_or(sts_start_idx_emg, sts_end_idx_emg, current_assistive_profile_name)
+            # else:
+            #     # If we process the imu data we will enter the extract relevant function in the thread
+            #     # Get current segment indices, so they cannot get overwritten
+            #     current_segment_start_idx_imu = self.segment_start_idx_imu
+            #     current_segment_end_idx_imu = len(self.complete_gyro_data[imu_key]['X'])
+            #     current_profile_name = self.processed_profile_name
+            #     # Process the data in a separate thread
+            #     self.extract_relevant_emg_imu(current_segment_start_idx_imu, current_segment_end_idx_imu, current_profile_name)
+    
         self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
         # Send profile label to socket server for next profile
@@ -607,20 +665,19 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
         print("\nRoll angle thread stopped.")
 
-
-    def extract_relevant_emg_or(self, emg_start_idx, emg_end_idx, current_assistive_profile_name, emg_key):
+    def extract_relevant_emg_or(self, emg_start_idx, emg_end_idx, current_assistive_profile_name):
         # Wait for a bit, so data can be filtered with buffers
         time.sleep(0.25)
 
         # Get an extra buffer at both ends (larger than it has to be, as I want to save some extra data as well)
         # I don't see when the checks for accessing a non existent index is needed, but it is a potential failure case
-        buffer_size = 0.25 * self.emg_sampling_frequencies[emg_key]
+        buffer_size = 0.25 * self.emg_sampling_frequencies[self.emg_sensor_label]
         if emg_start_idx - buffer_size < 0:
             start_buffer_idx = emg_start_idx
         else:
             start_buffer_idx = int(np.round(emg_start_idx - buffer_size))
 
-        if emg_end_idx + buffer_size > len(self.complete_emg_data[emg_key]):
+        if emg_end_idx + buffer_size > len(self.complete_emg_data[self.emg_sensor_label]):
             end_buffer_idx = emg_end_idx
         else:
             end_buffer_idx = int(np.round(emg_end_idx + buffer_size))
@@ -638,15 +695,15 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.data_exporter.export_all_sts_data_to_csv(complete_emg_data, self.what)
 
         # Keep RF and VM data
-        complete_emg_data = complete_emg_data[['RF_R', 'VM_R', 'RF_L', 'VM_L']]
-        # complete_emg_data = complete_emg_data[['VM_R', 'VM_L']]
+        # complete_emg_data = complete_emg_data[['RF_R', 'VM_R', 'RF_L', 'VM_L']]
+        complete_emg_data = complete_emg_data[['VM_R', 'VM_L']]
 
         # Filter relevant_emg data
         relevant_emg_filtered, env_freq = filter_emg(complete_emg_data, sfreq=self.emg_sampling_frequencies[2])
 
         # Cut the relevant emg data to the start and end of the sts motion
         # Check if the start and end indices are correct -> checked
-        # relevant_emg_filtered = relevant_emg_filtered[emg_start_idx-start_buffer_idx:emg_end_idx-start_buffer_idx]
+        relevant_emg_filtered = relevant_emg_filtered[emg_start_idx-start_buffer_idx:emg_end_idx-start_buffer_idx]
 
         try:
             # This is a reliable way to get data to same length, important if we use mean for calculation
@@ -667,13 +724,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Calculate the score
         self.calculate_score(relevant_emg_filtered, emg_start_idx, emg_end_idx, current_assistive_profile_name)
 
+        print("Relevant EMG data extracted and score calculated.")
 
     def calculate_score(self, relevant_emg_filtered, emg_start_idx, emg_end_idx, current_assistive_profile_name):
         # Calculated reference score if unassisted
         if self.unassisted:
             self.unassisted_counter += 1
             if self.unassisted_counter == 1:
-                # Convert to max (TODO change naming if this works)
                 # self.unassisted_mean = np.max(relevant_emg_filtered, axis=0)
                 self.unassisted_mean = np.mean(relevant_emg_filtered, axis=0)
             else:
@@ -691,8 +748,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # The ratio vm/rf is 1.59 for means and 1.78 for max
             # rf_sim = self.simulation_means['rf_un']
             # vm_sim = self.simulation_means['vm_un']
-            # rf_sim = self.simulation_max['rf_un']
-            # vm_sim = self.simulation_max['vm_un']
+            rf_sim = self.simulation_max['rf_un']
+            vm_sim = self.simulation_max['vm_un']
 
             # Compare score of assisted vs unassisted
             # assisted_max = np.max(relevant_emg_filtered, axis=0)
@@ -702,11 +759,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
             for i, sensor_label in enumerate(relevant_emg_filtered.keys()):
                 if 'RF' in sensor_label:
-                #     score += rf_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
-                    # score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                    # score += rf_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
+                    score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
                 if 'VM' in sensor_label:
                     # score += 1-assisted_max[sensor_label]/self.unassisted_mean[i]
-                    # score += vm_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                    score += vm_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
 
             # Average the score (doesn't matter as optimizer is invariant to lin transformations but gives more intuition to the score)
             score = score/len(relevant_emg_filtered.keys())
@@ -724,11 +781,12 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         """Collect data from sensors and put it into the queue."""
         while not self.pauseFlag:
             self.data_handler.processData(self.data_queue)
-            if self.imu_processing:
-                if self.executor is None or self.executor._shutdown:
-                    continue
-                else:
-                    self.detect_peak_and_calculate()
+            
+            # if self.imu_processing:
+            #     if self.executor is None or self.executor._shutdown:
+            #         continue
+            #     else:
+            #         self.detect_peak_and_calculate()
 
         # Process any remaining data after stopping
         self.data_processor.process_remaining_data()
@@ -741,11 +799,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.socket_server.send_data("Kill")
             self.socket_server.close_connection()
         self.close()
-
-
-
-
-
 
 
 
@@ -772,27 +825,33 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         try:
             # Maximum in acc z diff before global minimum is a good way to detect the start of the motion
             start_idx = maxima[np.searchsorted(maxima, minimum) - 1]
+
+            # Less conservative (stops earlier) (see code from before 2025 for more details)
+            gyro_x_diff = np.diff(df['GYRO X (deg/s)'])
+            gyro_x_diff_diff = np.diff(gyro_x_diff)
+            minima = argrelextrema(gyro_x_diff_diff, np.less)[0]
+            end_idx = minima[np.searchsorted(minima, minimum)]
         except Exception as e:
             print(e)
             start_idx = None
+            end_idx = None
 
-        return start_idx
+        return start_idx, end_idx
 
     def extract_relevant_emg_imu(self, current_segment_start_idx_imu, current_segment_end_idx_imu, current_assistive_profile_name):
         # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
         # The arrow of the sensor should be pointing towards the torso
-        imu_sensor_label = 0
         gyro_axis = 'X'
         acc_axis = 'Z'
-        assisted_mean = 0
+
         self.analysed_segments += 1
 
         # Extract the segment of the x-axis gyro data
-        gyro_x_segment = self.complete_gyro_data[imu_sensor_label][gyro_axis][current_segment_start_idx_imu:current_segment_end_idx_imu].copy()
+        gyro_x_segment = self.complete_gyro_data[self.imu_sensor_label][gyro_axis][current_segment_start_idx_imu:current_segment_end_idx_imu].copy()
         gyro_x_segment = pd.DataFrame(gyro_x_segment, columns=['GYRO X (deg/s)'])
         # Filter gyro x first, as sometimes the buffer for the acc data is not filled
         try:
-            gyro_x_filtered = apply_lowpass_filter(gyro_x_segment, 1, self.gyro_sample_rates[imu_sensor_label])
+            gyro_x_filtered = apply_lowpass_filter(gyro_x_segment, 1, self.gyro_sample_rates[self.imu_sensor_label])
         except Exception as e:
             print(e)
             print(f"Failed to filter gyro data, length was {len(gyro_x_segment)}.")
@@ -800,38 +859,45 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
             return
 
-
         # Extract the segment of the z-axis acceleration data
-        z_acc_segment = self.complete_acc_data[imu_sensor_label][acc_axis][current_segment_start_idx_imu:current_segment_end_idx_imu].copy()
+        z_acc_segment = self.complete_acc_data[self.imu_sensor_label][acc_axis][current_segment_start_idx_imu:current_segment_end_idx_imu].copy()
         z_acc_segment = pd.DataFrame(z_acc_segment, columns=['ACC Z (G)'])
-        z_acc_filtered = apply_lowpass_filter(z_acc_segment, 1, self.acc_sample_rates[imu_sensor_label])
+        try:
+            z_acc_filtered = apply_lowpass_filter(z_acc_segment, 1, self.acc_sample_rates[self.imu_sensor_label])
+        except Exception as e:
+            print(e)
+            print(f"Failed to filter acc data, length was {len(z_acc_segment)}.")
+            # Send message to raspi to repeat iteration and add identification tag
+            self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
 
-        # Concatenate the two segments maybe better to input directly without concatenation to avoid nans
+        # Concatenate the two segments
         imu_filtered = pd.concat([gyro_x_filtered, z_acc_filtered], axis=1)
+        # Remove rows with NaN values
+        imu_filtered = imu_filtered.dropna()
 
         # Extract time (start,end)
-        self.sts_start_idx_imu, self.sts_end_idx_imu = self.extract_time(imu_filtered)
+        sts_start_idx_imu, sts_end_idx_imu = self.extract_time(imu_filtered)
 
-        if self.sts_start_idx_imu is None or self.sts_end_idx_imu is None or self.sts_start_idx_imu >= self.sts_end_idx_imu:
+        if sts_start_idx_imu is None or sts_end_idx_imu is None or sts_start_idx_imu >= sts_end_idx_imu:
             print("Failed to extract start and end indices, iteration will be repeated.")
             # Send message to raspi to repeat iteration and add identification tag
             self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
         else:
             # Convert start and end indices from imu to emg indices
-            ratio = self.emg_sampling_frequencies[imu_sensor_label] / self.acc_sample_rates[imu_sensor_label]
+            ratio = self.emg_sampling_frequencies[self.emg_sensor_label] / self.acc_sample_rates[self.imu_sensor_label]
             current_segment_start_idx_emg = int(np.round(current_segment_start_idx_imu * ratio))
             current_segment_end_idx_emg = int(np.round(current_segment_end_idx_imu * ratio))
-            emg_start_idx = int(np.round(self.sts_start_idx_imu * ratio))
-            emg_end_idx = int(np.round(self.sts_end_idx_imu * ratio))
+            emg_start_idx = int(np.round(sts_start_idx_imu * ratio))
+            emg_end_idx = int(np.round(sts_end_idx_imu * ratio))
 
             # Get an extra buffer at both ends (larger than it has to be, as I want to save some extra data as well)
             # I don't see when the checks for accessing a non existent index is needed, but it is a potential failure case
-            buffer_size = 0.25 * self.emg_sampling_frequencies[imu_sensor_label]
+            buffer_size = 0.25 * self.emg_sampling_frequencies[self.imu_sensor_label]
             if emg_start_idx - buffer_size < 0:
                 start_buffer_idx = current_segment_start_idx_emg
             else:
                 start_buffer_idx = int(np.round(emg_start_idx - buffer_size))
-            if emg_end_idx + buffer_size > len(self.complete_emg_data[imu_sensor_label]):
+            if emg_end_idx + buffer_size > len(self.complete_emg_data[self.imu_sensor_label]):
                 end_buffer_idx = current_segment_end_idx_emg
             else:
                 end_buffer_idx = int(np.round(emg_end_idx + buffer_size))
@@ -840,22 +906,30 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             imu_end_buffer_idx = int(np.round(end_buffer_idx / ratio))
 
             complete_emg_data = pd.DataFrame()
-            # complete_imu_data = pd.DataFrame()
+
             # Extract relevant_emg data, one sensor at a time
             for sensor_label in self.complete_emg_data.keys():
                 if self.sensor_names[sensor_label] == 'IMU':
-                    gyro_data = {k: v[imu_start_buffer_idx:imu_end_buffer_idx].copy() for k, v in self.complete_gyro_data[sensor_label].items()}
-                    acc_data = {k: v[imu_start_buffer_idx:imu_end_buffer_idx].copy() for k, v in self.complete_acc_data[sensor_label].items()}
+                    with self.plot_data_lock:
+                        gyro_data = {k: v[imu_start_buffer_idx:imu_end_buffer_idx].copy() for k, v in self.complete_gyro_data[sensor_label].items()}
+                        acc_data = {k: v[imu_start_buffer_idx:imu_end_buffer_idx].copy() for k, v in self.complete_acc_data[sensor_label].items()}
                     sensor_data = pd.concat([pd.DataFrame(gyro_data), pd.DataFrame(acc_data)], axis=1)
                     sensor_data.columns = ['GYRO X', 'GYRO Y', 'GYRO Z', 'ACC X', 'ACC Y', 'ACC Z']
                     # Save IMU data
                     self.data_exporter.export_sts_data_to_csv(sensor_data, self.sensor_names[sensor_label])
+                elif self.sensor_names[sensor_label] == 'OR':
+                    continue
                 else:
-                    sensor_data = self.complete_emg_data[sensor_label][start_buffer_idx:end_buffer_idx].copy()
+                    with self.plot_data_lock:
+                        sensor_data = self.complete_emg_data[sensor_label][start_buffer_idx:end_buffer_idx].copy()
                     complete_emg_data[self.sensor_names[sensor_label]] = sensor_data
                 
             # Log the extracted emg data as a single file
-            self.data_exporter.export_all_sts_data_to_csv(complete_emg_data)
+            self.data_exporter.export_all_sts_data_to_csv(complete_emg_data, self.what)
+
+            # Keep RF and VM data
+            complete_emg_data = complete_emg_data[['VM_R', 'VM_L']]
+            # complete_emg_data = complete_emg_data[['RF_R', 'VM_R', 'RF_L', 'VM_L']]
 
             # Filter relevant_emg data
             relevant_emg_filtered, env_freq = filter_emg(complete_emg_data, sfreq=self.emg_sampling_frequencies[2])
@@ -870,9 +944,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 if self.unassisted_counter == 1:
                     # self.unassisted_mean = np.mean(relevant_emg_filtered, axis=0)
                     # Convert to max (TODO change naming if this works)
-                    self.unassisted_mean = np.max(relevant_emg_filtered, axis=0)
+                    unassisted_area = np.trapz(relevant_emg_filtered, dx=1/env_freq, axis=0)/len(relevant_emg_filtered)
+                    self.unassisted_mean = unassisted_area
                 else:
-                    self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + np.max(relevant_emg_filtered, axis=0)) / self.unassisted_counter
+                    unassisted_area = np.trapz(relevant_emg_filtered, dx=1/env_freq, axis=0)/len(relevant_emg_filtered)
+                    self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + unassisted_area) / self.unassisted_counter
 
                 # Save the unassisted mean to a file
                 self.data_exporter.export_unassisted_mean_to_npy(self.unassisted_mean)
@@ -882,8 +958,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     'Tag': current_assistive_profile_name,
                     'Segment Start Index': current_segment_start_idx_imu,
                     'Segment End Index': current_segment_end_idx_imu,
-                    'Start Time': self.sts_start_idx_imu,
-                    'End Time': self.sts_end_idx_imu,
+                    'Start Time': sts_start_idx_imu,
+                    'End Time': sts_end_idx_imu,
                     'Score': 0,
                 }
                 self.log_entries.append(log_entry)
@@ -891,23 +967,31 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             else: 
                 # Compare score of assisted vs unassisted
                 # assisted_mean = np.mean(relevant_emg_filtered, axis=0)
-                assisted_max = np.max(relevant_emg_filtered, axis=0)
+                # assisted_max = np.max(relevant_emg_filtered, axis=0)
+                
+                # Normalized area by time
+                assisted_area = np.trapz(relevant_emg_filtered, dx=1/env_freq, axis=0)/len(relevant_emg_filtered)
 
                 # Scale by how much we expect the muscle to change
                 # rf_sim = self.simulation_means['rf_un']
                 # vm_sim = self.simulation_means['vm_un']
-                rf_sim = self.simulation_max['rf_un']
-                vm_sim = self.simulation_max['vm_un']
-
+                # rf_sim = self.simulation_max['rf_un']
+                # vm_sim = self.simulation_max['vm_un']
                 score = 0
 
                 for i, sensor_label in enumerate(relevant_emg_filtered.keys()):
-                    if 'RF' in sensor_label:
-                        score += rf_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
-                        # score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
-                    elif 'VM' in sensor_label:
-                        score += vm_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
+                    if 'VM' in sensor_label:
+                        # score += vm_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
                         # score += vm_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                        score += (1-assisted_area[i]/self.unassisted_mean[i])
+
+                    # elif 'RF' in sensor_label:
+                    #     # score += rf_sim*(1-assisted_max[sensor_label]/self.unassisted_mean[i])
+                    #     # score += rf_sim*(1-assisted_mean[sensor_label]/self.unassisted_mean[i])
+                    #     score += (1-assisted_area/self.unassisted_mean[i])
+
+                # Average the score (doesn't matter as optimizer is invariant to lin transformations but gives more intuition to the score)
+                score = score/len(relevant_emg_filtered.keys())
 
                 # Send comparison score to socket server
                 if self.socket:
@@ -919,29 +1003,28 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     'Tag': current_assistive_profile_name,
                     'Segment Start Index': current_segment_start_idx_imu,
                     'Segment End Index': current_segment_end_idx_imu,
-                    'Start Time': self.sts_start_idx_imu,
-                    'End Time': self.sts_end_idx_imu,
+                    'Start Time': sts_start_idx_imu,
+                    'End Time': sts_end_idx_imu,
                     'Score': score,
                 }
                 self.log_entries.append(log_entry)
 
     def detect_peak_and_calculate(self):
-        # IMU sensor label, using the sensor on the Rectus Femoris (RIGHT)
+        # This function has become more or less redundant because we can just press start and stop and know there is a sts in between or can use the orientation data
         # The arrow of the sensor should be pointing towards the torso
-        imu_sensor_label = 0
         gyro_axis = 'X'
 
         # Hyperparameters
         peak_threshold = 50
 
-        if len(self.complete_gyro_data[imu_sensor_label][gyro_axis]) > 100:
+        if len(self.complete_gyro_data[self.imu_sensor_label][gyro_axis]) > 100:
             # Get the mean of the past 100 Gyro X values
-            gyro_x_mean = np.mean(self.complete_gyro_data[imu_sensor_label][gyro_axis][-100:])
+            gyro_x_mean = np.mean(self.complete_gyro_data[self.imu_sensor_label][gyro_axis][-100:])
 
             # Detect peak to see if a sts has ended
             if gyro_x_mean > peak_threshold and not self.peak:
                 self.peak = True
-                self.segment_end_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
+                self.segment_end_idx_imu = len(self.complete_gyro_data[self.imu_sensor_label][gyro_axis])
                 self.count_peak += 1
 
             if self.count_peak > self.analysed_segments:
@@ -957,4 +1040,4 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             if self.peak:
                 if gyro_x_mean < peak_threshold:
                     self.peak = False
-                    self.segment_start_idx_imu = len(self.complete_gyro_data[imu_sensor_label][gyro_axis])
+                    self.segment_start_idx_imu = len(self.complete_gyro_data[self.imu_sensor_label][gyro_axis])

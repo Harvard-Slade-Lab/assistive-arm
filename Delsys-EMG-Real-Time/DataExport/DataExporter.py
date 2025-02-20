@@ -228,6 +228,7 @@ class DataExporter:
     
     def export_all_sts_data_to_csv(self, emg_data, what):
         print("Exporting STS emg data...")
+        print(len(emg_data))
         filename_emg = f"EMG_STS_Profile_{self.parent.assistive_profile_name}_Trial_{self.parent.trial_number}_all_Sensors_stsnumber_{len(self.parent.log_entries)+1}_{what}.csv"
 
         # Save EMG data to CSV in the local subject folder
