@@ -901,7 +901,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             local_end = sts_end_idx_imu
             # Add global start index
             sts_start_idx_imu += current_segment_start_idx_imu
-            sts_end_idx_imu += current_segment_start_idx_imu
 
             # Convert start and end indices from imu to emg indices
             ratio = self.emg_sampling_frequencies[self.emg_sensor_label] / self.acc_sample_rates[self.imu_sensor_label]

@@ -12,20 +12,25 @@ def main():
     # Flag for Socket connection (can be changed with reconnect to raspi)
     socket = False
 
-    # Flag for EMG control (default is wired IMU,also needs to be changed in control script)
+    # Flag for EMG control (default is wired IMU, also needs to be changed in control script)
     emg_control = False
 
     # Flag for real time processing (if it is off, the data will be segmented by the start and stop buttons)
     # This is a backup if the segemntation fails due to lag or other issues
+    # Default is OR (start detection through OR, stop detection through OR), if real_time_processing is True
     real_time_processing = True
     if real_time_processing:
-        # Flag for imu score calcualtion (default is OR, if real_time_processing is True)
-        imu_processing = True
+        # Flag for imu score calcualtion (start detection through IMU, stop detection through IMU)
+        imu_processing = False
         # Flag for mixed processing (start detection through IMU, stop detection through OR)
-        mixed_processing = False
+        mixed_processing = True
     else:
         imu_processing = False
         mixed_processing = False
+
+    # IMU porcessing has potential to be used as continuous processing (only press start, motors stop due to imu angle)
+    # Peak is detected by function "detect_peak_and_calculate", which can be used by uncommenting in stream_data function
+    # Needs more testing though
 
     appQt = QtWidgets.QApplication(sys.argv)
     collector = EMGDataCollector(plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
