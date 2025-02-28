@@ -24,6 +24,7 @@ class Plotter:
         self.emg_plots = {}
         self.acc_plots = {}
         self.gyro_plots = {}
+        self.or_plots = {}
 
         for i, sensor_label in enumerate(sensor_labels):
             sensor_name = self.parent.sensor_names.get(sensor_label, f"Sensor {sensor_label}")
@@ -61,12 +62,22 @@ class Plotter:
             else:
                 self.parent.plot_layout.addWidget(QtWidgets.QWidget(), i, 2)
 
+            # Orientation plot
+            if sensor_label in self.parent.or_channels_per_sensor:
+                pw_or = pg.PlotWidget(title=f'OR {sensor_name}')
+                pw_or.setLabel('left', 'Orientation', units='deg')
+                pw_or.setLabel('bottom', 'Time', units='s')
+                pw_or.showGrid(x=True, y=True)
+                self.parent.plot_layout.addWidget(pw_or, i, 3)
+                self.or_plots[sensor_label] = pw_or
+
     def update_plot(self):
         """Update the plot with new data."""
         with self.parent.plot_data_lock:
             plot_data_emg_copy = self.parent.plot_data_emg.copy()
             plot_data_acc_copy = {k: v.copy() for k, v in self.parent.plot_data_acc.items()}
             plot_data_gyro_copy = {k: v.copy() for k, v in self.parent.plot_data_gyro.items()}
+            plot_data_or_copy = {k: v.copy() for k, v in self.parent.plot_data_or.items()}
 
         # Calculate elapsed time based on EMG data
         elapsed_times = []
@@ -123,6 +134,21 @@ class Plotter:
             pw_gyro.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
             pw_gyro.addLegend()
 
+        # Orientation Plots
+        for sensor_label, data_dict in plot_data_or_copy.items():
+            pw_or = self.or_plots[sensor_label]
+            pw_or.clear()
+            sample_rate = self.parent.or_sample_rates[sensor_label]
+            for axis in ['W', 'X', 'Y', 'Z']:
+                data = data_dict[axis]
+                if len(data) == 0:
+                    continue
+                y = np.array(data)
+                time_array = np.arange(len(y)) / sample_rate + self.parent.total_elapsed_time
+                pw_or.plot(time_array, y, pen=pg.mkPen({'W': 'r', 'X': 'g', 'Y': 'b', 'Z': 'm'}[axis]), name=axis)
+            pw_or.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
+            pw_or.addLegend()
+
         # Check if it reached the window size, increment the cumulative time
         window_reached = any(len(data) >= self.parent.emg_window_sizes[sensor_label] for sensor_label, data in self.parent.plot_data_emg.items())
         if window_reached:
@@ -159,3 +185,13 @@ class Plotter:
                     y_min = y.min()
                     y_max = y.max()
                     self.gyro_plots[sensor_label].setYRange(y_min, y_max)
+            # Orientation Plots
+            for sensor_label, data_dict in self.parent.plot_data_or.items():
+                data = []
+                for axis in ['W', 'X', 'Y', 'Z']:
+                    data.extend(data_dict[axis])
+                if data:
+                    y = np.array(data)
+                    y_min = y.min()
+                    y_max = y.max()
+                    self.or_plots[sensor_label].setYRange(y_min, y_max)
