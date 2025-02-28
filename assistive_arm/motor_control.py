@@ -175,6 +175,7 @@ class CubemarsMotor:
                     self.connected = True
                     if zero:
                         self.send_zero_position()
+                    self.send_torque(0, safety=False)
                 else:
                     raise AttributeError("No response from motor")
 

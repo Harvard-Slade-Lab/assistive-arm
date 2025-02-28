@@ -35,7 +35,7 @@ class States(Enum):
 
 if __name__ == "__main__":
 
-    subject_id = "mean_opt_1rep"
+    subject_id = "Optimization"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
     session_manager = SessionManager(subject_id=subject_id)
 
@@ -44,11 +44,11 @@ if __name__ == "__main__":
     # HYPERPARMAETERS
     kappa = 2.5
     # Chose how much exploration is done (add the amount of informed profiles)
-    exploration_iterations = 13
+    exploration_iterations = 14
     # Chose how many unassisted iterations
     iterations_unassisted = 10
     # Chose how many repetitions for each condition
-    iterations_per_parameter_set = 1
+    iterations_per_parameter_set = 3
     # Peak force
     max_force = 47
     # Scale factor for force in x
@@ -177,7 +177,7 @@ if __name__ == "__main__":
                         socket_server.stop()
                     break
 
-                if session_manager.roll_angles is None:
+                if session_manager.roll_angles is None and choice != States.CALIBRATING:
                     print("Please calibrate the device height before proceeding.")
 
             except ValueError:

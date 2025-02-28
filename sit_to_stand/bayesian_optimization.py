@@ -137,11 +137,11 @@ class ForceProfileOptimizer:
         
         # X-force profile
         # force1_end_time = self.minimum_width_p * self.max_time + force1_end_time_p * self.max_time * (1 - self.minimum_width_p)
-        force1_peak_time = force1_end_time_p * self.max_time * (1-self.minimum_width_p) + self.minimum_distance
+        force1_peak_time = force1_end_time_p * self.max_time * (1-self.minimum_width_p-0.1) + self.minimum_distance
         force1_peak_force = force1_peak_force_p * self.max_force * self.scale_factor_x
 
         # Dynamic constraints
-        force2_peak_time = force2_peak_time_p * self.max_time * (1-self.minimum_width_p) + self.minimum_distance
+        force2_peak_time = force2_peak_time_p * self.max_time * (1-self.minimum_width_p-0.1) + self.minimum_distance
         force2_start_time = (force2_peak_time - self.minimum_distance) * force2_start_time_p # minimum_distance off peak time
         force2_end_time = force2_peak_time + self.minimum_distance + force2_end_time_p * (self.max_time - force2_peak_time - self.minimum_distance) # minimum_distance off peak to max time
         force2_peak_force = force2_peak_force_p * self.max_force
@@ -177,17 +177,26 @@ class ForceProfileOptimizer:
 
         scores = []
         i = 1
+        current_profile_name = None
         while i <= self.iterations:
             # TODO find a better way to exit, if the mode flag is set
             if self.socket_server.mode_flag or self.socket_server.kill_flag:
                 raise Exception("Exiting optimization, flag triggered")
-            print("\nReady to apply profile, iteration: ", i)
+            print("\nIteration: ", i)
 
+            # Wait until the profile name is updated
+            start_time = time.time()
+            while current_profile_name == self.socket_server.profile_name:
+                time.sleep(0.1)
+                if time.time() - start_time > 5:
+                    print("Profile name not updated in 5 seconds")
+                    break
             current_profile_name = self.socket_server.profile_name
+
             # profile_name = f"t11_{int(np.round(force1_end_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{current_profile_name}"
             profile_name = f"t11_{int(np.round(force1_peak_time))}_f11_{int(np.round(force1_peak_force))}_t21_{int(np.round(force2_start_time))}_t22_{int(np.round(force2_peak_time))}_t23_{int(np.round(force2_end_time))}_f21_{int(np.round(force2_peak_force))}_Profile_{current_profile_name}"
 
-            print(f"motor1 type (70-10): {self.motor_1.type}, motor2 type (60-6): {self.motor_2.type}")
+            # print(f"motor1 type (70-10): {self.motor_1.type}, motor2 type (60-6): {self.motor_2.type}")
 
             apply_simulation_profile(
                 motor_1=self.motor_1,
@@ -225,9 +234,12 @@ class ForceProfileOptimizer:
 
             # Ask the user if the iteration should be repeated
             if not local_repeat_flag:
-                repeat = input("Accept iteration? (y/n): ")
+                repeat = input("Accept iteration? (y/n), type skip to accept current and continue: ")
                 if repeat == "y" or repeat == "":
                     print("Continuing optimization...")
+                elif repeat == "skip":
+                    i = self.iterations
+                    pass
                 else:
                     local_repeat_flag = True
                     # Save the current profile name so it can be deleted later on
@@ -384,6 +396,32 @@ class ForceProfileOptimizer:
         force2_peak_time_p = 0.7
         force2_end_time_p = 1.0
         force2_peak_force_p = 0.4
+
+        # Define the initial points
+        initial_points = {
+            "force1_end_time_p": force1_end_time_p,
+            "force1_peak_force_p": force1_peak_force_p,
+            "force2_start_time_p": force2_start_time_p,
+            "force2_peak_time_p": force2_peak_time_p,
+            "force2_peak_force_p": force2_peak_force_p,
+            "force2_end_time_p": force2_end_time_p
+        }
+
+        # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
+        if initial_points not in self.optimizer.space.params:
+            self.optimizer.probe(params=initial_points, lazy=True)
+        else:
+            print("Informed points already in optimizer space.")
+
+        
+        # Added profile (best mean opt 3 rep)
+        force1_end_time_p = 0.1
+        force1_peak_force_p = 0.94
+
+        force2_start_time_p = 0.004
+        force2_peak_time_p = 0.37
+        force2_end_time_p = 0.64
+        force2_peak_force_p = 0.98
 
         # Define the initial points
         initial_points = {

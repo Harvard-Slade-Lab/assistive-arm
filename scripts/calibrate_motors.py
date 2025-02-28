@@ -87,6 +87,7 @@ def limit_tracking(motor: CubemarsMotor, direction="right", velocity=1):
                     break
                 else:
                     print("Left limit reached! Setting zero position...")
+                    motor.send_torque(0, safety=False)
                     return motor.position
 
             prev_angle = motor.position
@@ -112,11 +113,11 @@ if __name__ == "__main__":
         if choice == '1':
             print(f"Calibrating {motor_1.type}... Do not touch.")
             time.sleep(1)
-            limit_tracking(motor_1, direction="right", velocity=3)
+            limit_tracking(motor_1, direction="right", velocity=2)
             print(f"Setting origin at 0º...")
             print("Sleeping...")
             time.sleep(0.1)
-            left_limit = limit_tracking(motor_1, direction="left", velocity=1)
+            left_limit = limit_tracking(motor_1, direction="left", velocity=2)
             print("Angle range: ", [0, np.rad2deg(left_limit)])
             # time.sleep(1.5)
 
