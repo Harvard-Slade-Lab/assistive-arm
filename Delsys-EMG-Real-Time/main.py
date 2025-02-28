@@ -21,9 +21,9 @@ def main():
     real_time_processing = True
     if real_time_processing:
         # Flag for imu score calcualtion (start detection through IMU, stop detection through IMU)
-        imu_processing = False
+        imu_processing = True
         # Flag for mixed processing (start detection through IMU, stop detection through OR)
-        mixed_processing = True
+        mixed_processing = False
     else:
         imu_processing = False
         mixed_processing = False

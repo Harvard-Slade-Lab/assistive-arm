@@ -895,7 +895,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if sts_start_idx_imu is None:
             print("Failed to extract start and end indices, iteration will be repeated.")
             # Send message to raspi to repeat iteration and add identification tag
-            self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
+            if self.socket:
+                self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
         else:
             local_start = sts_start_idx_imu
             local_end = sts_end_idx_imu
@@ -1026,7 +1027,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if sts_start_idx_imu is None or sts_end_idx_imu is None or sts_start_idx_imu >= sts_end_idx_imu:
             print("Failed to extract start and end indices, iteration will be repeated.")
             # Send message to raspi to repeat iteration and add identification tag
-            self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
+            if self.socket:
+                self.socket_server.send_data(f"Repeat_{current_assistive_profile_name}")
         else:
             # Add global start index
             local_start = sts_start_idx_imu
