@@ -26,6 +26,8 @@ def setup_datastructure(selected_subjects = None, selected_sessions = None):
 
     subject_dirs = {}
 
+    motor_config = None
+
     for subject in subjects:
         subject_name = subject.name
         subject_data[subject_name] = {}
@@ -184,15 +186,281 @@ def group_paths_by_profile(paths):
     return [list(group) for _, group in grouped]
 
 
+def load_motor_data(subject_data, subject_dirs, subjects):
+    # LOAD MOTOR DATA
+    session_dict = {}
+    session_dict["MVIC"] = {}
+    session_dict["MVIC"]["LEFT"] = None
+    session_dict["MVIC"]["RIGHT"] = None
+    data_dict = {"EMG": [],
+                "MOTOR_DATA": [],
+                "IMU": [],
+                "LOG": []
+                }
+    session_dict["UNPOWERED"] = {}
+    session_dict["ASSISTED"] = {}
+    session_dict["UNPOWERED"]["BEFORE"] = deepcopy(data_dict)
+    session_dict["UNPOWERED"]["AFTER"] = deepcopy(data_dict)
+    # Load all session data
+    profile_to_num = {}
+    profile_infos = {}
+    # Skip first 0.5s to avoid initial noise
+    skip_first = 0.0 #s
+    remove_unpowered_after = False
+    # Counter for the number of profiles
+    # profile_counter = 0
+    # Handle all motor data
+    for subject in subjects:
+        for session in subject.iterdir():
+            if not session.is_dir():
+                continue
+            session_data = deepcopy(session_dict)
+            motor_dir = subject_dirs[subject.name][session.name]["motor_dir"]
+            for file_path in sorted(motor_dir.iterdir()):
+                if file_path.suffix == ".csv":
+                    if "unassisted" in file_path.stem:
+                        df = pd.read_csv(file_path, index_col="time").loc[skip_first:]
+                        
+                        # match = re.search(r'unpowered_device_(\d+)', file_path.stem)
+                        # if match:
+                        #     num = match.group(1)
+                        if "before" in file_path.stem:
+                            session_data["UNPOWERED"]["BEFORE"]["MOTOR_DATA"].append(df)
+                            # if not isinstance(session_data["UNPOWERED"]["BEFORE"]["MOTOR_DATA"], dict):
+                            #     session_data["UNPOWERED"]["BEFORE"]["MOTOR_DATA"] = {}
+                            # session_data["UNPOWERED"]["BEFORE"]["MOTOR_DATA"][num] = df
+                        else:
+                            session_data["UNPOWERED"]["AFTER"]["MOTOR_DATA"].append(df)
+                            # if not isinstance(session_data["UNPOWERED"]["AFTER"]["MOTOR_DATA"], dict):
+                            #     session_data["UNPOWERED"]["AFTER"]["MOTOR_DATA"] = {}
+                            # session_data["UNPOWERED"]["AFTER"]["MOTOR_DATA"][num] = df
+                    elif "scaled" in file_path.stem:
+                        df = pd.read_csv(file_path, index_col="time").loc[skip_first:]
+                        match = re.search(r'scaled_(\d+)_([^_]+)_', file_path.stem)
+                        if match:
+                            num = match.group(1)
+                        match = re.search(r'scaled_\d+_(.*)_\d+$', file_path.stem)
+                        if match:
+                            profile = match.group(1)
+                        if profile not in session_data["ASSISTED"].keys():
+                            session_data["ASSISTED"][profile] = deepcopy(data_dict)
+                        #     session_data["ASSISTED"][profile]["MOTOR_DATA"] = {}
+                        # session_data["ASSISTED"][profile]["MOTOR_DATA"][num] = df
+                        session_data["ASSISTED"][profile]["MOTOR_DATA"].append(df)
+            subject_data[subject.name][session.name]["session_data"] = session_data
+    return subject_data, subject_dirs, subjects, data_dict
+
+def load_emg_data(subject_data, subject_dirs, subjects):
+    # LOAD EMG DATA
+    sampling_freq =  float(2148.259)  # Frequency in Hz
+    sampling_interval = 1 / sampling_freq  # Time interval between samples
+    IMU_sampling_freq = 518.519  # Frequency in Hz
+    IMU_sampling_interval = 1 / IMU_sampling_freq  # Time interval between samples
+    for subject in subjects:
+        for session in subject.iterdir():
+            if not session.is_dir():
+                continue
+            emg_dir = subject_dirs[subject.name][session.name]["emg_dir"]
+            raw_dir = emg_dir / "Raw"
+            session_data = subject_data[subject.name][session.name]["session_data"]
+            emg_config = subject_data[subject.name][session.name]["emg_config"]
+            
+            relevant_cols = list(emg_config["MAPPING"].keys())
+            
+            # Handle second EMG data
+            for file_path in sorted(raw_dir.iterdir()):
+                if file_path.suffix == ".csv":
+                    if "EMG" in file_path.stem:
+                        if "unassisted" in file_path.stem:
+                            # n = int(file_path.stem.split("_")[1])
+            
+                            df = pd.read_csv(file_path, sep=",", usecols=relevant_cols, engine='python')                    
+                            df.rename(columns=emg_config["MAPPING"], inplace=True)
+                            df.sort_index(axis=1, inplace=True)
+                            # Create the "TIME" column
+                            num_samples = len(df)
+                            time_column = pd.Series([i * sampling_interval for i in range(num_samples)], name="TIME")
+                            # df.insert(0, "TIME", time_column)  # Insert at the first column
+                            df.set_index(time_column, inplace=True)  # Set time as index
+                            num = re.search(r'\d+$', file_path.stem).group()
+                            # Add fake TA and SO data
+                            df["TA_LEFT"] = df["TA_RIGHT"]
+                            df["SO_LEFT"] = df["SO_RIGHT"]
+                            if "before" in file_path.stem:
+                                session_data["UNPOWERED"]["BEFORE"]["EMG"].append(df)
+                                # if not isinstance(session_data["UNPOWERED"]["BEFORE"]["EMG"], dict):
+                                #     session_data["UNPOWERED"]["BEFORE"]["EMG"] = {}
+                                # session_data["UNPOWERED"]["BEFORE"]["EMG"][num] = df
+                            else:
+                                session_data["UNPOWERED"]["AFTER"]["EMG"].append(df)
+                                # if not isinstance(session_data["UNPOWERED"]["AFTER"]["EMG"], dict):
+                                #     session_data["UNPOWERED"]["AFTER"]["EMG"] = {}
+                                # session_data["UNPOWERED"]["AFTER"]["EMG"][num] = df
+                                
+                        elif "MVIC" in file_path.stem:
+                            df = pd.read_csv(file_path, sep=",", usecols=relevant_cols, engine='python')
+                            df.rename(columns=emg_config["MAPPING"], inplace=True)
+                            df.sort_index(axis=1, inplace=True)
+                            
+                            # Create the "TIME" column
+                            num_samples = len(df)
+                            time_column = pd.Series([i * sampling_interval for i in range(num_samples)], name="TIME")
+                            df.set_index(time_column, inplace=True)  # Set time as index            
+                            if "BF_L" in file_path.name:  # If it's the BF file
+                                side = "LEFT"
+                                bf_col = [col for col in df.columns if "BF_" + side in col]  # Adjust this if your naming convention is different
+                                df = df[bf_col]
+                            elif "RF_L" in file_path.name:
+                                side = "LEFT"
+                                rf_vm_cols = [col for col in df.columns if any(sub in col for sub in ["RF_" + side, "VM_" + side])]
+                                df = df[rf_vm_cols]
+                            elif "G_L" in file_path.name:
+                                side = "LEFT"
+                                g_col = [col for col in df.columns if "G_" + side in col]
+                                df = df[g_col]
+                            elif "BF_R" in file_path.name:  # If it's the BF file
+                                side = "RIGHT"
+                                bf_col = [col for col in df.columns if "BF_" + side in col]  # Adjust this if your naming convention is different
+                                df = df[bf_col]
+                            elif "RF_R" in file_path.name:
+                                side = "RIGHT"
+                                rf_vm_cols = [col for col in df.columns if any(sub in col for sub in ["RF_" + side, "VM_" + side])]
+                                df = df[rf_vm_cols]
+                            elif "G_R" in file_path.name:
+                                side = "RIGHT"
+                                g_col = [col for col in df.columns if "G_" + side in col]
+                                df = df[g_col]
+                            # Aditional muscles
+                            elif "SO_R" in file_path.name:
+                                side = "RIGHT"
+                                so_col = [col for col in df.columns if "SO_" + side in col]
+                                df = df[so_col]
+                                # continue
+                            elif "TA_R" in file_path.name:
+                                side = "RIGHT"
+                                ta_col = [col for col in df.columns if "TA_" + side in col]
+                                df = df[ta_col]
+                                # continue
+                            if session_data["MVIC"][side] is not None:
+                                # Merge with existing data
+                                session_data["MVIC"][side] = pd.merge(session_data["MVIC"][side], df, left_index=True, right_index=True, how='outer')
+                            else:
+                                # Initialize with the new data
+                                session_data["MVIC"][side] = df
+                        else:
+                            df = pd.read_csv(file_path, sep=",", usecols=relevant_cols, engine='python')
+                            df.rename(columns=emg_config["MAPPING"], inplace=True)
+                            df.sort_index(axis=1, inplace=True)
+                            data_type = "EMG"
+                            # print(file_path.stem)
+                            # Create the "TIME" column
+                            num_samples = len(df)
+                            time_column = pd.Series([i * sampling_interval for i in range(num_samples)], name="TIME")
+                            df.set_index(time_column, inplace=True)  # Set time as index
+                            num = re.search(r'\d+$', file_path.stem).group()
+                            match = re.search(r'Profile_(.*?)_Trial', file_path.stem)
+                            if match:
+                                profile = match.group(1)
+                            # Add fake TA and SO data
+                            df["TA_LEFT"] = df["TA_RIGHT"]
+                            df["SO_LEFT"] = df["SO_RIGHT"]
+                            
+                            # if not isinstance(session_data["ASSISTED"][profile]["EMG"], dict):
+                            #     session_data["ASSISTED"][profile]["EMG"] = {} 
+                            # session_data["ASSISTED"][profile]["EMG"][num] = df
+                            session_data["ASSISTED"][profile]["EMG"].append(df)
+                    
+                    if "ACC" in file_path.stem:
+                        df_acc = pd.read_csv(file_path, delimiter=',', usecols=[0, 1, 2])
+                        # Rename the columns based on the file format
+                        df_acc.columns = ['ACC IMU X', 'ACC IMU Y', 'ACC IMU Z']
+                        df_acc = df_acc.apply(pd.to_numeric, errors='coerce')
+                        # Remove columns with nan values
+                        df_acc = df_acc.dropna()
+                        # Replace "ACC" with "GYRO" in the file name
+                        file_path = file_path.with_name(file_path.name.replace("ACC", "GYRO"))
+                        # Read the GYRO data
+                        df_gyro = pd.read_csv(file_path, delimiter=',', usecols=[0, 1, 2])
+                        # Rename the columns based on the file format
+                        df_gyro.columns = ['GYRO IMU X', 'GYRO IMU Y', 'GYRO IMU Z']
+                        # Remove columns with nan values
+                        df_gyro = df_gyro.dropna()
+                        # Merge the ACC and GYRO data
+                        df = pd.concat([df_acc, df_gyro], axis=1) 
+                        # Create the "TIME" column
+                        num_samples = len(df)
+                        time_column = pd.Series([i * IMU_sampling_interval for i in range(num_samples)], name="TIME")
+                        df.set_index(time_column, inplace=True)
+                        num = re.search(r'\d+$', file_path.stem).group()
+                        if "unassisted" in file_path.stem:
+                            if "before" in file_path.stem:
+                                # if not isinstance(session_data["UNPOWERED"]["BEFORE"]["IMU"], dict):
+                                #     session_data["UNPOWERED"]["BEFORE"]["IMU"] = {}
+                                # session_data["UNPOWERED"]["BEFORE"]["IMU"][num] = df
+                                session_data["UNPOWERED"]["BEFORE"]["IMU"].append(df)
+                            else:
+                                # if not isinstance(session_data["UNPOWERED"]["AFTER"]["IMU"], dict):
+                                #     session_data["UNPOWERED"]["AFTER"]["IMU"] = {}
+                                # session_data["UNPOWERED"]["AFTER"]["IMU"][num] = df
+                                session_data["UNPOWERED"]["AFTER"]["IMU"].append(df)
+                        elif "MVIC" in file_path.stem:
+                            # Nothing
+                            continue
+                        else:
+                            match = re.search(r'Profile_(.*?)_Trial', file_path.stem)
+                            if match:
+                                profile = match.group(1)
+                            # if not isinstance(session_data["ASSISTED"][profile]["IMU"], dict):
+                            #     session_data["ASSISTED"][profile]["IMU"] = {} 
+                            # session_data["ASSISTED"][profile]["IMU"][num] = df
+                            session_data["ASSISTED"][profile]["IMU"].append(df)
+            subject_data[subject.name][session.name]["session_data"] = session_data
+    return subject_data, subject_dirs, subjects
+
+def load_imu_data(subject_data, subject_dirs, subjects):
+    # LOAD LOG DATA
+    for subject in subjects:
+        for session in subject.iterdir():
+            if not session.is_dir():
+                continue
+            log_dir = subject_dirs[subject.name][session.name]["log_dir"]
+            session_data = subject_data[subject.name][session.name]["session_data"]
+            
+            # Handle second EMG data
+            for file_path in sorted(log_dir.iterdir()):
+                if file_path.suffix == ".csv":
+                    # File size should be larger than 5 bytes to avoid empty files
+                    if os.stat(file_path).st_size > 5:
+                        if "unassisted" in file_path.stem:
+                            df = pd.read_csv(file_path)
+                            
+                            if "before" in file_path.stem:
+                                session_data["UNPOWERED"]["BEFORE"]["LOG"].append(df)
+                            else:
+                                remove_unpowered_after = False
+                                session_data["UNPOWERED"]["AFTER"]["LOG"].append(df)
+                        else:
+                            df = pd.read_csv(file_path)
+                            match = re.search(r'Profile_(.*?)_Trial', file_path.stem)
+                            if match:
+                                profile = match.group(1)
+                                session_data["ASSISTED"][profile]["LOG"].append(df)
+            subject_data[subject.name][session.name]["session_data"] = session_data
+    
+    return subject_data, subject_dirs, subjects
+
+
 def load_motor_data_hilo(subject_data, subject_dirs, subjects, validation):
     # LOAD MOTOR DATA
     session_dict = {}
     session_dict["MVIC"] = {"Unfiltered": [], "Filtered": []}
 
-    data_dict = {"EMG": {"Unfiltered": [], "Filtered": []}, "MOTOR_DATA": [], "LOG_INFO": [], "FORCE_PROFILE": [], "PROFILE_TAGS": []}
+    data_dict = {"EMG": {"Unfiltered": [], "Filtered": []}, "IMU": [], "MOTOR_DATA": [], "LOG_INFO": [], "FORCE_PROFILE": [], "PROFILE_TAGS": []}
 
     session_dict["UNPOWERED"] = {"ALL_TAGS": [], "FIRST_TAGS": []}
     session_dict["ASSISTED"] = {"ALL_TAGS": [], "FIRST_TAGS": []}
+
+    session_dict["NO_EXO"] = {"EMG": {"Unfiltered": [], "Filtered": []}}
 
     # Initialize RAW data
     session_dict["API_DATA"] = {"UNPOWERED": {}, "ASSISTED": {}}
@@ -221,11 +489,15 @@ def load_motor_data_hilo(subject_data, subject_dirs, subjects, validation):
                             sorted_files.remove(file)
                             if "Profile" in file.stem:
                                 tag = re.search(r"Profile_(\d+)_", file.stem).group(1)
-                                print(f"Removing Profile {tag} from session {session}")
+                                print(f"Removing Profile {tag} Motor from session {session}")
+                            # Validation
                             elif "Tag" in file.stem:
                                 tag = re.search(r"Tag_(\d+)_", file.stem).group(1)
-                                print(f"Removing Tag {tag} from session {session}")
-
+                                print(f"Removing Tag {tag} Motor from session {session}")
+                            # Unpowered
+                            elif "tag" in file.stem:
+                                tag = re.search(r"tag_(\d+)_", file.stem).group(1)
+                                print(f"Removing Tag {tag} Motor from session {session}")
 
             # Lists to hold unpowered and assisted files
             unpowered_files = []
@@ -263,7 +535,7 @@ def load_motor_data_hilo(subject_data, subject_dirs, subjects, validation):
                 if first_tag not in session_data["UNPOWERED"].keys():
                     session_data["UNPOWERED"][first_tag] = deepcopy(data_dict)
                 session_data["UNPOWERED"]["FIRST_TAGS"].append(first_tag)
-                session_data["UNPOWERED"][first_tag]["PROFILE_TAGS"].append(tag)
+                session_data["UNPOWERED"][first_tag]["PROFILE_TAGS"].append(first_tag)
                 session_data["UNPOWERED"][first_tag]["MOTOR_DATA"].append(df)
 
                 # Go throught he rest of the files in the group
@@ -498,6 +770,9 @@ def load_mvic_data_hilo(subject_data, subject_dirs, subjects):
                         if "MVIC" in file_path.stem:
                             df = pd.read_csv(file_path, sep=",", usecols=relevant_cols, engine='python')
                             df.rename(columns=emg_config["MAPPING"], inplace=True)
+                            # Swap two columns
+                            # df.rename(columns={"SO_RIGHT": "TA_RIGHT", "TA_RIGHT": "SO_RIGHT"}, inplace=True)
+                            # df.rename(columns={"SO_LEFT": "TA_LEFT", "TA_LEFT": "SO_LEFT"}, inplace=True)
                             df.sort_index(axis=1, inplace=True)
 
                             # Drop IMU column
@@ -558,6 +833,8 @@ def load_segmented_emg_data_hilo(subject_data, subject_dirs, subjects):
 
             relevant_cols = list(emg_config["MAPPING"].keys())
 
+            profile_to_delete = set(subject_data[subject.name][session.name]["profile_to_delete"])
+
             # Drop the IMU and OR columns
             relevant_cols.remove("EMG IMU")
             relevant_cols.remove("EMG OR")
@@ -569,99 +846,112 @@ def load_segmented_emg_data_hilo(subject_data, subject_dirs, subjects):
                 if file_path.suffix == ".csv":
                     tag = re.search(r"Profile_([^_]+)", file_path.stem).group(1)
 
-                    if "all_Sensors" in file_path.stem:
-                        df = pd.read_csv(file_path, sep=",", usecols=relevant_cols, engine='python')
-                        df.rename(columns=emg_config["MAPPING"], inplace=True)
-                        df.sort_index(axis=1, inplace=True)
+                    if tag in profile_to_delete:
+                        print(f"Removing Profile {tag} EMG from session {session}")
+                        continue
+                    else:
+                        if "all_Sensors" in file_path.stem:
+                            df = pd.read_csv(file_path, sep=",", usecols=relevant_cols, engine='python')
+                            df.rename(columns=emg_config["MAPPING"], inplace=True)
+                            # Change SO_R to TA_R and TA_R to SO_R
+                            # df.rename(columns={"SO_R": "TA_R", "TA_R": "SO_R"}, inplace=True)
+                            # df.rename(columns={"SO_L": "TA_L", "TA_L": "SO_L"}, inplace=True)
 
-                        # Create the "TIME" column
-                        num_samples = len(df)
-                        time_column = pd.Series([i * sampling_interval for i in range(num_samples)], name="TIME")
-                        df.set_index(time_column, inplace=True)  # Set time as index
+                            df.sort_index(axis=1, inplace=True)
 
-                        filtered_df, _ = filter_emg(df, sfreq=sampling_freq)
-                        
-                        if "Assisted" in file_path.stem:  
-                            if tag in session_data["ASSISTED"]["ALL_TAGS"]:
-                                if tag in session_data["ASSISTED"]["FIRST_TAGS"]:
-                                    session_data["ASSISTED"][tag]["EMG"]["Unfiltered"].append(df)
-                                    session_data["ASSISTED"][tag]["EMG"]["Filtered"].append(filtered_df)
+                            # Create the "TIME" column
+                            num_samples = len(df)
+                            time_column = pd.Series([i * sampling_interval for i in range(num_samples)], name="TIME")
+                            df.set_index(time_column, inplace=True)  # Set time as index
+
+                            filtered_df, _ = filter_emg(df, sfreq=sampling_freq)
+                            
+                            if "Assisted" in file_path.stem:  
+                                if tag in session_data["ASSISTED"]["ALL_TAGS"]:
+                                    if tag in session_data["ASSISTED"]["FIRST_TAGS"]:
+                                        session_data["ASSISTED"][tag]["EMG"]["Unfiltered"].append(df)
+                                        session_data["ASSISTED"][tag]["EMG"]["Filtered"].append(filtered_df)
+                                    else:
+                                        # closest_first_tag = find_closest_past_tag(session_data["ASSISTED"]["FIRST_TAGS"], tag)
+                                        # if closest_first_tag is not None:
+                                        #     session_data["ASSISTED"][closest_first_tag]["EMG"]["Unfiltered"].append(df)
+                                        #     session_data["ASSISTED"][closest_first_tag]["EMG"]["Filtered"].append(filtered_df)
+                                        # else:
+                                        #     print(f"Finding closest first tag failed") 
+                                        for first_tag in session_data["ASSISTED"]["FIRST_TAGS"]:
+                                            if tag in session_data["ASSISTED"][first_tag]["PROFILE_TAGS"]:
+                                                session_data["ASSISTED"][first_tag]["EMG"]["Unfiltered"].append(df)
+                                                session_data["ASSISTED"][first_tag]["EMG"]["Filtered"].append(filtered_df)
+                                                continue
+                                            
                                 else:
-                                    # closest_first_tag = find_closest_past_tag(session_data["ASSISTED"]["FIRST_TAGS"], tag)
-                                    # if closest_first_tag is not None:
-                                    #     session_data["ASSISTED"][closest_first_tag]["EMG"]["Unfiltered"].append(df)
-                                    #     session_data["ASSISTED"][closest_first_tag]["EMG"]["Filtered"].append(filtered_df)
-                                    # else:
-                                    #     print(f"Finding closest first tag failed") 
-                                    for first_tag in session_data["ASSISTED"]["FIRST_TAGS"]:
-                                        if tag in session_data["ASSISTED"][first_tag]["PROFILE_TAGS"]:
-                                            session_data["ASSISTED"][first_tag]["EMG"]["Unfiltered"].append(df)
-                                            session_data["ASSISTED"][first_tag]["EMG"]["Filtered"].append(filtered_df)
-                                            continue
-                                        
-                            else:
-                                print(f"File {file_path.stem} not found in session data")
-                        
-                        if "Unpowered" in file_path.stem:
-                            if tag in session_data["UNPOWERED"]["ALL_TAGS"]:
-                                if tag in session_data["UNPOWERED"]["FIRST_TAGS"]:
-                                    session_data["UNPOWERED"][tag]["EMG"]["Unfiltered"].append(df)
-                                    session_data["UNPOWERED"][tag]["EMG"]["Filtered"].append(filtered_df)
+                                    print(f"File {file_path.stem} not found in session data")
+                            
+                            if "Unpowered" in file_path.stem:
+                                if tag in session_data["UNPOWERED"]["ALL_TAGS"]:
+                                    if tag in session_data["UNPOWERED"]["FIRST_TAGS"]:
+                                        session_data["UNPOWERED"][tag]["EMG"]["Unfiltered"].append(df)
+                                        session_data["UNPOWERED"][tag]["EMG"]["Filtered"].append(filtered_df)
+                                    else:
+                                        # closest_first_tag = find_closest_past_tag(session_data["UNPOWERED"]["FIRST_TAGS"], tag)
+                                        # if closest_first_tag is not None:
+                                        #     session_data["UNPOWERED"][closest_first_tag]["EMG"]["Unfiltered"].append(df)
+                                        #     session_data["UNPOWERED"][closest_first_tag]["EMG"]["Filtered"].append(filtered_df)
+                                        # else:
+                                        #     print(f"Finding closest first tag failed")   
+                                        for first_tag in session_data["UNPOWERED"]["FIRST_TAGS"]:
+                                            if tag in session_data["UNPOWERED"][first_tag]["PROFILE_TAGS"]:
+                                                session_data["UNPOWERED"][first_tag]["EMG"]["Unfiltered"].append(df)
+                                                session_data["UNPOWERED"][first_tag]["EMG"]["Filtered"].append(filtered_df)
+                                                continue
                                 else:
-                                    # closest_first_tag = find_closest_past_tag(session_data["UNPOWERED"]["FIRST_TAGS"], tag)
-                                    # if closest_first_tag is not None:
-                                    #     session_data["UNPOWERED"][closest_first_tag]["EMG"]["Unfiltered"].append(df)
-                                    #     session_data["UNPOWERED"][closest_first_tag]["EMG"]["Filtered"].append(filtered_df)
-                                    # else:
-                                    #     print(f"Finding closest first tag failed")   
-                                    for first_tag in session_data["UNPOWERED"]["FIRST_TAGS"]:
-                                        if tag in session_data["UNPOWERED"][first_tag]["PROFILE_TAGS"]:
-                                            session_data["UNPOWERED"][first_tag]["EMG"]["Unfiltered"].append(df)
-                                            session_data["UNPOWERED"][first_tag]["EMG"]["Filtered"].append(filtered_df)
-                                            continue
-                            else:
-                                print(f"File {file_path.stem} not found in session data")
+                                    print(f"File {file_path.stem} not found in session data")
 
-                    # In case IMU or OR data is also saved
-                    # if "Sensor_IMU" in file_path.stem:
-                    #     df_acc = pd.read_csv(file_path, delimiter=',', usecols=[0, 1, 2])
-                    #     # Rename the columns based on the file format
-                    #     df_acc.columns = ['ACC IMU X', 'ACC IMU Y', 'ACC IMU Z']
-                    #     df_acc = df_acc.apply(pd.to_numeric, errors='coerce')
-                    #     # Remove columns with nan values
-                    #     df_acc = df_acc.dropna()
+                            # If data with no exoskeleton is saved
+                            if "NoExo" in file_path.stem:
+                                session_data["NO_EXO"]["EMG"]["Unfiltered"].append(df)
+                                session_data["NO_EXO"]["EMG"]["Filtered"].append(filtered_df)
 
-                    #     # Replace "ACC" with "GYRO" in the file name
-                    #     file_path = file_path.with_name(file_path.name.replace("ACC", "GYRO"))
+                        # In case IMU or OR data is also saved
+                        if "Sensor_IMU" in file_path.stem:
+                            df_acc = pd.read_csv(file_path, delimiter=',', usecols=[0, 1, 2])
+                            # Rename the columns based on the file format
+                            df_acc.columns = ['ACC IMU X', 'ACC IMU Y', 'ACC IMU Z']
+                            df_acc = df_acc.apply(pd.to_numeric, errors='coerce')
+                            # Remove columns with nan values
+                            df_acc = df_acc.dropna()
 
-                    #     # Read the GYRO data
-                    #     df_gyro = pd.read_csv(file_path, delimiter=',', usecols=[0, 1, 2])
-                    #     # Rename the columns based on the file format
-                    #     df_gyro.columns = ['GYRO IMU X', 'GYRO IMU Y', 'GYRO IMU Z']
-                    #     # Remove columns with nan values
-                    #     df_gyro = df_gyro.dropna()
+                            # Replace "ACC" with "GYRO" in the file name
+                            file_path = file_path.with_name(file_path.name.replace("ACC", "GYRO"))
 
-                    #     # Merge the ACC and GYRO data
-                    #     df = pd.concat([df_acc, df_gyro], axis=1) 
+                            # Read the GYRO data
+                            df_gyro = pd.read_csv(file_path, delimiter=',', usecols=[0, 1, 2])
+                            # Rename the columns based on the file format
+                            df_gyro.columns = ['GYRO IMU X', 'GYRO IMU Y', 'GYRO IMU Z']
+                            # Remove columns with nan values
+                            df_gyro = df_gyro.dropna()
 
-                    #     # Create the "TIME" column
-                    #     num_samples = len(df)
-                    #     time_column = pd.Series([i * IMU_sampling_interval for i in range(num_samples)], name="TIME")
-                    #     df.set_index(time_column, inplace=True)
-                        
-                    #     match = re.search(r'Profile_(.*?)_Trial', file_path.stem)
-                    #     if match:
-                    #         profile = match.group(1)
-                        
-                    #     if profile in session_data["UNPOWERED"].keys():
-                    #         session_data["UNPOWERED"][profile]["IMU"].append(df)
+                            # Merge the ACC and GYRO data
+                            df = pd.concat([df_acc, df_gyro], axis=1) 
 
-                    #     elif "MVIC" in file_path.stem:
-                    #         # Nothing
-                    #         continue
+                            # Create the "TIME" column
+                            num_samples = len(df)
+                            time_column = pd.Series([i * IMU_sampling_interval for i in range(num_samples)], name="TIME")
+                            df.set_index(time_column, inplace=True)
+                            
+                            match = re.search(r'Profile_(.*?)_Trial', file_path.stem)
+                            if match:
+                                profile = match.group(1)
+                            
+                            if profile in session_data["UNPOWERED"].keys():
+                                session_data["UNPOWERED"][profile]["IMU"].append(df)
 
-                    #     elif profile in session_data["ASSISTED"].keys():
-                    #         session_data["ASSISTED"][profile]["IMU"].append(df)
+                            elif "MVIC" in file_path.stem:
+                                # Nothing
+                                continue
+
+                            elif profile in session_data["ASSISTED"].keys():
+                                session_data["ASSISTED"][profile]["IMU"].append(df)
 
             subject_data[subject.name][session.name]["session_data"] = session_data
 
@@ -687,7 +977,7 @@ def load_log_data_hilo(subject_data, subject_dirs, subjects):
                         df = pd.read_csv(file_path)
 
                         # Get the first tag from the file name
-                        # Only works, if other API daa was loaded (forgot to add the what tag for logging in the emg script for)
+                        # Only works, if other API data was loaded (forgot to add the what tag for logging in the emg script for)
                         if session_data["API_DATA"]["ASSISTED"] != {}:
                             first_tag = re.search(r"Profile_(\d+)_", file_path.stem).group(1)
                             if first_tag in session_data["ASSISTED"]["ALL_TAGS"]:

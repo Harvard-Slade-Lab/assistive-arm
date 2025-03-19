@@ -6,6 +6,7 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, argrelextrema
 from scipy.interpolate import CubicSpline, PchipInterpolator
 import matplotlib.pyplot as plt
+import scienceplots
 
 
 
@@ -144,15 +145,21 @@ def percentage_to_actual_3(force1_peak_time_p, force1_peak_force_p, force2_start
 
 
 def plot_force_profile(profile, save_dir, name):
-    fig, ax = plt.subplots()
-    ax.plot(profile["force_X"], label=r"$F_X$", color="blue")
-    ax.plot(profile["force_Y"], label=r"$F_Y$", color="orange")
+    # Add percentage to profile and set ti as index
+    profile["STS"] = np.linspace(0, 100, len(profile))
+    profile.set_index("STS", inplace=True)
 
-    ax.set_ylabel("Forces (N)")  # Correct method for an Axes object
+    fig, ax = plt.subplots(figsize=(3, 2))
+    plt.style.use('science')
+    ax.plot(profile["force_X"], label=r"$F_X$", color="limegreen", linewidth=2)
+    ax.plot(profile["force_Y"], label=r"$F_Y$", color="darkgreen", linewidth=2)
+
+    ax.set_ylabel("Forces $[N]$")  # Correct method for an Axes object
+    ax.set_xlabel("STS $[\%]$")  # Correct method for an Axes object
     ax.legend()  # Show legend
     
     if save_dir is not None:
-        fig.savefig(os.path.join(save_dir, name + ".png"))
+        fig.savefig(os.path.join(save_dir, name + ".pdf"), format="pdf")
         plt.close()
     else:
         plt.show()
