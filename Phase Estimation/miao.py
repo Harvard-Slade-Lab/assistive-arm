@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tkinter import filedialog, Tk
 
-
 # ----------- HYPERPARAMETERS -----------------
 # Hyperparameters for bias removal
 bias_average_window = 1000 # Number of samples to average for bias removal
@@ -16,7 +15,6 @@ min_below_ratio = 0.8 # Minimum ratio of samples that must be below threshold in
 min_above_ratio = 0.8 # Minimum ratio of samples that must be above threshold in the after region
 
 
-plt.ion()
 def select_file():
     """Open a file dialog to select a CSV file"""
     root = Tk()
@@ -170,8 +168,7 @@ def segmentation_and_bias(file_path=None):
     axs[1,0].set_xlabel("Index")
     axs[1,0].set_ylabel("Values")
     axs[1,0].grid(True)
-
- #----------------------------- SEGMENTATION OF GYRO  ---------------------------
+ #----------------------------- SEGMENTATION ---------------------------
     # Magnitude calculation
     magnitude = np.sqrt(data_trimmed.iloc[:,0]**2 + 
                        data_trimmed.iloc[:,1]**2 + 
@@ -200,7 +197,7 @@ def segmentation_and_bias(file_path=None):
     axs[1,1].grid(True)
 
     plt.tight_layout()
-    plt.draw()
+    plt.show()
 
     # Combined vertical lines plot
     plt.figure(figsize=(12, 8))
@@ -232,7 +229,7 @@ def segmentation_and_bias(file_path=None):
                 bbox=dict(facecolor='white', alpha=0.8))
     
     plt.tight_layout()
-    plt.draw()
+    plt.show()
 
     # Statistics output
     print("\nAdvanced Magnitude Analysis:")
@@ -241,74 +238,22 @@ def segmentation_and_bias(file_path=None):
     print(f"Threshold crossings: {len(threshold_indices)}")
     print(f"Peak magnitude: {magnitude.max():.4f}")
 
-    # Segment the data based on motion start and end indices
-    data_segmented = data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)
-    
-    # Plot the segmented data
-    plt.figure(figsize=(12, 6))
-    for i in range(3):
-        plt.plot(data_segmented.iloc[:, i], label=data_segmented.columns[i])
-    
-    plt.title("Segmented Data")
-    plt.xlabel("Index")
-    plt.ylabel("Values")
-    plt.legend()
-    plt.grid(True)
-    plt.draw()
-
-    #----------------------------- SEGMENTATION OF ACCELERATION  ---------------------------
-    # Load and trim new acceleration data
-    print("\nLoading new acceleration data file...")
-    new_file_path = select_file()
-    acc_data = load_csv(new_file_path)
-
-    if acc_data is not None and start_idx is not None and end_idx is not None:
-        print(acc_data.head())
-
-        acc_data_trimmed = acc_data.iloc[non_zero_index:].reset_index(drop=True)
-        # Trim the new data using start_idx and end_idx
-        acc_data_segmented = acc_data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)
-
-        # Plot the segmented new data
+    isolated_movement = data_trimmed.iloc[start_idx:end_idx]
+    # Plot isolated movement regions
+    if start_idx is not None:
         plt.figure(figsize=(12, 6))
+        
         for i in range(3):
-            plt.plot(acc_data_segmented.iloc[:, i], label=acc_data_segmented.columns[i])
-        plt.title("Segmented Acceleration Data")
-        plt.xlabel("Index")
-        plt.ylabel("Acceleration Values")
+            plt.plot(data_trimmed.iloc[start_idx:end_idx,i], 
+                    label=data_trimmed.columns[i])
+        
+        plt.title("Isolated Movement Region")
+        plt.xlabel("Index (Relative)")
+        plt.ylabel("Values")
         plt.legend()
         plt.grid(True)
-        plt.draw()
-        # Plot the whole acceleration data with bands for start and end indices
-        plt.figure(figsize=(12, 6))
-        for i in range(3):
-            plt.plot(acc_data_trimmed.iloc[:, i], label=acc_data_trimmed.columns[i])
-        
-        # Plot threshold crossings
-        if start_idx is not None:
-            plt.axvline(x=start_idx, color='lime', linestyle='-', label='Motion Start')
-            plt.axvline(x=end_idx, color='lime', linestyle='-', label='Motion End')
-        
-        plt.title("Whole Acceleration Data with Segmented Region Highlighted")
-        plt.xlabel("Index")
-        plt.ylabel("Acceleration Values")
-        plt.legend()
-        plt.grid(True)
-        plt.draw()
-
-
-        print("\nNew data statistics:")
-        print(f"Original data length: {len(acc_data_trimmed)}")
-        print(f"Trimmed data length: {len(acc_data_segmented)}")
-        print(f"Start index: {start_idx}")
-        print(f"End index: {end_idx}")
-    else:
-        print("Unable to process new acceleration data.")
-
-
-    plt.show(block=True)
-    return data_segmented, acc_data_segmented
-
+        plt.show()
+    return isolated_movement
 
 def sensors_frequencies():
     # Function to get a valid frequency input from the user
