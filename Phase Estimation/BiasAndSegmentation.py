@@ -28,7 +28,7 @@ def load_csv(file_path):
         print(f"An error occurred: {e}")
 
 def check_real_motion(magnitude, threshold_indices, threshold=None, 
-                     before_count=100, after_count=100,
+                     before_count=200, after_count=200,
                      min_below_ratio=0.8, min_above_ratio=0.8):
     """
     Check for real motion by identifying clean transitions in the magnitude signal.
