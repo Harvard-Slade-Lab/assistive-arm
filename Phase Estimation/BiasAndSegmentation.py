@@ -185,14 +185,14 @@ def segmentation_and_bias(frequencies=None):
         print("Not enough data after first non-zero value")
 
     # Centered data plot
-    data_centered = gyro_data - means
-    data_centered.plot(ax=axs[0,1])
+    gyro_data_centered = gyro_data - means
+    gyro_data_centered.plot(ax=axs[0,1])
     axs[0,1].set_title("Bias-Removed Data")
     axs[0,1].grid(True)
 
     # Trimmed data plot
-    data_trimmed = data_centered.iloc[non_zero_index:].reset_index(drop=True)
-    data_trimmed.plot(ax=axs[1,0])
+    gyro_data_trimmed = gyro_data_centered.iloc[non_zero_index:].reset_index(drop=True)
+    gyro_data_trimmed.plot(ax=axs[1,0])
     axs[1,0].set_title("Trimmed Sensor Data")
     axs[1,0].set_xlabel("Index")
     axs[1,0].set_ylabel("Values")
@@ -200,13 +200,13 @@ def segmentation_and_bias(frequencies=None):
 
  #----------------------------- SEGMENTATION OF GYRO  ---------------------------
     # Magnitude calculation
-    magnitude = np.sqrt(data_trimmed.iloc[:,0]**2 + 
-                       data_trimmed.iloc[:,1]**2 + 
-                       data_trimmed.iloc[:,2]**2)
-    data_trimmed['magnitude'] = magnitude
+    magnitude = np.sqrt(gyro_data_trimmed.iloc[:,0]**2 + 
+                       gyro_data_trimmed.iloc[:,1]**2 + 
+                       gyro_data_trimmed.iloc[:,2]**2)
+    gyro_data_trimmed['magnitude'] = magnitude
     
     # Threshold analysis
-    mean_magnitude = data_trimmed['magnitude'].iloc[:sample_size].mean()
+    mean_magnitude = gyro_data_trimmed['magnitude'].iloc[:sample_size].mean()
     threshold = mean_magnitude + offset
     threshold_indices = np.where(magnitude > threshold)[0]
     
@@ -234,7 +234,7 @@ def segmentation_and_bias(frequencies=None):
     
     # Plot all three sensor signals
     for i in range(3):
-        plt.plot(data_trimmed.iloc[:,i], label=data_trimmed.columns[i])
+        plt.plot(gyro_data_trimmed.iloc[:,i], label=gyro_data_trimmed.columns[i])
     
     
     # Plot threshold crossings
@@ -269,12 +269,12 @@ def segmentation_and_bias(frequencies=None):
     print(f"Peak magnitude: {magnitude.max():.4f}")
 
     # Segment the data based on motion start and end indices
-    data_segmented = data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)
+    gyro_data_segmented = gyro_data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)
     
     # Plot the segmented data
     plt.figure(figsize=(12, 6))
     for i in range(3):
-        plt.plot(data_segmented.iloc[:, i], label=data_segmented.columns[i])
+        plt.plot(gyro_data_segmented.iloc[:, i], label=gyro_data_segmented.columns[i])
     
     plt.title("Segmented Data")
     plt.xlabel("Index")
@@ -353,7 +353,7 @@ def segmentation_and_bias(frequencies=None):
 
         # Plot the whole orientation data with bands for start and end indices
         plt.figure(figsize=(12, 6))
-        for i in range(3):
+        for i in range(4):
             plt.plot(or_data_trimmed.iloc[:, i], label=or_data_trimmed.columns[i])
         
         # Highlight the segmented region
@@ -378,11 +378,8 @@ def segmentation_and_bias(frequencies=None):
         print("Unable to process orientation data.")
 
 
-
-
-
     plt.show(block=True)
-    return data_segmented, acc_data_segmented
+    return gyro_data_segmented, acc_data_segmented, or_data_segmented
 
 
 def sensors_frequencies():
