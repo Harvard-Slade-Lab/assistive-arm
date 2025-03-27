@@ -15,8 +15,8 @@ after_count = 200 # Number of samples to check after a potential transition
 min_below_ratio = 0.8 # Minimum ratio of samples that must be below threshold in the before region
 min_above_ratio = 0.8 # Minimum ratio of samples that must be above threshold in the after region
 
-
 plt.ion()
+
 def select_file():
     """Open a file dialog to select a CSV file"""
     root = Tk()
@@ -125,40 +125,67 @@ def check_real_motion(magnitude, threshold_indices, threshold=None,
 
 
 
-def segmentation_and_bias(file_path=None):
-    # If no file path is provided, prompt the user to select one
-    if file_path is None:
-        file_path = select_file()
+def segmentation_and_bias(frequencies=None):
+    # ------------------------- LOAD DATA -------------------
+    # Load GYRO data:
+    print("\nLoading GYRO data file...")
+    gyro_file_path = select_file()
+    gyro_data = load_csv(gyro_file_path)
     
-    data = load_csv(file_path)
+    # Load ACC data
+    print("\nLoading ACC data file...")
+    acc_file_path = select_file()
+    acc_data = load_csv(acc_file_path)
+
+    # Load ORIENTATION data
+    print("\nLoading ORIENTATION data file...")
+    orientation_file_path = select_file()
+    orientation_data = load_csv(orientation_file_path)
+
+    # Print the first few rows of the data:
+    print(gyro_data.head())
+    print(acc_data.head())
+    print(orientation_data.head())
+    # Check if the data is empty
+    if gyro_data.empty or acc_data.empty or orientation_data.empty:
+        print("Error: The data is empty.")
+
+    # Check if the frequency vector is empty
+    if frequencies is None:
+        print("\nFrequencies not found, please input them:")
+        # Get sensor frequencies from user
+        frequencies = sensors_frequencies()
+
+
+    # ------------------------- COMPUTE TIME VECTORS -------------------
+    time_gyro = np.arange(len(gyro_data)) / frequencies[0]
+    time_acc = np.arange(len(gyro_data)) / frequencies[1]
+    time_orientation = np.arange(len(gyro_data)) / frequencies[2]
     
-    if data is None:
-        return
-    
-    print(data.head())
-    
+      
+
+    # PLOT THE RAW DATA
     # Create figure with 4 subplots
     fig, axs = plt.subplots(2, 2, figsize=(15, 10))
-    
-    # Raw data plot
-    data.plot(ax=axs[0,0])
+    gyro_data.plot(ax=axs[0,0])
     axs[0,0].set_title("Raw Sensor Data")
     axs[0,0].set_ylabel("Values")
     axs[0,0].grid(True)
+
  #---------------------------- BIAS REMOVAL ----------------------------
     # Bias calculation
-    non_zero_index = (data != 0).any(axis=1).idxmax()
+    non_zero_index = (gyro_data != 0).any(axis=1).idxmax()
     sample_size = bias_average_window
     
-    if non_zero_index + sample_size <= len(data):
-        means = data.iloc[non_zero_index:non_zero_index + sample_size].mean()
+    if non_zero_index + sample_size <= len(gyro_data):
+        means = gyro_data.iloc[non_zero_index:non_zero_index + sample_size].mean()
         print("Initial mean values:")
         print(means)
     else:
         print("Not enough data after first non-zero value")
 
     # Centered data plot
-    data_centered = data - means
+    data_centered = gyro_data - means
     data_centered.plot(ax=axs[0,1])
     axs[0,1].set_title("Bias-Removed Data")
     axs[0,1].grid(True)
@@ -257,13 +284,8 @@ def segmentation_and_bias(file_path=None):
     plt.draw()
 
     #----------------------------- SEGMENTATION OF ACCELERATION  ---------------------------
-    # Load and trim new acceleration data
-    print("\nLoading new acceleration data file...")
-    new_file_path = select_file()
-    acc_data = load_csv(new_file_path)
 
     if acc_data is not None and start_idx is not None and end_idx is not None:
-        print(acc_data.head())
 
         acc_data_trimmed = acc_data.iloc[non_zero_index:].reset_index(drop=True)
         # Trim the new data using start_idx and end_idx
@@ -307,6 +329,7 @@ def segmentation_and_bias(file_path=None):
 
 
     plt.show(block=True)
+
     return data_segmented, acc_data_segmented
 
 
@@ -336,11 +359,6 @@ def sensors_frequencies():
 
     # Return the vector
     return frequency_vector
-
-
-
-
-
 
 
 # # Guard to prevent execution when imported
