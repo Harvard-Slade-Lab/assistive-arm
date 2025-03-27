@@ -172,7 +172,7 @@ def segmentation_and_bias(frequencies=None):
     axs[0,0].set_ylabel("Values")
     axs[0,0].grid(True)
 
- #---------------------------- BIAS REMOVAL ----------------------------
+    #---------------------------- BIAS REMOVAL ----------------------------
     # Bias calculation
     non_zero_index = (gyro_data != 0).any(axis=1).idxmax()
     sample_size = bias_average_window
@@ -284,7 +284,6 @@ def segmentation_and_bias(frequencies=None):
     plt.draw()
 
     #----------------------------- SEGMENTATION OF ACCELERATION  ---------------------------
-
     if acc_data is not None and start_idx is not None and end_idx is not None:
 
         acc_data_trimmed = acc_data.iloc[non_zero_index:].reset_index(drop=True)
@@ -328,8 +327,61 @@ def segmentation_and_bias(frequencies=None):
         print("Unable to process new acceleration data.")
 
 
-    plt.show(block=True)
+    
 
+    # --------------------------------- SEGMENTATION OF ORIENTATION ---------------------------
+    if orientation_data is not None and start_idx is not None and end_idx is not None:
+        # Adjust indices for orientation data based on frequency ratio
+        start_idx_or = int(start_idx * frequencies[2] / frequencies[0])
+        end_idx_or = int(end_idx * frequencies[2] / frequencies[0])
+        non_zero_index_or = int(non_zero_index * frequencies[2] / frequencies[0])
+
+        # Trim the orientation data using the adjusted indices
+        or_data_trimmed = orientation_data.iloc[non_zero_index_or:].reset_index(drop=True)
+        or_data_segmented = or_data_trimmed.iloc[start_idx_or:end_idx_or].reset_index(drop=True)
+
+        # Plot the segmented orientation data
+        plt.figure(figsize=(12, 6))
+        for i in range(4):
+            plt.plot(or_data_segmented.iloc[:, i], label=or_data_segmented.columns[i])
+        plt.title("Segmented Orientation Data")
+        plt.xlabel("Index")
+        plt.ylabel("Orientation Values")
+        plt.legend()
+        plt.grid(True)
+        plt.draw()
+
+        # Plot the whole orientation data with bands for start and end indices
+        plt.figure(figsize=(12, 6))
+        for i in range(3):
+            plt.plot(or_data_trimmed.iloc[:, i], label=or_data_trimmed.columns[i])
+        
+        # Highlight the segmented region
+        if start_idx_or is not None:
+            plt.axvline(x=start_idx_or, color='lime', linestyle='-', label='Motion Start')
+            plt.axvline(x=end_idx_or, color='lime', linestyle='-', label='Motion End')
+        
+        plt.title("Whole Orientation Data with Segmented Region Highlighted")
+        plt.xlabel("Index")
+        plt.ylabel("Orientation Values")
+        plt.legend()
+        plt.grid(True)
+        plt.draw()
+
+        # Print statistics for the segmented orientation data
+        print("\nOrientation data statistics:")
+        print(f"Original data length: {len(or_data_trimmed)}")
+        print(f"Segmented data length: {len(or_data_segmented)}")
+        print(f"Start index (orientation): {start_idx_or}")
+        print(f"End index (orientation): {end_idx_or}")
+    else:
+        print("Unable to process orientation data.")
+
+
+
+
+
+    plt.show(block=True)
     return data_segmented, acc_data_segmented
 
 
@@ -359,6 +411,8 @@ def sensors_frequencies():
 
     # Return the vector
     return frequency_vector
+
+
 
 
 # # Guard to prevent execution when imported
