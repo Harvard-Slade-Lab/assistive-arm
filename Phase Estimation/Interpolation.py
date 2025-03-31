@@ -34,7 +34,7 @@ def interpolate_sensor_signals(gyro, acc, orientation):
         return gyro, acc, orientation
     
     # Find the target length (maximum of the three)
-    target_length = max(len_gyro, len_acc, len_orientation)
+    target_length = min(len_gyro, len_acc, len_orientation)
     print(f"Target length for interpolation: {target_length}")
     
     # Create a new time index for the target length

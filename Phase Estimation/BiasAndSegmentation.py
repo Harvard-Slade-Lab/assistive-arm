@@ -160,18 +160,21 @@ def segmentation_and_bias(frequencies=None):
 
     # ------------------------- COMPUTE TIME VECTORS -------------------
     time_gyro = np.arange(len(gyro_data)) / frequencies[0]
-    time_acc = np.arange(len(gyro_data)) / frequencies[1]
-    time_orientation = np.arange(len(gyro_data)) / frequencies[2]
+    time_acc = np.arange(len(acc_data)) / frequencies[1]
+    time_orientation = np.arange(len(orientation_data)) / frequencies[2]
     
       
 
     # PLOT THE RAW DATA
     # Create figure with 4 subplots
     fig, axs = plt.subplots(2, 2, figsize=(15, 10))
-    gyro_data.plot(ax=axs[0,0])
-    axs[0,0].set_title("Raw Sensor Data")
-    axs[0,0].set_ylabel("Values")
-    axs[0,0].grid(True)
+    for i, column in enumerate(gyro_data.columns):
+        axs[0, 0].plot(time_gyro, gyro_data[column], label=column)
+    axs[0, 0].set_title("Raw Sensor Data")
+    axs[0, 0].set_xlabel("Time (s)")
+    axs[0, 0].set_ylabel("Values")
+    axs[0, 0].legend()
+    axs[0, 0].grid(True)
 
     #---------------------------- BIAS REMOVAL ----------------------------
     # Bias calculation
@@ -187,17 +190,23 @@ def segmentation_and_bias(frequencies=None):
 
     # Centered data plot
     gyro_data_centered = gyro_data - means
-    gyro_data_centered.plot(ax=axs[0,1])
-    axs[0,1].set_title("Bias-Removed Data")
-    axs[0,1].grid(True)
+    for i, column in enumerate(gyro_data_centered.columns):
+        axs[0, 1].plot(time_gyro, gyro_data_centered[column], label=column)
+    axs[0, 1].set_title("Bias-Removed Data")
+    axs[0, 1].set_xlabel("Time (s)")
+    axs[0, 1].set_ylabel("Values")
+    axs[0, 1].legend()
+    axs[0, 1].grid(True)
 
     # Trimmed data plot
     gyro_data_trimmed = gyro_data_centered.iloc[non_zero_index:].reset_index(drop=True)
-    gyro_data_trimmed.plot(ax=axs[1,0])
-    axs[1,0].set_title("Trimmed Sensor Data")
-    axs[1,0].set_xlabel("Index")
-    axs[1,0].set_ylabel("Values")
-    axs[1,0].grid(True)
+    for i, column in enumerate(gyro_data_trimmed.columns):
+        axs[1, 0].plot(time_gyro[non_zero_index:], gyro_data_trimmed[column], label=column)
+    axs[1, 0].set_title("Trimmed Sensor Data")
+    axs[1, 0].set_xlabel("Time (s)")
+    axs[1, 0].set_ylabel("Values")
+    axs[1, 0].legend()
+    axs[1, 0].grid(True)
 
  #----------------------------- SEGMENTATION OF GYRO  ---------------------------
     # Magnitude calculation
@@ -216,13 +225,13 @@ def segmentation_and_bias(frequencies=None):
                                         
     
     # Magnitude plot with threshold
-    axs[1,1].plot(magnitude, color='purple', label='Magnitude')
+    axs[1,1].plot(time_gyro[non_zero_index:], magnitude, color='purple', label='Magnitude')
     axs[1,1].axhline(threshold, color='green', linestyle='--', label=f'Threshold ({threshold:.2f})')
     if start_idx is not None:
-        axs[1,1].axvline(x=start_idx, color='orange', linestyle='-', label='Motion Start')
-        axs[1,1].axvline(x=end_idx, color='orange', linestyle='-', label='Motion End')
+        axs[1,1].axvline(x=time_gyro[start_idx + non_zero_index], color='orange', linestyle='-', label='Motion Start')
+        axs[1,1].axvline(x=time_gyro[end_idx + non_zero_index], color='orange', linestyle='-', label='Motion End')
     axs[1,1].set_title("Signal Magnitude with Threshold")
-    axs[1,1].set_xlabel("Index")
+    axs[1,1].set_xlabel("Time (s)")
     axs[1,1].set_ylabel("Magnitude")
     axs[1,1].legend()
     axs[1,1].grid(True)
@@ -233,18 +242,18 @@ def segmentation_and_bias(frequencies=None):
     # Combined vertical lines plot
     plt.figure(figsize=(12, 8))
     
-    # Plot all three sensor signals
+    # Plot all three sensor signals with time on the x-axis
     for i in range(3):
-        plt.plot(gyro_data_trimmed.iloc[:,i], label=gyro_data_trimmed.columns[i])
+        plt.plot(time_gyro[non_zero_index:], gyro_data_trimmed.iloc[:, i], label=gyro_data_trimmed.columns[i])
     
     
     # Plot threshold crossings
     if start_idx is not None:
-        plt.axvline(x=start_idx, color='lime', linestyle='-', label='Motion Start')
-        plt.axvline(x=end_idx, color='lime', linestyle='-', label='Motion End')
+        plt.axvline(x=time_gyro[start_idx + non_zero_index], color='lime', linestyle='-', label='Motion Start')
+        plt.axvline(x=time_gyro[end_idx + non_zero_index], color='lime', linestyle='-', label='Motion End')
     
     plt.title("Movement Analysis: Zero Points (Red) and Active Regions (Green)")
-    plt.xlabel("Index")
+    plt.xlabel("Time (s)")
     plt.ylabel("Values")
     plt.legend(loc="upper right")
     plt.grid(True)
@@ -271,14 +280,20 @@ def segmentation_and_bias(frequencies=None):
 
     # Segment the data based on motion start and end indices
     gyro_data_segmented = gyro_data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)
-    
-    # Plot the segmented data
+    time_gyro_segmented = time_gyro[non_zero_index + start_idx:non_zero_index + end_idx]
+    # Plot the segmented data with time on the x-axis
     plt.figure(figsize=(12, 6))
     for i in range(3):
-        plt.plot(gyro_data_segmented.iloc[:, i], label=gyro_data_segmented.columns[i])
+        plt.plot(time_gyro[non_zero_index + start_idx:non_zero_index + end_idx], 
+                 gyro_data_segmented.iloc[:, i], label=gyro_data_segmented.columns[i])
+    plt.title("Segmented Gyro Data with Time")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Values")
+    plt.legend()
+    plt.grid(True)
     
     plt.title("Segmented Data")
-    plt.xlabel("Index")
+    plt.xlabel("Time (s)")
     plt.ylabel("Values")
     plt.legend()
     plt.grid(True)
@@ -287,32 +302,38 @@ def segmentation_and_bias(frequencies=None):
     #----------------------------- SEGMENTATION OF ACCELERATION  ---------------------------
     if acc_data is not None and start_idx is not None and end_idx is not None:
 
-        acc_data_trimmed = acc_data.iloc[non_zero_index:].reset_index(drop=True)
-        # Trim the new data using start_idx and end_idx
-        acc_data_segmented = acc_data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)
+        # Adjust indices for acceleration data based on frequency ratio
+        start_idx_acc = int(start_idx * frequencies[1] / frequencies[0])
+        end_idx_acc = int(end_idx * frequencies[1] / frequencies[0])
+        non_zero_index_acc = int(non_zero_index * frequencies[1] / frequencies[0])
 
-        # Plot the segmented new data
+        acc_data_trimmed = acc_data.iloc[non_zero_index_acc:].reset_index(drop=True)
+        # Trim the new data using start_idx and end_idx
+        acc_data_segmented = acc_data_trimmed.iloc[start_idx_acc:end_idx_acc].reset_index(drop=True)
+        time_acc_segmented = time_acc[non_zero_index_acc + start_idx_acc:non_zero_index_acc + end_idx_acc]
+        # Plot the segmented new data with time on the x-axis
         plt.figure(figsize=(12, 6))
         for i in range(3):
-            plt.plot(acc_data_segmented.iloc[:, i], label=acc_data_segmented.columns[i])
+            plt.plot(time_acc[non_zero_index_acc + start_idx_acc:non_zero_index_acc + end_idx_acc], 
+                 acc_data_segmented.iloc[:, i], label=acc_data_segmented.columns[i])
         plt.title("Segmented Acceleration Data")
-        plt.xlabel("Index")
+        plt.xlabel("Time (s)")
         plt.ylabel("Acceleration Values")
         plt.legend()
         plt.grid(True)
         plt.draw()
-        # Plot the whole acceleration data with bands for start and end indices
+        # Plot the whole acceleration data with time on the x-axis and bands for start and end indices
         plt.figure(figsize=(12, 6))
         for i in range(3):
-            plt.plot(acc_data_trimmed.iloc[:, i], label=acc_data_trimmed.columns[i])
+            plt.plot(time_acc[non_zero_index_acc:], acc_data_trimmed.iloc[:, i], label=acc_data_trimmed.columns[i])
         
         # Plot threshold crossings
         if start_idx is not None:
-            plt.axvline(x=start_idx, color='lime', linestyle='-', label='Motion Start')
-            plt.axvline(x=end_idx, color='lime', linestyle='-', label='Motion End')
+            plt.axvline(x=time_acc[non_zero_index_acc + start_idx_acc], color='lime', linestyle='-', label='Motion Start')
+            plt.axvline(x=time_acc[non_zero_index_acc + end_idx_acc], color='lime', linestyle='-', label='Motion End')
         
         plt.title("Whole Acceleration Data with Segmented Region Highlighted")
-        plt.xlabel("Index")
+        plt.xlabel("Time (s)")
         plt.ylabel("Acceleration Values")
         plt.legend()
         plt.grid(True)
@@ -322,8 +343,8 @@ def segmentation_and_bias(frequencies=None):
         print("\nNew data statistics:")
         print(f"Original data length: {len(acc_data_trimmed)}")
         print(f"Trimmed data length: {len(acc_data_segmented)}")
-        print(f"Start index: {start_idx}")
-        print(f"End index: {end_idx}")
+        print(f"Start index: {start_idx_acc}")
+        print(f"End index: {end_idx_acc}")
     else:
         print("Unable to process new acceleration data.")
 
@@ -341,29 +362,30 @@ def segmentation_and_bias(frequencies=None):
         or_data_trimmed = orientation_data.iloc[non_zero_index_or:].reset_index(drop=True)
         or_data_segmented = or_data_trimmed.iloc[start_idx_or:end_idx_or].reset_index(drop=True)
 
-        # Plot the segmented orientation data
+        # Plot the segmented orientation data with time on the x-axis
         plt.figure(figsize=(12, 6))
+        time_orientation_segmented = time_orientation[non_zero_index_or + start_idx_or:non_zero_index_or + end_idx_or]
         for i in range(4):
-            plt.plot(or_data_segmented.iloc[:, i], label=or_data_segmented.columns[i])
-        plt.title("Segmented Orientation Data")
-        plt.xlabel("Index")
+            plt.plot(time_orientation_segmented, or_data_segmented.iloc[:, i], label=or_data_segmented.columns[i])
+        plt.title("Segmented Orientation Data with Time")
+        plt.xlabel("Time (s)")
         plt.ylabel("Orientation Values")
         plt.legend()
         plt.grid(True)
         plt.draw()
 
-        # Plot the whole orientation data with bands for start and end indices
+        # Plot the whole orientation data with time on the x-axis and bands for start and end indices
         plt.figure(figsize=(12, 6))
         for i in range(4):
-            plt.plot(or_data_trimmed.iloc[:, i], label=or_data_trimmed.columns[i])
+            plt.plot(time_orientation[non_zero_index_or:], or_data_trimmed.iloc[:, i], label=or_data_trimmed.columns[i])
         
         # Highlight the segmented region
         if start_idx_or is not None:
-            plt.axvline(x=start_idx_or, color='lime', linestyle='-', label='Motion Start')
-            plt.axvline(x=end_idx_or, color='lime', linestyle='-', label='Motion End')
+            plt.axvline(x=time_orientation[non_zero_index_or + start_idx_or], color='lime', linestyle='-', label='Motion Start')
+            plt.axvline(x=time_orientation[non_zero_index_or + end_idx_or], color='lime', linestyle='-', label='Motion End')
         
         plt.title("Whole Orientation Data with Segmented Region Highlighted")
-        plt.xlabel("Index")
+        plt.xlabel("Time (s)")
         plt.ylabel("Orientation Values")
         plt.legend()
         plt.grid(True)
@@ -380,7 +402,7 @@ def segmentation_and_bias(frequencies=None):
 
 
     plt.show(block=True)
-    return gyro_data_segmented, acc_data_segmented, or_data_segmented
+    return gyro_data_segmented, acc_data_segmented, or_data_segmented, time_gyro_segmented, time_acc_segmented, time_orientation_segmented
 
 
 def sensors_frequencies():
