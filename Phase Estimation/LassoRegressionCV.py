@@ -203,5 +203,6 @@ def test_lasso(model, gyro_interp, acc_interp, orientation_interp, frequencies):
     plt.title('Temporal Alignment (Test Data)')
     plt.ylabel('Progression (%)')
     plt.legend()
+    plt.grid(True)
 
     return y_new
