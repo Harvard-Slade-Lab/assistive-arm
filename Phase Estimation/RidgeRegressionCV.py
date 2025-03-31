@@ -10,7 +10,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 def enhanced_ridge_regression(gyro_interp, acc_interp, orientation_interp, 
                              alpha_range=None, cv=None, plot=True):
     """
-    Applies Ridge Regression with optimized alpha selection and diagnostics
+    Applies Ridge Regression with optimized alpha selection (CV)
     
     Parameters:
     -----------
@@ -32,7 +32,7 @@ def enhanced_ridge_regression(gyro_interp, acc_interp, orientation_interp,
     
     # Combine and clean data
     X = pd.concat([gyro_interp, acc_interp, orientation_interp], axis=1)
-    X = X.dropna(axis=1)
+    X = X.dropna(axis=1) # Removes the NaN values from acceleration
     
     # Create target progression (0-100% over time)
     n_samples = len(X)
