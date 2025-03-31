@@ -8,7 +8,7 @@ from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import mean_squared_error, r2_score
 
 def enhanced_ridge_regression(gyro_interp, acc_interp, orientation_interp, 
-                             alpha_range=None, cv=None, plot=True):
+                             alpha_range=None, cv=None, plot=True, frequencies=None):
     """
     Applies Ridge Regression with optimized alpha selection (CV)
     
@@ -28,11 +28,19 @@ def enhanced_ridge_regression(gyro_interp, acc_interp, orientation_interp,
         Logarithmic range for alpha values. Default: (-5, 5, 20)
     cv : int
         Number of cross-validation folds. Default: 5
+    frequencies : list
+        List of sensor frequencies. Default: None
     """
     
     # Combine and clean data
-    X = pd.concat([gyro_interp, acc_interp, orientation_interp], axis=1)
-    X = X.dropna(axis=1) # Removes the NaN values from acceleration
+    X = pd.concat([gyro_interp, acc_interp.iloc[:, :3], orientation_interp], axis=1)
+    #X = X.dropna(axis=1) # Removes the NaN values from acceleration
+
+    # Extract minimum frequency for plotting:
+    min_frequency = np.min(frequencies) if frequencies is not None else print("No frequencies provided.")
+    if min_frequency is None:
+        raise ValueError("Frequencies must be provided for plotting.")
+
     
     # Create target progression (0-100% over time)
     n_samples = len(X)
@@ -81,7 +89,7 @@ def enhanced_ridge_regression(gyro_interp, acc_interp, orientation_interp,
         
         # 2. Prediction vs Actual
         plt.subplot(2, 2, 2)
-        time_seconds = np.arange(n_samples)/519
+        time_seconds = np.arange(n_samples)/min_frequency
         plt.plot(time_seconds, y*100, label='True')
         plt.plot(time_seconds, final_pred*100, label='Predicted')
         plt.title('Temporal Alignment')
@@ -109,6 +117,9 @@ def enhanced_ridge_regression(gyro_interp, acc_interp, orientation_interp,
         plt.tight_layout()
         plt.show()
 
+        # Print regression equation
+        print_regression_equation(model.named_steps['ridgecv'], X.columns)
+
     return {
         'model': model,
         'optimal_alpha': ridge_cv.alpha_,
@@ -116,3 +127,32 @@ def enhanced_ridge_regression(gyro_interp, acc_interp, orientation_interp,
         'feature_importance': pd.Series(ridge_cv.coef_, index=X.columns),
         'residuals': residuals
     }
+
+def print_regression_equation(model, feature_names):
+    """
+    Prints the regression equation from a fitted Ridge regression model.
+    
+    Parameters:
+    -----------
+    model : sklearn.linear_model.Ridge or sklearn.pipeline.Pipeline
+        The fitted Ridge regression model.
+    feature_names : list of str
+        Names of the features used in the model.
+    """
+    # If using a pipeline, extract the Ridge model from it
+    if hasattr(model, 'named_steps'):
+        ridge_model = model.named_steps['ridge']
+    else:
+        ridge_model = model
+    
+    # Extract coefficients and intercept
+    coefficients = ridge_model.coef_
+    intercept = ridge_model.intercept_
+    
+    # Build the equation as a string
+    equation = f"y = {intercept:.3f}"
+    for coef, feature in zip(coefficients, feature_names):
+        equation += f" + ({coef:.3f}) * {feature}"
+    
+    print("Regression Equation:")
+    print(equation)
