@@ -156,3 +156,55 @@ def print_regression_equation(model, feature_names):
     
     print("Regression Equation:")
     print(equation)
+
+def test_ridge(model, gyro_interp, acc_interp, orientation_interp, frequencies):
+    """
+    Test the Ridge regression model with new data.
+    
+    Parameters:
+    -----------
+    model : sklearn.linear_model.Ridge or sklearn.pipeline.Pipeline
+        The fitted Ridge regression model.
+    gyro_interp : pandas.DataFrame
+        New gyroscope data.
+    acc_interp : pandas.DataFrame
+        New accelerometer data.
+    orientation_interp : pandas.DataFrame
+        New orientation data.
+    frequencies : list
+        List of sensor frequencies.
+    
+    Returns:
+    --------
+    predictions : numpy.ndarray
+        Predicted values from the model.
+    """
+    
+    # Combine and clean new data
+    X_new = pd.concat([gyro_interp, acc_interp.iloc[:, :3], orientation_interp], axis=1)
+
+    min_frequency = np.min(frequencies) if frequencies is not None else print("No frequencies provided.")
+    if min_frequency is None:
+        raise ValueError("Frequencies must be provided for plotting.")
+    
+    # Predict using the model
+    y_new = model.predict(X_new)
+
+    # Create target progression (0-100% over time)
+    n_samples = len(X_new)
+    y = np.linspace(0, 1, n_samples)
+
+    # Calculate metrics
+    mse = mean_squared_error(y, y_new)
+    r2 = r2_score(y, y_new)
+
+    # 2. Prediction vs Actual
+    plt.figure(figsize=(15, 5))
+    time_seconds = np.arange(n_samples)/min_frequency
+    plt.plot(time_seconds, y*100, label='True')
+    plt.plot(time_seconds, y_new*100, label='Predicted')
+    plt.title('Temporal Alignment')
+    plt.ylabel('Progression (%)')
+    plt.legend()
+
+    return y_new
