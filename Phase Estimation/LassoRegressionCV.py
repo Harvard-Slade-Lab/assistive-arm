@@ -122,7 +122,7 @@ def enhanced_lasso_regression(gyro_interp, acc_interp, orientation_interp,
         'selected_features': X.columns[lasso_cv.coef_ != 0],
         'feature_importance': pd.Series(lasso_cv.coef_, index=X.columns),
         'residuals': residuals
-    }
+    }, final_pred
 
 def print_regression_equation(model, feature_names):
     """

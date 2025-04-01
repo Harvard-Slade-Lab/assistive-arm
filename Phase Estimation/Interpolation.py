@@ -264,10 +264,10 @@ def plot_all_signals_together(gyro_interp, acc_interp, orientation_interp, time_
     
     return fig
 
-def interpolate_and_visualize(gyro, acc, orientation, frequencies=None):
+def interpolate_and_visualize(gyro, acc, orientation, frequencies=None, plot_flag=True):
     """
     Main function to interpolate signals and visualize the results.
-    
+
     Parameters:
     -----------
     gyro : pandas.DataFrame
@@ -278,7 +278,9 @@ def interpolate_and_visualize(gyro, acc, orientation, frequencies=None):
         Orientation data after segmentation
     frequencies : list or numpy.ndarray, optional
         Sampling frequencies [gyro_freq, acc_freq, orientation_freq] in Hz
-    
+    plot_flag : bool, optional
+        Flag to control whether plots are generated (default is True)
+
     Returns:
     --------
     gyro_interp, acc_interp, orientation_interp : pandas.DataFrame
@@ -293,33 +295,34 @@ def interpolate_and_visualize(gyro, acc, orientation, frequencies=None):
         gyro, acc, orientation, frequencies
     )
     
-    # Create visualization plots using subplots for compact presentation
-    plot_signal_lengths(gyro, acc, orientation, gyro_interp, acc_interp, orientation_interp, frequencies)
-    
-    # Only create visualization plots if interpolation was performed
-    if len(gyro) != len(gyro_interp):
-        visualize_interpolation(gyro, gyro_interp, "Gyroscope", 
-                               time_original=None if frequencies is None else np.arange(len(gyro))/frequencies[0], 
-                               time_interp=time_interp)
-    
-    if len(acc) != len(acc_interp):
-        visualize_interpolation(acc, acc_interp, "Accelerometer",
-                               time_original=None if frequencies is None else np.arange(len(acc))/frequencies[1], 
-                               time_interp=time_interp)
-    
-    if len(orientation) != len(orientation_interp):
-        visualize_interpolation(orientation, orientation_interp, "Orientation",
-                               time_original=None if frequencies is None else np.arange(len(orientation))/frequencies[2], 
-                               time_interp=time_interp)
-    
-    # Show detailed segment comparison if signals were interpolated
-    if len(gyro) != len(gyro_interp):
-        compare_signal_segments(gyro, gyro_interp, "Gyroscope", 
-                               time_original=None if frequencies is None else np.arange(len(gyro))/frequencies[0],
-                               time_interp=time_interp)
-    
-    # Plot all signals together after interpolation
-    plot_all_signals_together(gyro_interp, acc_interp, orientation_interp, time_interp)
+    if plot_flag:
+        # Create visualization plots using subplots for compact presentation
+        plot_signal_lengths(gyro, acc, orientation, gyro_interp, acc_interp, orientation_interp, frequencies)
+        
+        # Only create visualization plots if interpolation was performed
+        if len(gyro) != len(gyro_interp):
+            visualize_interpolation(gyro, gyro_interp, "Gyroscope", 
+                                    time_original=None if frequencies is None else np.arange(len(gyro))/frequencies[0], 
+                                    time_interp=time_interp)
+        
+        if len(acc) != len(acc_interp):
+            visualize_interpolation(acc, acc_interp, "Accelerometer",
+                                    time_original=None if frequencies is None else np.arange(len(acc))/frequencies[1], 
+                                    time_interp=time_interp)
+        
+        if len(orientation) != len(orientation_interp):
+            visualize_interpolation(orientation, orientation_interp, "Orientation",
+                                    time_original=None if frequencies is None else np.arange(len(orientation))/frequencies[2], 
+                                    time_interp=time_interp)
+        
+        # Show detailed segment comparison if signals were interpolated
+        if len(gyro) != len(gyro_interp):
+            compare_signal_segments(gyro, gyro_interp, "Gyroscope", 
+                                    time_original=None if frequencies is None else np.arange(len(gyro))/frequencies[0],
+                                    time_interp=time_interp)
+        
+        # Plot all signals together after interpolation
+        plot_all_signals_together(gyro_interp, acc_interp, orientation_interp, time_interp)
     
     # Final verification
     final_lengths = [len(gyro_interp), len(acc_interp), len(orientation_interp)]

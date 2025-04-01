@@ -125,8 +125,9 @@ def enhanced_ridge_regression(gyro_interp, acc_interp, orientation_interp,
         'optimal_alpha': ridge_cv.alpha_,
         'cv_values': ridge_cv.cv_results_,
         'feature_importance': pd.Series(ridge_cv.coef_, index=X.columns),
-        'residuals': residuals
-    }
+        'residuals': residuals,
+        
+    }, final_pred
 
 def print_regression_equation(model, feature_names):
     """

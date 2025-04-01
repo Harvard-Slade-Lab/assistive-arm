@@ -103,3 +103,19 @@ def test_regression(model, gyro_test_interp, acc_test_interp, orientation_test_i
     plt.show()
 
     return y_pred_new, time_new
+
+def calculate_time_array(gyro_interp, acc_interp, or_interp, frequencies):
+    """
+    Calculate and return the time array used in the regression.
+    This extracts the time calculation logic from the perform_regression function.
+    """
+    # Use minimum frequency from the frequencies variable
+    min_frequency = min(frequencies)
+    
+    # Combine all data
+    combined_data = pd.concat([gyro_interp, acc_interp.iloc[:, :3], or_interp], axis=1)
+    
+    # Create time array using minimum frequency
+    time = np.arange(len(combined_data)) / min_frequency
+
+    return time
