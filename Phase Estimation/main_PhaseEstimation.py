@@ -71,7 +71,7 @@ def handle_test_decision(choice, model, frequencies):
 def main():
     # Initial data processing
     frequencies = BiasAndSegmentation.sensors_frequencies()
-    gyro, acc, orientation, *_ = BiasAndSegmentation.segmentation_and_bias(frequencies=frequencies)
+    gyro, acc, orientation, *_ = BiasAndSegmentation.segmentation_and_bias(frequencies=frequencies, plot_flag=True)
     gyro_interp, acc_interp, or_interp = interpolate_and_visualize(gyro, acc, orientation, frequencies=frequencies, plot_flag=False)
     time_array = calculate_time_array(gyro_interp, acc_interp, or_interp, frequencies)
     

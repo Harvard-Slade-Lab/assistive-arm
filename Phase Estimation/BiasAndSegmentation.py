@@ -18,29 +18,7 @@ min_above_ratio = 0.8 # Minimum ratio of samples that must be above threshold in
 
 plt.ion()
 
-def select_file():
-    """Open a file dialog to select a CSV file"""
-    root = Tk()
-    root.withdraw()  # Hide the main window
-    file_path = filedialog.askopenfilename(
-        title="Select CSV File",
-        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-    )
-    root.destroy()
-    return file_path
 
-def load_csv(file_path):
-    """Load and return CSV data as DataFrame"""
-    try:
-        data = pd.read_csv(file_path)
-        print("CSV file loaded successfully.")
-        return data
-    except FileNotFoundError:
-        print(f"Error: The file at {file_path} was not found.")
-    except pd.errors.EmptyDataError:
-        print("Error: The file is empty.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
 
 def check_real_motion(magnitude, threshold_indices, threshold=None, 
                      before_count=before_count, after_count=after_count,
@@ -129,19 +107,7 @@ def check_real_motion(magnitude, threshold_indices, threshold=None,
 import numpy as np
 import matplotlib.pyplot as plt
 
-def segmentation_and_bias(frequencies=None, plot_flag=True):
-    # ------------------------- LOAD DATA -------------------
-    print("\nLoading GYRO data file...")
-    gyro_file_path = select_file()
-    gyro_data = load_csv(gyro_file_path)
-    
-    print("\nLoading ACC data file...")
-    acc_file_path = select_file()
-    acc_data = load_csv(acc_file_path)
-
-    print("\nLoading ORIENTATION data file...")
-    orientation_file_path = select_file()
-    orientation_data = load_csv(orientation_file_path)
+def segmentation_and_bias(gyro_data, acc_data, orientation_data, frequencies=None, plot_flag=True):
 
     print(gyro_data.head())
     print(acc_data.head())
@@ -173,6 +139,7 @@ def segmentation_and_bias(frequencies=None, plot_flag=True):
         axs[0, 0].grid(True)
 
     # ------------------------- BIAS REMOVAL ----------------------------
+    print("Removing bias...")
     non_zero_index = (gyro_data != 0).any(axis=1).idxmax()
     sample_size = bias_average_window
     
@@ -206,6 +173,7 @@ def segmentation_and_bias(frequencies=None, plot_flag=True):
         axs[1, 0].grid(True)
 
     # ------------------------- MAGNITUDE ANALYSIS ---------------------------
+    print("Calculating magnitude...")
     magnitude = np.sqrt(gyro_data_trimmed.iloc[:,0]**2 + 
                        gyro_data_trimmed.iloc[:,1]**2 + 
                        gyro_data_trimmed.iloc[:,2]**2)
@@ -233,6 +201,7 @@ def segmentation_and_bias(frequencies=None, plot_flag=True):
         plt.draw()
 
     # ------------------------- SEGMENTATION ---------------------------
+    print("Segmenting data...")
     gyro_data_segmented = gyro_data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)
     time_gyro_segmented = time_gyro[non_zero_index + start_idx:non_zero_index + end_idx]
 
