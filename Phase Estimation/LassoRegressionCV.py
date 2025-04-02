@@ -7,8 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import mean_squared_error, r2_score
 
-def enhanced_lasso_regression(X,y,
-                             alpha_range=None, cv=None, plot=True, frequencies=None):
+def enhanced_lasso_regression(X,y,feature_names,alpha_range=None, cv=None, plot=True, frequencies=None):
     """
     Applies Lasso Regression with optimized alpha selection (CV)
     
@@ -97,7 +96,7 @@ def enhanced_lasso_regression(X,y,
         importance = np.abs(coefficients)
         sorted_idx = np.argsort(importance)[-15:]
         plt.barh(range(len(sorted_idx)), importance[sorted_idx])
-        plt.yticks(range(len(sorted_idx)), X.columns[sorted_idx])
+        plt.yticks(range(len(sorted_idx)), feature_names)
         plt.title('Top 15 Predictive Features')
         
         # 4. Residual Analysis
@@ -113,13 +112,13 @@ def enhanced_lasso_regression(X,y,
         plt.show()
 
         # Print regression equation
-        print_regression_equation(model.named_steps['lassocv'], X.columns)
+        print_regression_equation(model.named_steps['lassocv'], feature_names)
 
     return {
         'model': model,
         'optimal_alpha': lasso_cv.alpha_,
-        'selected_features': X.columns[lasso_cv.coef_ != 0],
-        'feature_importance': pd.Series(lasso_cv.coef_, index=X.columns),
+        'selected_features': feature_names,
+        'feature_importance': pd.Series(lasso_cv.coef_, index=feature_names),
         'residuals': residuals
     }, final_pred
 

@@ -5,7 +5,7 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from sklearn.pipeline import make_pipeline
 
-def perform_regression(X, y, frequencies, plot=True):
+def linear_regression(X, y, frequencies, feature_names, plot=True):
     # Use minimum frequency from the frequencies variable
     min_frequency = min(frequencies)
     
@@ -56,8 +56,7 @@ def perform_regression(X, y, frequencies, plot=True):
         # 2. Feature Importance
         plt.subplot(3, 1, 2)
         importance = np.abs(coefficients)
-        sorted_idx = np.argsort(importance)[-10:]  # Top 10 features
-        feature_names = X.columns[sorted_idx]
+        sorted_idx = np.argsort(importance)[-11:]  # Top 10 features
         plt.barh(range(len(sorted_idx)), importance[sorted_idx], color='skyblue')
         plt.yticks(range(len(sorted_idx)), feature_names)
         plt.title('Top 10 Predictive Features')
@@ -81,7 +80,7 @@ def perform_regression(X, y, frequencies, plot=True):
     # r2_score = model.score(X, y)
     # print(f"R-squared score: {r2_score:.4f}")
     # print(f"Using minimum frequency: {min_frequency} Hz")
-    
+    print("Regreession performed successfully.")
     return model, y_pred, time
 
 

@@ -63,7 +63,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
     # Concatenate Y segments
     Y_matrix = np.concatenate(Y)
     
-    return X_matrix, Y_matrix, sorted_timestamps, segment_lengths, feature_names
+    return X_matrix, Y_matrix, sorted_timestamps, segment_lengths, feature_names, frequencies
 
 # Function to visualize X and Y matrices
 def visualize_matrices(X, Y, timestamps, segment_lengths, feature_names):

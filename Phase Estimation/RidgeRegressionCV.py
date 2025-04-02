@@ -7,8 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import mean_squared_error, r2_score
 
-def enhanced_ridge_regression(X,y, 
-                             alpha_range=None, cv=None, plot=True, frequencies=None):
+def enhanced_ridge_regression(X,y, feature_names, alpha_range=None, cv=None, plot=True, frequencies=None):
     """
     Applies Ridge Regression with optimized alpha selection (CV)
     
@@ -101,7 +100,7 @@ def enhanced_ridge_regression(X,y,
         importance = np.abs(coefficients)
         sorted_idx = np.argsort(importance)[-15:]
         plt.barh(range(len(sorted_idx)), importance[sorted_idx])
-        plt.yticks(range(len(sorted_idx)), X.columns[sorted_idx])
+        plt.yticks(range(len(sorted_idx)), feature_names)
         plt.title('Top 15 Predictive Features')
         
         # 4. Residual Analysis
@@ -117,13 +116,13 @@ def enhanced_ridge_regression(X,y,
         plt.show()
 
         # Print regression equation
-        print_regression_equation(model.named_steps['ridgecv'], X.columns)
+        print_regression_equation(model.named_steps['ridgecv'], feature_names)
 
     return {
         'model': model,
         'optimal_alpha': ridge_cv.alpha_,
         'cv_values': ridge_cv.cv_results_,
-        'feature_importance': pd.Series(ridge_cv.coef_, index=X.columns),
+        'feature_importance': pd.Series(ridge_cv.coef_, index=feature_names),
         'residuals': residuals,
         
     }, final_pred
