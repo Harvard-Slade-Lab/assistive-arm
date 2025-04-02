@@ -53,8 +53,11 @@ def enhanced_ridge_regression(gyro_interp, acc_interp, orientation_interp,
     
     # Apply RidgeRegression with cross-validation
     model = make_pipeline(
+        StandardScaler(),
         RidgeCV(alphas=alphas, cv=cv, store_cv_results=True)
-    )
+        )
+        
+    
     
     # Fit model with cross-validation
     # y_pred = cross_val_predict(model, X, y, cv=cv)

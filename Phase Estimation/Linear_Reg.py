@@ -3,13 +3,9 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
+from sklearn.pipeline import make_pipeline
 
-import numpy as np
-import pandas as pd
-from sklearn.linear_model import LinearRegression
-import matplotlib.pyplot as plt
-
-def perform_regression(gyro_interp, acc_interp, orientation_interp, frequencies):
+def perform_regression(gyro_interp, acc_interp, orientation_interp, frequencies, plot=True):
     # Use minimum frequency from the frequencies variable
     min_frequency = min(frequencies)
     
@@ -26,7 +22,10 @@ def perform_regression(gyro_interp, acc_interp, orientation_interp, frequencies)
     X = combined_data.values
     
     # Perform regression
-    model = LinearRegression()
+    model = make_pipeline(
+        StandardScaler(),
+        LinearRegression()
+    )
     model.fit(X, y)
     
     # Make predictions
@@ -44,32 +43,52 @@ def perform_regression(gyro_interp, acc_interp, orientation_interp, frequencies)
     plt.show()
     
     # Create bar plot of coefficients with named features
-    coefficients = model.coef_
-    feature_names = ['Intercept', 'Gyro X', 'Gyro Y', 'Gyro Z', 'Acc X', 'Acc Y', 'Acc Z', 'Orientation W', 'Orientation X', 'Orientation Y', 'Orientation Z']
+    coefficients = model.named_steps['linearregression'].coef_  # Shape (11,)
+    
 
     
-    plt.figure(figsize=(12, 6))
-    bars = plt.bar(feature_names, coefficients, color='skyblue')
-    plt.xlabel('Features')
-    plt.ylabel('Coefficient Value')
-    plt.title('Bar Plot of Coefficients Associated with Different Features')
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    
-    # Add value labels on top of each bar
-    for bar in bars:
-        height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2., height,
-                 f'{height:.2f}',
-                 ha='center', va='bottom')
-    
-    plt.grid(axis='y')
-    plt.show()
-    
-    # Calculate and print R-squared score
-    r2_score = model.score(X, y)
-    print(f"R-squared score: {r2_score:.4f}")
-    print(f"Using minimum frequency: {min_frequency} Hz")
+    # Plot diagnostics
+    if plot:
+        plt.figure(figsize=(15, 10))
+
+        # 1. Prediction vs Actual
+        plt.subplot(3, 1, 1)
+        plt.plot(time, y, label='True', color='blue')
+        plt.plot(time, y_pred, label='Predicted', color='orange')
+        plt.title('Temporal Alignment')
+        plt.ylabel('Progression (%)')
+        plt.xlabel('Time (s)')
+        plt.legend()
+        plt.grid(True)
+
+        # 2. Feature Importance
+        plt.subplot(3, 1, 2)
+        importance = np.abs(coefficients)
+        sorted_idx = np.argsort(importance)[-10:]  # Top 10 features
+        feature_names = combined_data.columns[sorted_idx]
+        plt.barh(range(len(sorted_idx)), importance[sorted_idx], color='skyblue')
+        plt.yticks(range(len(sorted_idx)), feature_names)
+        plt.title('Top 10 Predictive Features')
+        plt.xlabel('Coefficient Magnitude')
+        plt.grid(axis='x')
+
+        # 3. Residual Analysis
+        plt.subplot(3, 1, 3)
+        residuals = y - y_pred
+        plt.scatter(y_pred, residuals, alpha=0.5, color='purple')
+        plt.axhline(0, color='red', linestyle='--')
+        plt.title('Residual Analysis')
+        plt.xlabel('Predicted Progression (%)')
+        plt.ylabel('Residual Error (%)')
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+    # # Calculate and print R-squared score
+    # r2_score = model.score(X, y)
+    # print(f"R-squared score: {r2_score:.4f}")
+    # print(f"Using minimum frequency: {min_frequency} Hz")
     
     return model, y_pred, time
 
