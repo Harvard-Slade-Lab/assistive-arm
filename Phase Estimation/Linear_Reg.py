@@ -5,22 +5,14 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from sklearn.pipeline import make_pipeline
 
-def perform_regression(gyro_interp, acc_interp, orientation_interp, frequencies, plot=True):
+def perform_regression(X, y, frequencies, plot=True):
     # Use minimum frequency from the frequencies variable
     min_frequency = min(frequencies)
     
-    # Combine all data
-    combined_data = pd.concat([gyro_interp, acc_interp.iloc[:, :3], orientation_interp], axis=1)
-    
     # Create time array using minimum frequency
-    time = np.arange(len(combined_data)) / min_frequency
+    time = np.arange(len(X)) / min_frequency
     
-    # Create target (0 to 100%)
-    y = np.linspace(0, 100, len(combined_data))
-    
-    # Prepare data for regression
-    X = combined_data.values
-    
+
     # Perform regression
     model = make_pipeline(
         StandardScaler(),
@@ -65,7 +57,7 @@ def perform_regression(gyro_interp, acc_interp, orientation_interp, frequencies,
         plt.subplot(3, 1, 2)
         importance = np.abs(coefficients)
         sorted_idx = np.argsort(importance)[-10:]  # Top 10 features
-        feature_names = combined_data.columns[sorted_idx]
+        feature_names = X.columns[sorted_idx]
         plt.barh(range(len(sorted_idx)), importance[sorted_idx], color='skyblue')
         plt.yticks(range(len(sorted_idx)), feature_names)
         plt.title('Top 10 Predictive Features')

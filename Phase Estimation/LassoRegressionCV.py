@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import mean_squared_error, r2_score
 
-def enhanced_lasso_regression(gyro_interp, acc_interp, orientation_interp, 
+def enhanced_lasso_regression(X,y,
                              alpha_range=None, cv=None, plot=True, frequencies=None):
     """
     Applies Lasso Regression with optimized alpha selection (CV)
@@ -31,7 +31,6 @@ def enhanced_lasso_regression(gyro_interp, acc_interp, orientation_interp,
     """
     
     # Combine and clean data
-    X = pd.concat([gyro_interp, acc_interp.iloc[:, :3], orientation_interp], axis=1)
     
     # Extract minimum frequency for plotting
     min_frequency = np.min(frequencies) if frequencies is not None else None
@@ -40,7 +39,7 @@ def enhanced_lasso_regression(gyro_interp, acc_interp, orientation_interp,
     
     # Create target progression (0-100% over time)
     n_samples = len(X)
-    y = np.linspace(0, 1, n_samples)
+   
     
     # Configure alpha values
     if alpha_range is None:
