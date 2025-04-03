@@ -7,6 +7,76 @@ from tkinter import Tk
 from tkinter.filedialog import askdirectory
 import BiasAndSegmentation
 from Interpolation import interpolate_and_visualize
+import RidgeRegressionCV
+import LassoRegressionCV
+import Linear_Reg
+
+def handle_test_decision(choice, model, frequencies):
+    """Handle user decision about testing"""
+    if choice != '4':
+        test_decision = input("\nDo you want to perform the test? (yes/no): ").lower()
+        if test_decision == 'yes':
+            execute_test(choice, model, frequencies)
+
+
+def execute_test(choice, model, frequencies):
+    # Select folder
+    folder_path = select_folder()
+    if not folder_path:
+        print("No folder selected. Exiting.")
+        return
+    
+    # Load and process files
+    acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = load_and_process_files(folder_path)
+    
+    # Group files by timestamp
+    grouped_indices = group_files_by_timestamp(acc_files, gyro_files, or_files)
+    
+    if not grouped_indices:
+        print("No complete groups of files found. Exiting.")
+        return
+    
+    # Create matrices for each timestamp
+    timestamp_matrices, feature_names, frequencies = create_timestamp_matrices(
+        acc_data, gyro_data, or_data, grouped_indices, 
+        biasPlot_flag=False, interpPlot_flag=False
+    )
+    
+    # Print information about created matrices
+    print(f"\nCreated {len(timestamp_matrices)} matrices for different timestamps:")
+    for ts, matrix in timestamp_matrices.items():
+        print(f"Timestamp: {ts}, Matrix shape: {matrix.shape}")
+
+
+    if choice == '1':
+        mse_vector_ridge = []  # Initialize mse_vector as an empty list
+        for ts, matrix in timestamp_matrices.items():
+            _, mse = RidgeRegressionCV.test_ridge(model, matrix, frequencies)
+            # Stores mse in a vector to store the results every iteration:
+            mse_vector_ridge.append(mse)
+        # compute average of mse_vector:
+        average_mse_ridge = np.mean(mse_vector_ridge)
+        print(f"Average MSE for Ridge Regression: {average_mse_ridge}")
+
+    elif choice == '2':
+        mse_vector_lasso = []  # Initialize mse_vector as an empty list
+        for ts, matrix in timestamp_matrices.items():
+            _, mse = LassoRegressionCV.test_lasso(model, matrix, frequencies)
+            # Stores mse in a vector to store the results every iteration:
+            mse_vector_lasso.append(mse)
+        # compute average of mse_vector:
+        average_mse_lasso = np.mean(mse_vector_lasso)
+        print(f"Average MSE for Lasso Regression: {average_mse_lasso}")
+    elif choice == '3':
+        mse_vector_linear = []  # Initialize mse_vector as an empty list
+        for ts, matrix in timestamp_matrices.items():
+            _, _, mse = Linear_Reg.test_regression(model, matrix, frequencies)
+            # Stores mse in a vector to store the results every iteration:
+            mse_vector_linear.append(mse)
+        # compute average of mse_vector:
+        average_mse_linear = np.mean(mse_vector_linear)
+        print(f"Average MSE for Linear Regression: {average_mse_linear}")
+
 
 # Function to select folder
 def select_folder():

@@ -191,14 +191,13 @@ def test_lasso(model, X_new, frequencies):
     mse = mean_squared_error(y, y_new)
     r2 = r2_score(y, y_new)
 
-    # Prediction vs Actual plot
+    # 2. Prediction vs Actual
     plt.figure(figsize=(15, 5))
     time_seconds = np.arange(n_samples)/min_frequency
     plt.plot(time_seconds, y*100, label='True')
     plt.plot(time_seconds, y_new*100, label='Predicted')
-    plt.title('Temporal Alignment (Test Data)')
+    plt.title(f'Temporal Alignment\nTest MSE: {mse:.4e}, Test R² Score: {r2:.4f}')
     plt.ylabel('Progression (%)')
     plt.legend()
     plt.grid(True)
-
-    return y_new
+    return y_new, mse

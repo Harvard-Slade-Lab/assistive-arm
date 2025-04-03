@@ -4,6 +4,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from sklearn.pipeline import make_pipeline
+from sklearn.metrics import mean_squared_error, r2_score
 
 def linear_regression(X, y, frequencies, feature_names, plot=True):
     # Use minimum frequency from the frequencies variable
@@ -99,18 +100,22 @@ def test_regression(model, X_new, frequencies_test):
      # Make predictions
     y_pred_new = model.predict(X_new)
     
+        # Calculate metrics
+    mse = mean_squared_error(y, y_pred_new)
+    r2 = r2_score(y, y_pred_new)
+
     # Plot regression results
     plt.figure(figsize=(12, 6))
     plt.plot(time_new, y, label='Target')
     plt.plot(time_new, y_pred_new, label='Predicted')
     plt.xlabel('Time (s)')
     plt.ylabel('Percentage (%)')
-    plt.title('Linear Regression Results')
+    plt.title(f'Linear Regression Results\nTest MSE: {mse:.4e}, Test R² Score: {r2:.4f}')
     plt.legend()
     plt.grid(True)
     plt.show()
 
-    return y_pred_new, time_new
+    return y_pred_new, time_new, mse
 
 def calculate_time_array(gyro_interp, acc_interp, or_interp, frequencies):
     """

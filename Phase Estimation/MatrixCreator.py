@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-# Function to create X and Y matrices
 def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=True, interpPlot_flag=True):
     X = []
     Y = []
@@ -43,7 +42,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
         features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
         X.append(features)
         
-        # Create Y matrix segment (going from 0 to 1 for the duration of this dataset)
+        # Create Y matrix segment
         dataset_length = len(features)
         y = np.linspace(0, 1, dataset_length)
         Y.append(y)
@@ -56,16 +55,74 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
             gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
             or_cols = [f"OR_{col}" for col in or_interp.columns]
             feature_names = acc_cols + gyro_cols + or_cols
-    
-    # Stack X matrices vertically
+
+    # Fictitious trials generation
+    add_fictitious = input("Do you want to add fictitious trials? (yes/no): ").strip().lower()
+    if add_fictitious == 'yes':
+        try:
+            num_fictitious = int(input("Enter the number of fictitious trials to add: "))
+        except ValueError:
+            print("Invalid input. No fictitious trials added.")
+            num_fictitious = 0
+        
+        # Modified noise generation section with sensor-specific scaling
+        if num_fictitious > 0:
+            original_X = X.copy()
+            original_segment_lengths = segment_lengths.copy()
+            
+            # Get sensor indices from feature names
+            acc_cols = [i for i,name in enumerate(feature_names) if 'ACC' in name]
+            gyro_cols = [i for i,name in enumerate(feature_names) if 'GYRO' in name]
+            or_cols = [i for i,name in enumerate(feature_names) if 'OR' in name]
+
+            # Get noise scaling factors from user (example values shown)
+            acc_noise_percent = float(input("Enter accelerometer noise percentage (e.g., 1.0): ")) / 100
+            gyro_noise_percent = float(input("Enter gyroscope noise percentage (e.g., 0.5): ")) / 100
+            or_noise_percent = float(input("Enter orientation noise percentage (e.g., 0.1): ")) / 100
+
+            for i in range(num_fictitious):
+                seg_idx = np.random.randint(0, len(original_X))
+                original_segment = original_X[seg_idx].copy()
+                
+                # Split into sensor components
+                acc_data = original_segment[:, acc_cols]
+                gyro_data = original_segment[:, gyro_cols]
+                or_data = original_segment[:, or_cols]
+
+                # Calculate sensor-specific noise magnitudes [2][5][8]
+                acc_scale = np.std(acc_data) * acc_noise_percent
+                gyro_scale = np.std(gyro_data) * gyro_noise_percent
+                or_scale = np.std(or_data) * or_noise_percent
+
+                # Generate colored noise [3][7]
+                acc_noise = np.random.normal(0, acc_scale, acc_data.shape)
+                gyro_noise = np.random.normal(0, gyro_scale, gyro_data.shape)
+                or_noise = np.random.normal(0, or_scale, or_data.shape)
+
+                # Apply noise to components
+                acc_data += acc_noise
+                gyro_data += gyro_noise
+                or_data += or_noise
+
+                # Recombine noisy components [6]
+                fictitious_segment = np.hstack([acc_data, gyro_data, or_data])
+                
+                # Append to matrices
+                X.append(fictitious_segment)
+                segment_lengths.append(original_segment.shape[0])
+                sorted_timestamps.append(f"fictitious_{i+1}")
+                
+                # Create matching Y segment
+                y_fictitious = np.linspace(0, 1, original_segment.shape[0])
+                Y.append(y_fictitious)
+
+    # Stack matrices vertically
     X_matrix = np.vstack(X)
-    
-    # Concatenate Y segments
     Y_matrix = np.concatenate(Y)
     
     return X_matrix, Y_matrix, sorted_timestamps, segment_lengths, feature_names, frequencies
 
-# Function to visualize X and Y matrices
+# Visualization function remains unchanged
 def visualize_matrices(X, Y, timestamps, segment_lengths, feature_names):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
     

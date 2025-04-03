@@ -8,53 +8,6 @@ import LassoRegressionCV
 import Linear_Reg
 import TestManager
 
-def handle_test_decision(choice, model, frequencies):
-    """Handle user decision about testing"""
-    if choice != '4':
-        test_decision = input("\nDo you want to perform the test? (yes/no): ").lower()
-        if test_decision == 'yes':
-            execute_test(choice, model, frequencies)
-
-def execute_test(choice, model, frequencies):
-    # Select folder
-    folder_path = TestManager.select_folder()
-    if not folder_path:
-        print("No folder selected. Exiting.")
-        return
-    
-    # Load and process files
-    acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = TestManager.load_and_process_files(folder_path)
-    
-    # Group files by timestamp
-    grouped_indices = TestManager.group_files_by_timestamp(acc_files, gyro_files, or_files)
-    
-    if not grouped_indices:
-        print("No complete groups of files found. Exiting.")
-        return
-    
-    # Create matrices for each timestamp
-    timestamp_matrices, feature_names, frequencies = TestManager.create_timestamp_matrices(
-        acc_data, gyro_data, or_data, grouped_indices, 
-        biasPlot_flag=False, interpPlot_flag=False
-    )
-    
-    # Print information about created matrices
-    print(f"\nCreated {len(timestamp_matrices)} matrices for different timestamps:")
-    for ts, matrix in timestamp_matrices.items():
-        print(f"Timestamp: {ts}, Matrix shape: {matrix.shape}")
-
-
-    if choice == '1':
-        for ts, matrix in timestamp_matrices.items():
-            RidgeRegressionCV.test_ridge(model, matrix, frequencies)
-    elif choice == '2':
-        for ts, matrix in timestamp_matrices.items():
-            LassoRegressionCV.test_lasso(model, matrix, frequencies)
-    elif choice == '3':
-        for ts, matrix in timestamp_matrices.items():
-            Linear_Reg.test_regression(model, matrix, frequencies)
-
-
 # Select folder
 folder_path = DataLoader.select_folder()
 
@@ -112,7 +65,7 @@ try:
         # Handle testing
     if choice != '4':
         current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else linear_model
-        handle_test_decision(choice, current_model, frequencies)
+        TestManager.handle_test_decision(choice, current_model, frequencies)
    
    
     plt.show(block=True)

@@ -53,7 +53,6 @@ def enhanced_ridge_regression(X,y, feature_names, alpha_range=None, cv=None, plo
         )
         
     
-    
     # Fit model with cross-validation
     # y_pred = cross_val_predict(model, X, y, cv=cv)
     model.fit(X, y)
@@ -200,9 +199,8 @@ def test_ridge(model, X_new, frequencies):
     time_seconds = np.arange(n_samples)/min_frequency
     plt.plot(time_seconds, y*100, label='True')
     plt.plot(time_seconds, y_new*100, label='Predicted')
-    plt.title('Temporal Alignment')
+    plt.title(f'Temporal Alignment\nTest MSE: {mse:.4e}, Test R² Score: {r2:.4f}')
     plt.ylabel('Progression (%)')
     plt.legend()
     plt.grid(True)
-
-    return y_new
+    return y_new, mse
