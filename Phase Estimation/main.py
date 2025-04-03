@@ -42,8 +42,8 @@ try:
     
     # User interaction
     print("\nRegression Options:")
-    print("1. Ridge Regression\n2. Lasso Regression\n3. Linear Regression\n4. All regression")
-    choice = input("Enter your choice (1-4): ")
+    print("1. Ridge Regression\n2. Lasso Regression\n3. Linear Regression\n4. All regression\n5. SVR Regression")
+    choice = input("Enter your choice (1-5): ")
     
     # Initialize variables
     models = {'ridge': None, 'lasso': None, 'linear': None}
@@ -67,7 +67,7 @@ try:
     
         # Handle testing
     if choice != '4':
-        current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else linear_model
+        current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else svr_model['model'] if choice == '5' else linear_model
         TestManager.handle_test_decision(choice, current_model, frequencies)
    
    
