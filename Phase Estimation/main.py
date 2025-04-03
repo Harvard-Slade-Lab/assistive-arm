@@ -7,6 +7,7 @@ import RidgeRegressionCV
 import LassoRegressionCV
 import Linear_Reg
 import TestManager
+import SVR_Reg
 
 # Select folder
 folder_path = DataLoader.select_folder()
@@ -59,6 +60,8 @@ try:
         ridge_result, y_ridge = RidgeRegressionCV.enhanced_ridge_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
         lasso_result, y_lasso = LassoRegressionCV.enhanced_lasso_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
         linear_model, y_linear, _ = Linear_Reg.linear_regression(X,Y, frequencies, feature_names=feature_names, plot=True)
+    elif choice == '5':
+        svr_model, y_svr = SVR_Reg.enhanced_svr_regression(X,Y, kernel='rbf',  plot=True, frequencies=frequencies)
     else:
         print("Invalid choice")
     
