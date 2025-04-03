@@ -85,18 +85,16 @@ def linear_regression(X, y, frequencies, feature_names, plot=True):
 
 
 
-def test_regression(model, gyro_test_interp, acc_test_interp, orientation_test_interp, frequencies_test):
+def test_regression(model, X_new, frequencies_test):
     # Use minimum frequency from the frequencies variable
     min_frequency_test = min(frequencies_test)
     
-    # Combine all data
-    X_new = pd.concat([gyro_test_interp, acc_test_interp.iloc[:, :3], orientation_test_interp], axis=1)
     
     # Create time array using minimum frequency
     time_new = np.arange(len(X_new)) / min_frequency_test
     
     # Create target (0 to 100%)
-    y = np.linspace(0, 100, len(X_new))
+    y = np.linspace(0, 1, len(X_new))
 
      # Make predictions
     y_pred_new = model.predict(X_new)

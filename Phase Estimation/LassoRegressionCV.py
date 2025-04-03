@@ -152,7 +152,7 @@ def print_regression_equation(model, feature_names):
     print("Regression Equation:")
     print(equation)
 
-def test_lasso(model, gyro_interp, acc_interp, orientation_interp, frequencies):
+def test_lasso(model, X_new, frequencies):
     """
     Test the Lasso regression model with new data.
     
@@ -175,8 +175,6 @@ def test_lasso(model, gyro_interp, acc_interp, orientation_interp, frequencies):
         Predicted values from the model.
     """
     
-    # Combine and clean new data
-    X_new = pd.concat([gyro_interp, acc_interp.iloc[:, :3], orientation_interp], axis=1)
     
     min_frequency = np.min(frequencies)
     if min_frequency is None:
