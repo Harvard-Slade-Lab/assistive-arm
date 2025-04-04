@@ -10,10 +10,11 @@ from Interpolation import interpolate_and_visualize
 import RidgeRegressionCV
 import LassoRegressionCV
 import Linear_Reg
+import SVR_Reg
 
 def handle_test_decision(choice, model, frequencies):
     """Handle user decision about testing"""
-    if choice != '4':
+    if choice != '5':
         test_decision = input("\nDo you want to perform the test? (yes/no): ").lower()
         if test_decision == 'yes':
             execute_test(choice, model, frequencies)
@@ -76,6 +77,15 @@ def execute_test(choice, model, frequencies):
         # compute average of mse_vector:
         average_mse_linear = np.mean(mse_vector_linear)
         print(f"Average MSE for Linear Regression: {average_mse_linear}")
+    elif choice == '4':
+        mse_vector_svr = []  # Initialize mse_vector as an empty list
+        for ts, matrix in timestamp_matrices.items():
+            _, mse = SVR_Reg.test_svr(model, matrix, frequencies)
+            # Stores mse in a vector to store the results every iteration:
+            mse_vector_svr.append(mse)
+        # compute average of mse_vector:
+        average_mse_svr = np.mean(mse_vector_svr)
+        print(f"Average MSE for SVR: {average_mse_svr}")
 
 
 # Function to select folder

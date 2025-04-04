@@ -155,7 +155,8 @@ def enhanced_svr_regression(X, y, kernel='rbf', param_grid=None, cv=5, plot=True
         'model': best_model,
         'best_params': grid_search.best_params_,
         'cv_results': grid_search.cv_results_,
-        'residuals': residuals
+        'residuals': residuals,
+        'mse': mse
     }, final_pred
 
 
@@ -242,4 +243,4 @@ def test_svr(model, X_new, frequencies=None):
     plt.grid(True)
     plt.show()
 
-    return y_new
+    return y_new, mse

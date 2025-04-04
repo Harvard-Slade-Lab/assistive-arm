@@ -123,6 +123,7 @@ def enhanced_ridge_regression(X,y, feature_names, alpha_range=None, cv=None, plo
         'cv_values': ridge_cv.cv_results_,
         'feature_importance': pd.Series(ridge_cv.coef_, index=feature_names),
         'residuals': residuals,
+        'mse': mse
         
     }, final_pred
 

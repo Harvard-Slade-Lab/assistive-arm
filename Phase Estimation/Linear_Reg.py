@@ -24,6 +24,8 @@ def linear_regression(X, y, frequencies, feature_names, plot=True):
     # Make predictions
     y_pred = model.predict(X)
     
+    mse = mean_squared_error(y, y_pred)
+
     # Plot regression results
     plt.figure(figsize=(12, 6))
     plt.plot(time, y, label='Target')
@@ -82,7 +84,7 @@ def linear_regression(X, y, frequencies, feature_names, plot=True):
     # print(f"R-squared score: {r2_score:.4f}")
     # print(f"Using minimum frequency: {min_frequency} Hz")
     print("Regreession performed successfully.")
-    return model, y_pred, time
+    return model, y_pred, time, mse
 
 
 

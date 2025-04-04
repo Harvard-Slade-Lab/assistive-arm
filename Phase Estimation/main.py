@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from tkinter.filedialog import askdirectory
 from Interpolation import interpolate_and_visualize
 import DataLoader
@@ -42,7 +44,7 @@ try:
     
     # User interaction
     print("\nRegression Options:")
-    print("1. Ridge Regression\n2. Lasso Regression\n3. Linear Regression\n4. All regression\n5. SVR Regression")
+    print("1. Ridge Regression\n2. Lasso Regression\n3. Linear Regression\n4. SVR Regression\n5. All regression")
     choice = input("Enter your choice (1-5): ")
     
     # Initialize variables
@@ -55,19 +57,55 @@ try:
     elif choice == '2':
         lasso_result, y_lasso = LassoRegressionCV.enhanced_lasso_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
     elif choice == '3':
-        linear_model, y_linear, _ = Linear_Reg.linear_regression(X,Y, frequencies, feature_names=feature_names,  plot=True)
-    elif choice == '4':
+        linear_model, y_linear, _, mse_linear = Linear_Reg.linear_regression(X,Y, frequencies, feature_names=feature_names,  plot=True)
+    elif choice == '5':
         ridge_result, y_ridge = RidgeRegressionCV.enhanced_ridge_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
         lasso_result, y_lasso = LassoRegressionCV.enhanced_lasso_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
-        linear_model, y_linear, _ = Linear_Reg.linear_regression(X,Y, frequencies, feature_names=feature_names, plot=True)
-    elif choice == '5':
+        linear_model, y_linear, _, mse_linear = Linear_Reg.linear_regression(X,Y, frequencies, feature_names=feature_names, plot=True)
+        svr_model, y_svr = SVR_Reg.enhanced_svr_regression(X,Y, kernel='rbf',  plot=True, frequencies=frequencies)
+    elif choice == '4':
         svr_model, y_svr = SVR_Reg.enhanced_svr_regression(X,Y, kernel='rbf',  plot=True, frequencies=frequencies)
     else:
         print("Invalid choice")
     
         # Handle testing
-    if choice != '4':
-        current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else svr_model['model'] if choice == '5' else linear_model
+    if choice == '5':
+        mse_ridge = ridge_result['mse']
+        mse_lasso = lasso_result['mse']
+        mse_linear = mse_linear
+        mse_svr = svr_model['mse']
+
+        print("\nPlotting comparison...")
+        plt.figure(figsize=(12, 6))
+        plt.plot(y_linear, label='Linear', color='blue')
+        plt.plot(y_ridge, label='Ridge', color='orange')
+        plt.plot(y_lasso, label='Lasso', color='green')
+        plt.plot(y_svr, label='SVR', color='purple')
+        plt.plot(Y, label='Target', color='red', linestyle='--')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Percentage (%)')
+        plt.title('Regression Comparison')
+        plt.legend(loc='upper left')
+        plt.grid(True)
+        
+        # Format MSE values as x*10^-y
+        def format_mse(mse):
+            exponent = int(np.floor(np.log10(mse)))
+            base = mse / (10**exponent)
+            return f"{base:.2f}×10⁻{abs(exponent)}"
+        
+        mse_text = (f"Linear MSE: {format_mse(mse_linear)}\n"
+                f"Ridge MSE: {format_mse(mse_ridge)}\n"
+                f"Lasso MSE: {format_mse(mse_lasso)}\n"
+                f"SVR MSE: {format_mse(mse_svr)}")
+        
+        # Add MSE values as text in the plot, keeping it within the grid
+        plt.text(0.95, 0.05, mse_text, fontsize=10, ha='right', va='bottom', 
+             transform=plt.gca().transAxes, bbox=dict(facecolor='white', alpha=0.5))
+        
+        plt.show()
+    else:
+        current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else svr_model['model'] if choice == '4' else linear_model
         TestManager.handle_test_decision(choice, current_model, frequencies)
    
    

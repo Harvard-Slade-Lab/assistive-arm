@@ -119,7 +119,8 @@ def enhanced_lasso_regression(X,y,feature_names,alpha_range=None, cv=None, plot=
         'optimal_alpha': lasso_cv.alpha_,
         'selected_features': feature_names,
         'feature_importance': pd.Series(lasso_cv.coef_, index=feature_names),
-        'residuals': residuals
+        'residuals': residuals,
+        'mse': mse
     }, final_pred
 
 def print_regression_equation(model, feature_names):
