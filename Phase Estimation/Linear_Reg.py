@@ -26,17 +26,6 @@ def linear_regression(X, y, frequencies, feature_names, plot=True):
     
     mse = mean_squared_error(y, y_pred)
 
-    # Plot regression results
-    plt.figure(figsize=(12, 6))
-    plt.plot(time, y, label='Target')
-    plt.plot(time, y_pred, label='Predicted')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Percentage (%)')
-    plt.title('Linear Regression Results')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-    
     # Create bar plot of coefficients with named features
     coefficients = model.named_steps['linearregression'].coef_  # Shape (11,)
     
@@ -88,7 +77,7 @@ def linear_regression(X, y, frequencies, feature_names, plot=True):
 
 
 
-def test_regression(model, X_new, frequencies_test):
+def test_regression(model, X_new, frequencies_test, Plot_flag=True):
     # Use minimum frequency from the frequencies variable
     min_frequency_test = min(frequencies_test)
     
@@ -106,16 +95,17 @@ def test_regression(model, X_new, frequencies_test):
     mse = mean_squared_error(y, y_pred_new)
     r2 = r2_score(y, y_pred_new)
 
-    # Plot regression results
-    plt.figure(figsize=(12, 6))
-    plt.plot(time_new, y, label='Target')
-    plt.plot(time_new, y_pred_new, label='Predicted')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Percentage (%)')
-    plt.title(f'Linear Regression Results\nTest MSE: {mse:.4e}, Test R² Score: {r2:.4f}')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+    if Plot_flag:
+        # Plot regression results
+        plt.figure(figsize=(12, 6))
+        plt.plot(time_new, y, label='Target')
+        plt.plot(time_new, y_pred_new, label='Predicted')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Percentage (%)')
+        plt.title(f'Linear Regression Results\nTest MSE: {mse:.4e}, Test R² Score: {r2:.4f}')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
     return y_pred_new, time_new, mse
 

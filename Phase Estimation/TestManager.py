@@ -14,10 +14,9 @@ import SVR_Reg
 
 def handle_test_decision(choice, model, frequencies):
     """Handle user decision about testing"""
-    if choice != '5':
-        test_decision = input("\nDo you want to perform the test? (yes/no): ").lower()
-        if test_decision == 'yes':
-            execute_test(choice, model, frequencies)
+    test_decision = input("\nDo you want to perform the test? (yes/no): ").lower()
+    if test_decision == 'yes':
+        execute_test(choice, model, frequencies)
 
 
 def execute_test(choice, model, frequencies):
@@ -48,44 +47,157 @@ def execute_test(choice, model, frequencies):
     for ts, matrix in timestamp_matrices.items():
         print(f"Timestamp: {ts}, Matrix shape: {matrix.shape}")
 
-
+    mse_vector = []  # Initialize mse_vector as an empty list
     if choice == '1':
-        mse_vector_ridge = []  # Initialize mse_vector as an empty list
         for ts, matrix in timestamp_matrices.items():
-            _, mse = RidgeRegressionCV.test_ridge(model, matrix, frequencies)
+            y_pred, mse = RidgeRegressionCV.test_ridge(model, matrix, frequencies, Plot_flag=False)
+            # Store the predicted y for this test in a list
+            y_pred_list = globals().get("y_pred_list", [])
+            y_pred_list.append((ts, y_pred))
+            globals()["y_pred_list"] = y_pred_list
             # Stores mse in a vector to store the results every iteration:
-            mse_vector_ridge.append(mse)
+            mse_vector.append(mse)
         # compute average of mse_vector:
+        average_mse = np.mean(mse_vector)
+        print(f"Average MSE for Ridge Regression: {average_mse}")
+
+    elif choice == '2':
+        for ts, matrix in timestamp_matrices.items():
+            y_pred, mse = LassoRegressionCV.test_lasso(model, matrix, frequencies, Plot_flag=False)
+            # Store the predicted y for this test in a list
+            y_pred_list = globals().get("y_pred_list", [])
+            y_pred_list.append((ts, y_pred))
+            globals()["y_pred_list"] = y_pred_list
+            # Stores mse in a vector to store the results every iteration:
+            mse_vector.append(mse)
+        # compute average of mse_vector:
+        average_mse = np.mean(mse_vector)
+        print(f"Average MSE for Lasso Regression: {average_mse}")
+
+    elif choice == '3':
+        for ts, matrix in timestamp_matrices.items():
+            y_pred, _, mse = Linear_Reg.test_regression(model, matrix, frequencies, Plot_flag=False)
+            # Store the predicted y for this test in a list
+            y_pred_list = globals().get("y_pred_list", [])
+            y_pred_list.append((ts, y_pred))
+            globals()["y_pred_list"] = y_pred_list
+            # Stores mse in a vector to store the results every iteration:
+            mse_vector.append(mse)
+        # compute average of mse_vector:
+        average_mse = np.mean(mse_vector)
+        print(f"Average MSE for Linear Regression: {average_mse}")
+
+    elif choice == '4':
+        for ts, matrix in timestamp_matrices.items():
+            y_pred, mse = SVR_Reg.test_svr(model, matrix, frequencies, Plot_flag=False)
+            # Store the predicted y for this test in a list
+            y_pred_list = globals().get("y_pred_list", [])
+            y_pred_list.append((ts, y_pred))
+            globals()["y_pred_list"] = y_pred_list
+            # Stores mse in a vector to store the results every iteration:
+            mse_vector.append(mse)
+        # compute average of mse_vector:
+        average_mse = np.mean(mse_vector)
+        print(f"Average MSE for SVR: {average_mse}")
+    
+
+    if choice != '5':
+        # Interpolate all y_pred to align them for plotting
+        if "y_pred_list" in globals():
+            plt.figure(figsize=(12, 6))
+            # Determine the minimum length among all y_pred
+            target_length = min(len(y_pred) for _, y_pred in globals()["y_pred_list"])
+            for i, (ts, y_pred) in enumerate(globals()["y_pred_list"], start=1):
+                interpolated_y_pred = np.interp(
+                    np.linspace(0, len(y_pred) - 1, target_length),
+                    np.arange(len(y_pred)),
+                    y_pred
+                )
+                plt.plot(interpolated_y_pred, label=f'Test {i}', alpha=0.7)
+            # Plot the target as a reference
+            target = np.linspace(0, 1, target_length)
+            plt.plot(target, label='Target', color='black', linestyle='--', linewidth=2)
+            plt.xlabel('Index')
+            plt.ylabel('Value')
+            plt.title('Test Predictions')
+            plt.grid(alpha=0.5)
+            plt.tight_layout()
+            # Add legend inside the plot area with a smaller font size and reduced markers
+            plt.legend(loc='best', fontsize='x-small', markerscale=0.7)
+            plt.show()
+        else:
+            print("No predictions available to plot.")
+
+        # Plot the MSE for each test
+        plt.figure(figsize=(10, 6))
+        test_numbers = list(range(1, len(mse_vector) + 1))  # Test numbers starting from 1
+        plt.bar(test_numbers, mse_vector, color='skyblue', label='MSE per Test')
+        # Plot the mean as a dashed line
+        plt.axhline(y=average_mse, color='red', linestyle='--', label=f'Mean MSE: {average_mse:.2f}')
+        # Add labels and legend
+        plt.xlabel('Test Number')
+        plt.ylabel('Mean Squared Error (MSE)')
+        plt.title('MSE for Regression Tests')
+        plt.xticks(test_numbers)  # Ensure all test numbers are shown on the x-axis
+        plt.legend()
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        # Show the plot
+        plt.tight_layout()
+        plt.show()
+    
+    else:
+        model_ridge = model['ridge']
+        model_lasso = model['lasso']
+        model_linear = model['linear']
+        model_svr = model['svr']
+        mse_vector_ridge = []  # Initialize mse_vector as an empty list
+        mse_vector_lasso = []  # Initialize mse_vector as an empty list
+        mse_vector_linear = []  # Initialize mse_vector as an empty list
+        mse_vector_svr = []  # Initialize mse_vector as an empty list
+
+        # Perform the test for all the methods taking just the mse
+        # Ridge
+        for ts, matrix in timestamp_matrices.items():
+            _, mse_ridge = RidgeRegressionCV.test_ridge(model_ridge, matrix, frequencies, Plot_flag=False)
+            mse_vector_ridge.append(mse_ridge)
+        # Compute average of mse_vector for Ridge Regression
         average_mse_ridge = np.mean(mse_vector_ridge)
         print(f"Average MSE for Ridge Regression: {average_mse_ridge}")
 
-    elif choice == '2':
-        mse_vector_lasso = []  # Initialize mse_vector as an empty list
         for ts, matrix in timestamp_matrices.items():
-            _, mse = LassoRegressionCV.test_lasso(model, matrix, frequencies)
-            # Stores mse in a vector to store the results every iteration:
-            mse_vector_lasso.append(mse)
-        # compute average of mse_vector:
+            _, mse_lasso = LassoRegressionCV.test_lasso(model_lasso, matrix, frequencies, Plot_flag=False)
+            mse_vector_lasso.append(mse_lasso)
+        # Compute average of mse_vector for Lasso Regression
         average_mse_lasso = np.mean(mse_vector_lasso)
         print(f"Average MSE for Lasso Regression: {average_mse_lasso}")
-    elif choice == '3':
-        mse_vector_linear = []  # Initialize mse_vector as an empty list
+
         for ts, matrix in timestamp_matrices.items():
-            _, _, mse = Linear_Reg.test_regression(model, matrix, frequencies)
-            # Stores mse in a vector to store the results every iteration:
-            mse_vector_linear.append(mse)
-        # compute average of mse_vector:
+            _, _, mse_linear = Linear_Reg.test_regression(model_linear, matrix, frequencies, Plot_flag=False)
+            mse_vector_linear.append(mse_linear)
+        # Compute average of mse_vector for Linear Regression
         average_mse_linear = np.mean(mse_vector_linear)
         print(f"Average MSE for Linear Regression: {average_mse_linear}")
-    elif choice == '4':
-        mse_vector_svr = []  # Initialize mse_vector as an empty list
+
         for ts, matrix in timestamp_matrices.items():
-            _, mse = SVR_Reg.test_svr(model, matrix, frequencies)
-            # Stores mse in a vector to store the results every iteration:
-            mse_vector_svr.append(mse)
-        # compute average of mse_vector:
+            _, mse_svr = SVR_Reg.test_svr(model_svr, matrix, frequencies, Plot_flag=False)
+            mse_vector_svr.append(mse_svr)
+        # Compute average of mse_vector for SVR
         average_mse_svr = np.mean(mse_vector_svr)
         print(f"Average MSE for SVR: {average_mse_svr}")
+
+        # Plot MSE comparison
+        # Plot MSE comparison
+        methods = ['Ridge', 'Lasso', 'Linear', 'SVR']
+        average_mses = [average_mse_ridge, average_mse_lasso, average_mse_linear, average_mse_svr]
+
+        plt.figure(figsize=(8, 6))
+        plt.bar(methods, average_mses, color=['blue', 'green', 'orange', 'purple'])
+        plt.xlabel('Regression Methods')
+        plt.ylabel('Average MSE')
+        plt.title('Comparison of Average MSE Across Regression Methods')
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.tight_layout()
+        plt.show()
 
 
 # Function to select folder
@@ -139,7 +251,7 @@ def load_and_process_files(folder_path):
 def extract_timestamp(filename):
     parts = filename.split("_")
     for part in parts:
-        if len(part) == 14 and part.isdigit():  # YYYYMMDDHHMMSS format
+        if len(part) == 2 and part.isdigit():  # YYYYMMDDHHMMSS format
             return part
     return None
 

@@ -191,7 +191,7 @@ def analyze_svr_model(model):
     else:
         print(f"Support vector indices: {svr_model.support_}")
 
-def test_svr(model, X_new, frequencies=None):
+def test_svr(model, X_new, frequencies=None, Plot_flag=True):
     """
     Test the SVR model with new data.
     
@@ -226,21 +226,22 @@ def test_svr(model, X_new, frequencies=None):
     print(f"Test Mean Squared Error: {mse:.4e}")
     print(f"Test R² Score: {r2:.4f}")
 
-    # Prediction vs Expected
-    plt.figure(figsize=(15, 5))
-    if min_frequency:
-        time_seconds = np.arange(n_samples)/min_frequency
-        plt.plot(time_seconds, y_expected*100, label='Expected')
-        plt.plot(time_seconds, y_new*100, label='Predicted')
-        plt.xlabel('Time (s)')
-    else:
-        plt.plot(y_expected*100, label='Expected')
-        plt.plot(y_new*100, label='Predicted')
-        plt.xlabel('Sample Index')
-    plt.title('Model Predictions on New Data')
-    plt.ylabel('Progression (%)')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+    if Plot_flag:
+        # Prediction vs Expected
+        plt.figure(figsize=(15, 5))
+        if min_frequency:
+            time_seconds = np.arange(n_samples)/min_frequency
+            plt.plot(time_seconds, y_expected*100, label='Expected')
+            plt.plot(time_seconds, y_new*100, label='Predicted')
+            plt.xlabel('Time (s)')
+        else:
+            plt.plot(y_expected*100, label='Expected')
+            plt.plot(y_new*100, label='Predicted')
+            plt.xlabel('Sample Index')
+        plt.title('Model Predictions on New Data')
+        plt.ylabel('Progression (%)')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
     return y_new, mse

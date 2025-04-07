@@ -51,6 +51,24 @@ try:
     models = {'ridge': None, 'lasso': None, 'linear': None}
     results = {'ridge': None, 'lasso': None, 'linear': None}
     
+    # parameter grid for SVR, reduce the number of parameters for faster computation
+    # Note: The grid search will take longer with more parameters
+    fast_comput = True
+    if fast_comput:
+        # Reduced grid (3x3x3 = 27 combinations)
+        param_grid = {
+            'svr__C': np.logspace(1, 3, 3),       # [10, 100, 1000]
+            'svr__epsilon': np.logspace(-3, -1, 3), # [0.001, 0.01, 0.1]
+            'svr__gamma': np.logspace(-3, -1, 3)   # [0.001, 0.01, 0.1]
+        }   
+    else:
+        # Enhanced grid (7x4x6 = 168 combinations)
+        param_grid = {
+            'svr__C': np.logspace(-3, 3, 7),
+            'svr__epsilon': np.logspace(-3, 0, 4),
+            'svr__gamma': np.logspace(-4, 1, 6)
+            }
+    
     # Perform selected regression(s)
     if choice == '1':
         ridge_result, y_ridge = RidgeRegressionCV.enhanced_ridge_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
@@ -62,9 +80,10 @@ try:
         ridge_result, y_ridge = RidgeRegressionCV.enhanced_ridge_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
         lasso_result, y_lasso = LassoRegressionCV.enhanced_lasso_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
         linear_model, y_linear, _, mse_linear = Linear_Reg.linear_regression(X,Y, frequencies, feature_names=feature_names, plot=True)
-        svr_model, y_svr = SVR_Reg.enhanced_svr_regression(X,Y, kernel='rbf',  plot=True, frequencies=frequencies)
+        # svr_model, y_svr = LassoRegressionCV.enhanced_lasso_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
+        svr_model, y_svr = SVR_Reg.enhanced_svr_regression(X,Y, kernel='rbf', param_grid=param_grid, plot=True, frequencies=frequencies)
     elif choice == '4':
-        svr_model, y_svr = SVR_Reg.enhanced_svr_regression(X,Y, kernel='rbf',  plot=True, frequencies=frequencies)
+        svr_model, y_svr = SVR_Reg.enhanced_svr_regression(X,Y, kernel='rbf', param_grid=param_grid, plot=True, frequencies=frequencies)
     else:
         print("Invalid choice")
     
@@ -104,6 +123,14 @@ try:
              transform=plt.gca().transAxes, bbox=dict(facecolor='white', alpha=0.5))
         
         plt.show()
+        # Store all models for testing
+        current_model = {
+            'ridge': ridge_result['model'] if 'ridge_result' in locals() else None,
+            'lasso': lasso_result['model'] if 'lasso_result' in locals() else None,
+            'linear': linear_model if 'linear_model' in locals() else None,
+            'svr': svr_model['model'] if 'svr_model' in locals() else None
+        }
+        TestManager.handle_test_decision(choice, current_model, frequencies)
     else:
         current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else svr_model['model'] if choice == '4' else linear_model
         TestManager.handle_test_decision(choice, current_model, frequencies)

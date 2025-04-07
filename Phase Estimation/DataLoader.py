@@ -58,7 +58,7 @@ def load_and_process_files(folder_path):
 def extract_timestamp(filename):
     parts = filename.split("_")
     for part in parts:
-        if len(part) == 14 and part.isdigit():  # YYYYMMDDHHMMSS format
+        if len(part) == 2 and part.isdigit():  # YYYYMMDDHHMMSS format
             return part
     return None
 

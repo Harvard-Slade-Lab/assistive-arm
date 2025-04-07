@@ -156,7 +156,7 @@ def print_regression_equation(model, feature_names):
     print("Regression Equation:")
     print(equation)
 
-def test_ridge(model, X_new, frequencies):
+def test_ridge(model, X_new, frequencies, Plot_flag=True):
     """
     Test the Ridge regression model with new data.
     
@@ -195,13 +195,14 @@ def test_ridge(model, X_new, frequencies):
     mse = mean_squared_error(y, y_new)
     r2 = r2_score(y, y_new)
 
-    # 2. Prediction vs Actual
-    plt.figure(figsize=(15, 5))
-    time_seconds = np.arange(n_samples)/min_frequency
-    plt.plot(time_seconds, y*100, label='True')
-    plt.plot(time_seconds, y_new*100, label='Predicted')
-    plt.title(f'Temporal Alignment\nTest MSE: {mse:.4e}, Test R² Score: {r2:.4f}')
-    plt.ylabel('Progression (%)')
-    plt.legend()
-    plt.grid(True)
+    if Plot_flag:
+        # 2. Prediction vs Actual
+        plt.figure(figsize=(15, 5))
+        time_seconds = np.arange(n_samples)/min_frequency
+        plt.plot(time_seconds, y*100, label='True')
+        plt.plot(time_seconds, y_new*100, label='Predicted')
+        plt.title(f'Temporal Alignment\nTest MSE: {mse:.4e}, Test R² Score: {r2:.4f}')
+        plt.ylabel('Progression (%)')
+        plt.legend()
+        plt.grid(True)
     return y_new, mse
