@@ -39,7 +39,7 @@ def execute_test(choice, model, frequencies):
     # Create matrices for each timestamp
     timestamp_matrices, feature_names, frequencies = create_timestamp_matrices(
         acc_data, gyro_data, or_data, grouped_indices, 
-        biasPlot_flag=False, interpPlot_flag=False
+        biasPlot_flag=True, interpPlot_flag=False
     )
     
     # Print information about created matrices

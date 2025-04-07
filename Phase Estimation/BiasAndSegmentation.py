@@ -18,6 +18,196 @@ min_above_ratio = 0.8 # Minimum ratio of samples that must be above threshold in
 
 plt.ion()
 
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import savgol_filter
+
+def robust_find_peak_start(signal, threshold_idx, window_size=5, slope_threshold=0.5):
+    """Find the true start of peak using robust slope analysis"""
+    # Calculate smoothed derivatives using a sliding window
+    derivatives = []
+    for i in range(window_size, threshold_idx):
+        # Compute average slope in window
+        avg_slope = (signal[i] - signal[i-window_size]) / window_size
+        derivatives.append((i, avg_slope))
+    
+    # Work backwards from threshold crossing
+    for i in range(threshold_idx-window_size, window_size, -1):
+        cur_slope = (signal[i] - signal[i-window_size]) / window_size
+        # Detect significant slope change
+        if cur_slope < slope_threshold:
+            return i
+    
+    return max(0, threshold_idx - 100)  # Fallback if no suitable point found
+
+def comprehensive_peak_start(signal, threshold_idx, window_size=5, noise_level=None):
+    """Robust peak start detection using multiple features
+    
+    Args:
+        signal: array-like, input signal
+        threshold_idx: int, index where signal crosses threshold
+        window_size: int, window size for slope calculation
+        noise_level: float, estimated noise level (auto-calculated if None)
+        
+    Returns:
+        int: index of detected peak start
+    """
+    if noise_level is None:
+        # Estimate noise level from signal baseline
+        baseline = signal[:min(100, threshold_idx//2)]
+        noise_level = np.std(baseline) * 2
+    
+    # Methods array to hold candidate points
+    candidates = []
+    
+    # Method 1: Slope-based detection
+    # Start from threshold crossing and move backwards
+    for i in range(threshold_idx-window_size, window_size, -1):
+        # Calculate slope over window
+        avg_slope = (signal[i] - signal[i-window_size]) / window_size
+        if abs(avg_slope) < 0.5:  # Detect significant slope change
+            candidates.append(i)
+            break
+    
+    # Method 2: Noise-threshold based detection
+    for i in range(threshold_idx-1, 0, -1):
+        if signal[i] < noise_level:
+            # Confirm by checking previous few points
+            if np.mean(signal[max(0, i-5):i+1]) < noise_level:
+                candidates.append(i)
+                break
+    
+    # Method 3: Curvature analysis (detect inflection point)
+    if threshold_idx > 10:
+        derivatives = np.diff(signal[:threshold_idx])
+        if len(derivatives) > 2:
+            second_derivatives = np.diff(derivatives)
+            if len(second_derivatives) > 2:
+                # Find where second derivative changes sign (inflection points)
+                inflection_indices = np.where(np.diff(np.sign(second_derivatives)) != 0)[0]
+                if len(inflection_indices) > 0:
+                    # Get the last inflection point before threshold (closest to peak)
+                    for idx in reversed(inflection_indices):
+                        if idx < threshold_idx - 5:  # Ensure it's not too close to threshold
+                            candidates.append(idx)
+                            break
+    
+    # Failsafe: If no candidates found, use a fixed offset
+    if not candidates:
+        candidates.append(max(0, threshold_idx - 20))
+    
+    # Return median of candidate points for robustness
+    return int(np.median(candidates))
+    
+    # Return median of candidate points for robustness
+    return int(np.median(candidates))
+
+def comprehensive_peak_end(signal, threshold_idx, window_size=20, noise_level=None):
+    """Robust peak end detection using multiple features
+    
+    Args:
+        signal: array-like, input signal
+        threshold_idx: int, index where signal crosses threshold
+        window_size: int, window size for slope calculation
+        noise_level: float, estimated noise level (auto-calculated if None)
+        
+    Returns:
+        int: index of detected peak end
+    """
+    if noise_level is None:
+        # Estimate noise level from signal baseline (using data after the peak)
+        end_idx = min(len(signal), threshold_idx + 100)
+        baseline = signal[end_idx-50:end_idx] if end_idx > 50 else signal[-50:]
+        noise_level = np.std(baseline) * 2
+    
+    # Methods array to hold candidate points
+    candidates = []
+    
+    # Method 1: Slope-based detection
+    for i in range(threshold_idx, len(signal)-window_size):
+        # Calculate slope over window
+        avg_slope = (signal[i+window_size] - signal[i]) / window_size
+        if abs(avg_slope) < 0.5:  # Detect when slope becomes flat
+            candidates.append(i)
+            break
+    
+    # Method 2: Noise-threshold based detection
+    for i in range(threshold_idx, len(signal)):
+        if signal[i] < noise_level:
+            # Confirm by checking next few points to avoid false detection
+            end_check = min(i+5, len(signal))
+            if np.mean(signal[i:end_check]) < noise_level:
+                candidates.append(i)
+                break
+    
+    # Method 3: Curvature analysis (detect inflection point)
+    if len(signal) - threshold_idx > 10:
+        derivatives = np.diff(signal[threshold_idx:])
+        if len(derivatives) > 2:
+            second_derivatives = np.diff(derivatives)
+            if len(second_derivatives) > 2:
+                # Find where second derivative changes sign (inflection points)
+                raw_indices = np.where(np.diff(np.sign(second_derivatives)) != 0)[0]
+                if len(raw_indices) > 0:
+                    # Convert back to original signal indices
+                    inflection_indices = raw_indices + threshold_idx + 2
+                    # Get the first inflection point after threshold (closest to peak)
+                    for idx in inflection_indices:
+                        if idx > threshold_idx + 5:  # Ensure it's not too close to threshold
+                            candidates.append(idx)
+                            break
+    
+    # Failsafe: If no candidates found, use a fixed offset
+    if not candidates:
+        candidates.append(min(len(signal)-1, threshold_idx + 20))
+    
+    # Return median of candidate points for robustness
+    return int(np.median(candidates))
+
+def detect_peak_boundaries(signal, s_idx, e_idx, threshold, visualize=True):
+
+    
+    initial_start = s_idx
+    initial_end = e_idx
+    
+    # Apply robust start detection
+    refined_start = comprehensive_peak_start(signal, initial_start)
+    
+    # Apply robust end detection (similar to start, but forward direction)
+    refined_end = comprehensive_peak_end(signal, initial_end)
+    
+    
+    # Generate visualization if requested
+    if visualize:
+        plt.figure(figsize=(12, 7))
+        time = np.arange(len(signal))
+        
+        # Plot original signal
+        plt.plot(time, signal, 'purple', label='Magnitude')
+        
+        # Plot threshold and crossings
+        plt.axhline(y=threshold, color='green', linestyle='--', 
+                    label=f'Threshold ({threshold:.2f})')
+        plt.axvline(x=initial_start, color='orange', linestyle='-', 
+                    label='Initial Motion Start')
+        plt.axvline(x=initial_end, color='orange', linestyle='-', 
+                    label='Initial Motion End')
+        
+        # Plot refined boundaries
+        plt.axvline(x=refined_start, color='blue', linestyle='--', 
+                    label='Refined Start')
+        plt.axvline(x=refined_end, color='red', linestyle='--', 
+                    label='Refined End')
+        
+        
+        plt.title('Signal Magnitude Analysis with Advanced Peak Detection')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Composite Magnitude')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+    
+    return refined_start, refined_end
 
 
 def check_real_motion(magnitude, threshold_indices, threshold=None, 
@@ -174,16 +364,28 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, frequencies=Non
 
     # ------------------------- MAGNITUDE ANALYSIS ---------------------------
     print("Calculating magnitude...")
-    magnitude = np.sqrt(gyro_data_trimmed.iloc[:,0]**2 + 
+    raw_magnitude = np.sqrt(gyro_data_trimmed.iloc[:,0]**2 + 
                        gyro_data_trimmed.iloc[:,1]**2 + 
                        gyro_data_trimmed.iloc[:,2]**2)
+   
+    # Filtering of the Magntiude
+    from scipy.signal import butter
+    from scipy.signal import filtfilt
+    sampling_rate = frequencies[0]  # Hz
+    nyquist = 0.5 * sampling_rate
+    cutoff = 5  # Hz
+    normal_cutoff = cutoff / nyquist
+    b, a = butter(4, normal_cutoff, btype='low', analog=False)
+    magnitude = filtfilt(b, a, raw_magnitude)
+
     gyro_data_trimmed['magnitude'] = magnitude
     
     mean_magnitude = gyro_data_trimmed['magnitude'].iloc[:sample_size].mean()
     threshold = mean_magnitude + offset
     threshold_indices = np.where(magnitude > threshold)[0]
     
-    start_idx, end_idx = check_real_motion(magnitude, threshold_indices, threshold=threshold)
+    s_idx, e_idx = check_real_motion(magnitude, threshold_indices, threshold=threshold)
+    start_idx, end_idx = detect_peak_boundaries(magnitude, s_idx, e_idx, threshold, visualize=plot_flag)
                                         
     if plot_flag:
         # Magnitude Analysis Plot
