@@ -102,6 +102,84 @@ def check_real_motion(magnitude, threshold_indices, threshold=None,
     
     return start_idx, end_idx
 
+from scipy.optimize import curve_fit
+
+def find_boundaries_with_line_fit(time, magnitude, threshold_indices, plot_flag, baseline_value=None):
+    start_idx, end_idx = threshold_indices
+    
+    # Determine baseline value if not provided
+    if baseline_value is None:
+        baseline_value = np.mean(magnitude[:max(0, start_idx-100)])
+    
+    # For start point: fit line to rising edge
+    rise_range = range(max(0, start_idx), start_idx+150)
+    rise_x = np.array(rise_range)
+    rise_y = magnitude[rise_range]
+    
+    # Linear fit: y = mx + b
+    def linear_func(x, m, b):
+        return m*x + b
+    
+    rise_params, _ = curve_fit(linear_func, rise_x, rise_y)
+    m_rise, b_rise = rise_params
+    
+    # Find intersection with baseline
+    actual_start = int((baseline_value - b_rise) / m_rise)
+    
+    # Similar process for end point
+    fall_range = range(end_idx-150, min(end_idx, len(magnitude)))
+    fall_x = np.array(fall_range)
+    fall_y = magnitude[fall_range]
+    
+    fall_params, _ = curve_fit(linear_func, fall_x, fall_y)
+    m_fall, b_fall = fall_params
+    
+    actual_end = int((baseline_value - b_fall) / m_fall)
+    if plot_flag:
+        plt.figure(figsize=(12, 7))
+        
+        # Plot original signal
+        plt.plot(time, magnitude, label="Magnitude", color="purple")
+        
+        # Plot baseline
+        plt.axhline(baseline_value, color="green", linestyle="--", label="Baseline")
+        
+        # Plot threshold crossings
+        plt.axvline(time[threshold_indices[0]], color="orange", linestyle="--", label="Threshold Start")
+        plt.axvline(time[threshold_indices[1]], color="orange", linestyle="--", label="Threshold End")
+        
+        # Plot actual boundaries
+        plt.axvline(time[actual_start], color="blue", linestyle="--", label="Actual Start")
+        plt.axvline(time[actual_end], color="red", linestyle="--", label="Actual End")
+        
+        # Plot fitted lines with extended ranges to show intersection clearly
+        m_rise, b_rise = rise_params
+        m_fall, b_fall = fall_params
+        
+        # Extended x ranges for visualization
+        x_rise = np.array(range(actual_start-50, threshold_indices[0]+50))
+        x_fall = np.array(range(threshold_indices[1]-50, actual_end+50))
+        
+        # Plot fitted lines
+        plt.plot(time[x_rise], m_rise*x_rise + b_rise, color="blue", 
+                linestyle="-", linewidth=2, label="Rising Fit")
+        plt.plot(time[x_fall], m_fall*x_fall + b_fall, color="red", 
+                linestyle="-", linewidth=2, label="Falling Fit")
+        
+        # Mark intersection points
+        plt.scatter(time[actual_start], baseline_value, color="blue", marker="o", s=100)
+        plt.scatter(time[actual_end], baseline_value, color="red", marker="o", s=100)
+        
+        plt.xlabel("Time (s)")
+        plt.ylabel("Magnitude")
+        plt.title("Linear Extrapolation for Motion Boundary Detection")
+        plt.legend(loc="best")
+        plt.grid(True)
+        plt.show()
+    
+    return actual_start, actual_end
+
+
 
 
 import numpy as np
@@ -174,16 +252,29 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, frequencies=Non
 
     # ------------------------- MAGNITUDE ANALYSIS ---------------------------
     print("Calculating magnitude...")
-    magnitude = np.sqrt(gyro_data_trimmed.iloc[:,0]**2 + 
+    raw_magnitude = np.sqrt(gyro_data_trimmed.iloc[:,0]**2 + 
                        gyro_data_trimmed.iloc[:,1]**2 + 
                        gyro_data_trimmed.iloc[:,2]**2)
+    
+    # Apply Low Pass Filter to Magnitude:
+    from scipy.signal import butter, filtfilt
+    sampling_rate = 100  # Hz
+    nyquist = 0.5 * sampling_rate
+    cutoff = 5  # Hz
+    normal_cutoff = cutoff / nyquist
+    b, a = butter(4, normal_cutoff, btype='low', analog=False)
+      
+    magnitude = filtfilt(b, a, raw_magnitude)
+
     gyro_data_trimmed['magnitude'] = magnitude
     
     mean_magnitude = gyro_data_trimmed['magnitude'].iloc[:sample_size].mean()
     threshold = mean_magnitude + offset
     threshold_indices = np.where(magnitude > threshold)[0]
     
-    start_idx, end_idx = check_real_motion(magnitude, threshold_indices, threshold=threshold)
+    s_idx, e_idx = check_real_motion(magnitude, threshold_indices, threshold=threshold)
+
+    start_idx, end_idx = find_boundaries_with_line_fit(time_gyro[non_zero_index:], magnitude, [s_idx, e_idx], plot_flag, baseline_value=0) # baseline_value = 0 to select intersection with 0-axis, if None, it will be calculated from the data
                                         
     if plot_flag:
         # Magnitude Analysis Plot

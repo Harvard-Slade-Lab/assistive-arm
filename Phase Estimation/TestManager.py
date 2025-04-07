@@ -40,7 +40,7 @@ def execute_test(choice, model, frequencies):
     # Create matrices for each timestamp
     timestamp_matrices, feature_names, frequencies = create_timestamp_matrices(
         acc_data, gyro_data, or_data, grouped_indices, 
-        biasPlot_flag=False, interpPlot_flag=False
+        biasPlot_flag=True, interpPlot_flag=False
     )
     
     # Print information about created matrices
@@ -139,7 +139,7 @@ def load_and_process_files(folder_path):
 def extract_timestamp(filename):
     parts = filename.split("_")
     for part in parts:
-        if len(part) == 14 and part.isdigit():  # YYYYMMDDHHMMSS format
+        if len(part) == 2 and part.isdigit():  # YYYYMMDDHHMMSS format
             return part
     return None
 
