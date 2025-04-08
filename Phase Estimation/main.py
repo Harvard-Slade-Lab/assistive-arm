@@ -11,6 +11,11 @@ import Linear_Reg
 import TestManager
 import SVR_Reg
 
+
+# PLOT Flags:
+training_segmentation_flag = True
+training_interpolation_flag = False
+
 # Select folder
 folder_path = DataLoader.select_folder()
 
@@ -31,7 +36,7 @@ try:
         print("No complete data sets found. Exiting...")
         
     # Create X and Y matrices
-    X, Y, timestamps, segment_lengths, feature_names, frequencies = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=True, interpPlot_flag=False)
+    X, Y, timestamps, segment_lengths, feature_names, frequencies = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=training_segmentation_flag, interpPlot_flag=training_interpolation_flag)
     print(f"Created X matrix with shape {X.shape} and Y matrix with length {len(Y)}")
     
     # Print column information
@@ -147,6 +152,8 @@ try:
             'linear': linear_model if 'linear_model' in locals() else None,
             'svr': svr_model['model'] if 'svr_model' in locals() else None
         }
+
+        # Testing:
         TestManager.handle_test_decision(choice, current_model, frequencies)
     else:
         current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else svr_model['model'] if choice == '4' else linear_model
