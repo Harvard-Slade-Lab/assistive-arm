@@ -402,9 +402,17 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, frequencies=Non
         plt.tight_layout()
         plt.draw()
 
+    # gyro_data_trimmed.iloc[:, :3] = gyro_data_trimmed.iloc[:, :3] + means
     # ------------------------- SEGMENTATION ---------------------------
+    # Filter the data before training
+    nyquist = 0.5 * sampling_rate
+    cutoff = 50  # Hz
+    normal_cutoff = cutoff / nyquist
+    b, a = butter(4, normal_cutoff, btype='low', analog=False)
     print("Segmenting data...")
     gyro_data_segmented = gyro_data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)
+    # for column in gyro_data_segmented.columns[:3]:  # Exclude magnitude column
+    #     gyro_data_segmented[column] = filtfilt(b, a, gyro_data_segmented[column])
     time_gyro_segmented = time_gyro[non_zero_index + start_idx:non_zero_index + end_idx]
 
     # Process acceleration data
@@ -413,6 +421,8 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, frequencies=Non
     non_zero_index_acc = int(non_zero_index * frequencies[1] / frequencies[0])
     acc_data_trimmed = acc_data.iloc[non_zero_index_acc:].reset_index(drop=True)
     acc_data_segmented = acc_data_trimmed.iloc[start_idx_acc:end_idx_acc].reset_index(drop=True)
+    # for column in acc_data_segmented.columns:
+    #     acc_data_segmented[column] = filtfilt(b, a, acc_data_segmented[column])
     time_acc_segmented = time_acc[non_zero_index_acc + start_idx_acc:non_zero_index_acc + end_idx_acc]
 
     # Process orientation data
