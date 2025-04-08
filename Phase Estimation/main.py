@@ -13,8 +13,10 @@ import SVR_Reg
 
 
 # PLOT Flags:
-training_segmentation_flag = True
+training_segmentation_flag = False
 training_interpolation_flag = False
+tests_segment_flag = False
+tests_interp_flag = False
 
 # Select folder
 folder_path = DataLoader.select_folder()
@@ -55,7 +57,6 @@ try:
     # Initialize variables
     models = {'ridge': None, 'lasso': None, 'linear': None}
     results = {'ridge': None, 'lasso': None, 'linear': None}
-    
     
     
     # Perform selected regression(s)
@@ -154,10 +155,10 @@ try:
         }
 
         # Testing:
-        TestManager.handle_test_decision(choice, current_model, frequencies)
+        TestManager.handle_test_decision(choice, current_model, frequencies, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
     else:
         current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else svr_model['model'] if choice == '4' else linear_model
-        TestManager.handle_test_decision(choice, current_model, frequencies)
+        TestManager.handle_test_decision(choice, current_model, frequencies, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
    
    
     plt.show(block=True)

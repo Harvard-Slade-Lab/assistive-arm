@@ -12,14 +12,14 @@ import LassoRegressionCV
 import Linear_Reg
 import SVR_Reg
 
-def handle_test_decision(choice, model, frequencies):
+def handle_test_decision(choice, model, frequencies, plot_flag_segment, plot_flag_interp):
     """Handle user decision about testing"""
     test_decision = input("\nDo you want to perform the test? (yes/no): ").lower()
     if test_decision == 'yes':
-        execute_test(choice, model, frequencies)
+        execute_test(choice, model, frequencies, plot_flag_segment, plot_flag_interp)
 
 
-def execute_test(choice, model, frequencies):
+def execute_test(choice, model, frequencies, plot_flag_segment, plot_flag_interp):
     # Select folder
     folder_path = select_folder()
     if not folder_path:
@@ -39,7 +39,7 @@ def execute_test(choice, model, frequencies):
     # Create matrices for each timestamp
     timestamp_matrices, feature_names, frequencies = create_timestamp_matrices(
         acc_data, gyro_data, or_data, grouped_indices, 
-        biasPlot_flag=False, interpPlot_flag=False
+        biasPlot_flag=plot_flag_segment, interpPlot_flag=plot_flag_interp
     )
     
     # Print information about created matrices
