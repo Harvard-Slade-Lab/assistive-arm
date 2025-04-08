@@ -39,7 +39,7 @@ def execute_test(choice, model, frequencies):
     # Create matrices for each timestamp
     timestamp_matrices, feature_names, frequencies = create_timestamp_matrices(
         acc_data, gyro_data, or_data, grouped_indices, 
-        biasPlot_flag=True, interpPlot_flag=False
+        biasPlot_flag=False, interpPlot_flag=False
     )
     
     # Print information about created matrices
@@ -133,7 +133,7 @@ def execute_test(choice, model, frequencies):
         test_numbers = list(range(1, len(mse_vector) + 1))  # Test numbers starting from 1
         plt.bar(test_numbers, mse_vector, color='skyblue', label='MSE per Test')
         # Plot the mean as a dashed line
-        plt.axhline(y=average_mse, color='red', linestyle='--', label=f'Mean MSE: {average_mse:.2f}')
+        plt.axhline(y=average_mse, color='red', linestyle='--', label=f'Mean MSE: {average_mse:.4f}')
         # Add labels and legend
         plt.xlabel('Test Number')
         plt.ylabel('Mean Squared Error (MSE)')
@@ -157,6 +157,7 @@ def execute_test(choice, model, frequencies):
 
         # Perform the test for all the methods taking just the mse
         # Ridge
+        mse_vector_ridge = []  # Ensure this is initialized before the loop
         for ts, matrix in timestamp_matrices.items():
             _, mse_ridge = RidgeRegressionCV.test_ridge(model_ridge, matrix, frequencies, Plot_flag=False)
             mse_vector_ridge.append(mse_ridge)
@@ -164,6 +165,7 @@ def execute_test(choice, model, frequencies):
         average_mse_ridge = np.mean(mse_vector_ridge)
         print(f"Average MSE for Ridge Regression: {average_mse_ridge}")
 
+        mse_vector_lasso = []  # Ensure this is initialized before the loop
         for ts, matrix in timestamp_matrices.items():
             _, mse_lasso = LassoRegressionCV.test_lasso(model_lasso, matrix, frequencies, Plot_flag=False)
             mse_vector_lasso.append(mse_lasso)
@@ -171,6 +173,7 @@ def execute_test(choice, model, frequencies):
         average_mse_lasso = np.mean(mse_vector_lasso)
         print(f"Average MSE for Lasso Regression: {average_mse_lasso}")
 
+        mse_vector_linear = []  # Ensure this is initialized before the loop
         for ts, matrix in timestamp_matrices.items():
             _, _, mse_linear = Linear_Reg.test_regression(model_linear, matrix, frequencies, Plot_flag=False)
             mse_vector_linear.append(mse_linear)
@@ -178,6 +181,7 @@ def execute_test(choice, model, frequencies):
         average_mse_linear = np.mean(mse_vector_linear)
         print(f"Average MSE for Linear Regression: {average_mse_linear}")
 
+        mse_vector_svr = []  # Ensure this is initialized before the loop
         for ts, matrix in timestamp_matrices.items():
             _, mse_svr = SVR_Reg.test_svr(model_svr, matrix, frequencies, Plot_flag=False)
             mse_vector_svr.append(mse_svr)
@@ -185,19 +189,49 @@ def execute_test(choice, model, frequencies):
         average_mse_svr = np.mean(mse_vector_svr)
         print(f"Average MSE for SVR: {average_mse_svr}")
 
-        # Plot MSE comparison
-        # Plot MSE comparison
+        # Prepare data for plots
         methods = ['Ridge', 'Lasso', 'Linear', 'SVR']
         average_mses = [average_mse_ridge, average_mse_lasso, average_mse_linear, average_mse_svr]
+        mse_data = [mse_vector_ridge, mse_vector_lasso, mse_vector_linear, mse_vector_svr]
+        colors = ['blue', 'green', 'orange', 'purple']
 
+        # Option 1: Original bar plot (keep this if you want both visualizations)
         plt.figure(figsize=(8, 6))
-        plt.bar(methods, average_mses, color=['blue', 'green', 'orange', 'purple'])
+        plt.bar(methods, average_mses, color=colors)
         plt.xlabel('Regression Methods')
         plt.ylabel('Average MSE')
         plt.title('Comparison of Average MSE Across Regression Methods')
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.tight_layout()
         plt.show()
+
+        # Option 2: Box plot (this is the transformation you requested)
+        plt.figure(figsize=(8, 6))
+        box = plt.boxplot(mse_data, patch_artist=True, labels=methods, showmeans=True)
+
+        # Customize the box plot to match your reference image
+        # Color the boxes
+        for patch, color in zip(box['boxes'], colors):
+            patch.set_facecolor(color)
+
+        # Set mean markers as red triangles
+        for mean in box['means']:
+            mean.set_marker('^')
+            mean.set_markerfacecolor('red')
+            mean.set_markeredgecolor('red')
+
+        # Set median lines to be white/light colored for better visibility
+        for median in box['medians']:
+            median.set_color('white')
+            median.set_linewidth(1.5)
+
+        plt.xlabel('Regression Methods')
+        plt.ylabel('MSE')
+        plt.title('Distribution of MSE Across Regression Methods')
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.tight_layout()
+        plt.show()
+
 
 
 # Function to select folder

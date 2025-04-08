@@ -31,7 +31,7 @@ try:
         print("No complete data sets found. Exiting...")
         
     # Create X and Y matrices
-    X, Y, timestamps, segment_lengths, feature_names, frequencies = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=True, interpPlot_flag=False)
+    X, Y, timestamps, segment_lengths, feature_names, frequencies = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=False, interpPlot_flag=False)
     print(f"Created X matrix with shape {X.shape} and Y matrix with length {len(Y)}")
     
     # Print column information
