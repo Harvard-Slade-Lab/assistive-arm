@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import itertools
+from scipy.interpolate import interp1d
 
 def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=True, interpPlot_flag=True):
     X = []
@@ -60,12 +61,11 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
     # Fictitious trials generation
     add_fictitious = input("Do you want to add fictitious trials? (yes/no): ").strip().lower()
     if add_fictitious == 'yes':
-        # try:
-        #     num_fictitious = int(input("Enter the number of fictitious trials to add: "))
-        # except ValueError:
-        #     print("Invalid input. No fictitious trials added.")
-        #     num_fictitious = 0
-        num_fictitious = 1  # For testing purposes, set to 1
+        try:
+            num_fictitious = int(input("Enter the number of fictitious trials to add: "))
+        except ValueError:
+            print("Invalid input. No fictitious trials added.")
+            num_fictitious = 0
         # Modified noise generation section with sensor-specific scaling
         if num_fictitious > 0:
             original_X = X.copy()
@@ -75,17 +75,28 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
             gyro_cols = [i for i,name in enumerate(feature_names) if 'GYRO' in name]
             or_cols = [i for i,name in enumerate(feature_names) if 'OR' in name]
 
-            # # Get noise scaling factors from user (example values shown)
-            # acc_noise_percent = float(input("Enter accelerometer noise percentage (e.g., 1.0): ")) / 100
-            # gyro_noise_percent = float(input("Enter gyroscope noise percentage (e.g., 0.5): ")) / 100
+            # Get noise scaling factors from user (example values shown)
+            acc_noise_percent = float(input("Enter accelerometer noise percentage (e.g., 1.0): ")) / 100
+            gyro_noise_percent = float(input("Enter gyroscope noise percentage (e.g., 0.5): ")) / 100
             # or_noise_percent = float(input("Enter orientation noise percentage (e.g., 0.1): ")) / 100
 
-            # Generate angle combinations (-5°, -3°, -1°, 1°, 3°, 5° for each axis)
-            angles = np.arange(-5, 5, 2)  # [-5, -3, -1, 1, 3, 5]
+            angle = int(input("Enter rotation angle (in degrees): "))
+            warp_min = float(input("  Minimum warp factor (e.g., 0.8 for 80perc speed): "))
+            warp_max = float(input("  Maximum warp factor (e.g., 1.2 for 120perc speed): "))
+            # Generate angle combinations 
+            angles = np.arange(-angle, angle, 2) 
             angle_combinations = list(itertools.product(angles, repeat=3))
             print(f"Number of angle combinations: {len(angle_combinations)}")
             # Modified data augmentation cycle
-            for rot_angles in angle_combinations:  # Each combination contains (x_angle, y_angle, z_angle)
+            for _ in range(num_fictitious):  # Randomly select angle combinations
+                rot_angles = angle_combinations[np.random.randint(len(angle_combinations))]  # Random selection
+
+                seg_idx = np.random.randint(0, len(original_X))
+                original_segment = original_X[seg_idx].copy()
+                
+                #print the iteration number
+                print(f"Fictitious trial {_ + 1}/{num_fictitious} with angles: {rot_angles}")
+
                 # Generate rotation matrices for current angles
                 R_x = rotation_matrix_x(rot_angles[0])
                 R_y = rotation_matrix_y(rot_angles[1])
@@ -100,40 +111,60 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
                 qz = rotation_quaternion_z(rot_angles[2])
                 q_rot = quaternion_multiply(qz, quaternion_multiply(qy, qx))
                 q_rot /= np.linalg.norm(q_rot)  # Ensure unit quaternion
+                
+                # Split into sensor components
+                acc_data = original_segment[:, acc_cols]
+                gyro_data = original_segment[:, gyro_cols]
+                or_data = original_segment[:, or_cols]
 
-                for seg_idx in range(len(original_X)):
-                    original_segment = original_X[seg_idx].copy()
-                    
-                    # Split into sensor components
-                    acc_data = original_segment[:, acc_cols]
-                    gyro_data = original_segment[:, gyro_cols]
-                    or_data = original_segment[:, or_cols]
+                # Apply rotation to linear signals
+                rotated_acc = acc_data @ R.T  # Rotate accelerometer data
+                rotated_gyro = gyro_data.copy()
+                rotated_gyro[:, :3] = gyro_data[:, :3] @ R.T  # Rotate only the first three columns of gyroscope data
 
-                    # Apply rotation to linear signals
-                    rotated_acc = acc_data @ R.T  # Rotate accelerometer data
-                    rotated_gyro = gyro_data.copy()
-                    rotated_gyro[:, :3] = gyro_data[:, :3] @ R.T  # Rotate only the first three columns of gyroscope data
-                    rotated_gyro[:, 3] = np.sqrt(
-                        rotated_gyro[:, 0] ** 2 + 
-                        rotated_gyro[:, 1] ** 2 + 
-                        rotated_gyro[:, 2] ** 2
-                    )
-                    
-                    # Apply rotation to quaternions (Hamilton product)
-                    rotated_or = np.array([quaternion_multiply(q_rot, q) for q in or_data])
-                    rotated_or /= np.linalg.norm(rotated_or, axis=1, keepdims=True)  # Normalize
 
-                    # Recombine rotated components
-                    fictitious_segment = np.hstack([rotated_acc, rotated_gyro, rotated_or])
-                    
-                    # Append to matrices
-                    X.append(fictitious_segment)
-                    segment_lengths.append(original_segment.shape[0])
-                    sorted_timestamps.append(f"rotated_{rot_angles}_{seg_idx}")
+                # Calculate sensor-specific noise magnitudes [2][5][8]
+                acc_scale = np.std(rotated_acc) * acc_noise_percent
+                gyro_scale = np.std(rotated_gyro) * gyro_noise_percent
 
-                    # Create matching Y segment
-                    y_fictitious = np.linspace(0, 1, original_segment.shape[0])
-                    Y.append(y_fictitious)
+                # Generate colored noise [3][7]
+                acc_noise = np.random.normal(0, acc_scale, rotated_acc.shape)
+                gyro_noise = np.random.normal(0, gyro_scale, rotated_gyro.shape)
+
+                # Apply noise to components
+                rotated_acc += acc_noise
+                rotated_gyro += gyro_noise
+                
+                # Apply rotation to quaternions (Hamilton product)
+                rotated_or = np.array([quaternion_multiply(q_rot, q) for q in or_data])
+                rotated_or /= np.linalg.norm(rotated_or, axis=1, keepdims=True)  # Normalize
+
+
+                time_warp_range = (warp_min, warp_max)
+                warp_factor = np.random.uniform(time_warp_range[0], time_warp_range[1])
+
+                # Apply sensor-specific warping
+                rotated_acc = apply_time_warping(rotated_acc, warp_factor, 'acc')
+                rotated_gyro = apply_time_warping(rotated_gyro, warp_factor, 'gyro') 
+                rotated_or = apply_time_warping(rotated_or, warp_factor, 'or')
+                rotated_gyro[:, 3] = np.sqrt(
+                    rotated_gyro[:, 0] ** 2 + 
+                    rotated_gyro[:, 1] ** 2 + 
+                    rotated_gyro[:, 2] ** 2
+                )
+
+                # Recombine rotated components
+                fictitious_segment = np.hstack([rotated_acc, rotated_gyro, rotated_or])
+                
+                # Append to matrices
+                X.append(fictitious_segment)
+                sorted_timestamps.append(f"rotated_{rot_angles}_{seg_idx}")
+
+                # Correct implementation:
+                new_length = rotated_acc.shape[0]
+                segment_lengths.append(new_length)
+                y_fictitious = np.linspace(0, 1, new_length)
+                Y.append(y_fictitious)
 
 
     # Stack matrices vertically
@@ -196,7 +227,7 @@ def visualize_matrices(X, Y, timestamps, segment_lengths, feature_names):
     current_pos = 0
     for ts, length in zip(timestamps, segment_lengths):
         segment_range = np.arange(current_pos, current_pos + length)
-        segment_values = np.linspace(0, 1, length)
+        segment_values = Y[current_pos:current_pos + length]
         ax2.plot(segment_range, segment_values, label=f"Segment {ts}")
         current_pos += length
     
@@ -281,3 +312,68 @@ def quaternion_multiply(q1, q2):
     z = w1*z2 + x1*y2 - y1*x2 + z1*w2
     
     return np.array([w, x, y, z])
+
+
+def apply_time_warping(original_segment, warp_factor, sensor_type):
+    """Apply physics-aware time warping with sensor-specific scaling."""
+    original_length = original_segment.shape[0]
+    original_time = np.linspace(0, 1, original_length)
+    
+    # Calculate new length based on warp factor
+    warped_length = int(original_length * warp_factor)
+    warped_time = np.linspace(0, 1, warped_length)
+    
+    # Create interpolation function
+    interp_fn = interp1d(original_time, original_segment, axis=0, 
+                        kind='quadratic', fill_value='extrapolate')
+    
+    # Apply temporal interpolation
+    warped_segment = interp_fn(warped_time)
+    
+    # Physics-based scaling
+    if sensor_type == 'acc':
+        # Acceleration scales with 1/warp_factor² (2nd derivative of position)
+        warped_segment *= (1 / warp_factor)**2
+    elif sensor_type == 'gyro':
+        # Angular velocity scales with 1/warp_factor (1st derivative of orientation)
+        warped_segment[:, :3] *= (1 / warp_factor)  # XYZ components
+        if warped_segment.shape[1] > 3:  # Preserve magnitude if present
+            warped_segment[:, 3] = np.linalg.norm(warped_segment[:, :3], axis=1)
+    elif sensor_type == 'or':
+        # Maintain unit quaternions with Slerp interpolation
+        warped_segment = np.array([slerp(original_time, original_segment, t) 
+                                  for t in warped_time])
+    
+    return warped_segment
+
+def slerp(times, quats, target_time):
+    """Spherical linear interpolation for quaternions."""
+    idx = np.searchsorted(times, target_time, side='right') - 1
+    if idx == len(times) - 1:
+        return quats[-1]
+    
+    t0, t1 = times[idx], times[idx+1]
+    q0, q1 = quats[idx], quats[idx+1]
+    
+    # Ensure quaternions are normalized
+    q0 /= np.linalg.norm(q0)
+    q1 /= np.linalg.norm(q1)
+    
+    # Compute cosine of angle between quaternions
+    cos_omega = np.dot(q0, q1)
+    
+    # If negative, flip to take shorter path
+    if cos_omega < 0:
+        q1 = -q1
+        cos_omega = -cos_omega
+    
+    # Linear interpolation for small angles
+    if cos_omega > 0.9995:
+        result = q0 + (target_time - t0) * (q1 - q0)/(t1 - t0)
+        return result / np.linalg.norm(result)
+    
+    # Slerp interpolation
+    omega = np.arccos(cos_omega)
+    so = np.sin(omega)
+    alpha = (target_time - t0)/(t1 - t0)
+    return (np.sin((1-alpha)*omega)/so)*q0 + (np.sin(alpha*omega)/so)*q1
