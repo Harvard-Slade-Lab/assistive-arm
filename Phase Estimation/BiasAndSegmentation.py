@@ -10,7 +10,7 @@ from scipy import interpolate
 bias_average_window = 1000 # Number of samples to average for bias removal
 
 # Hyperparameters for segmentation
-offset = 7.0 # Offset for threshold calculation
+offset = 3.0 # Offset for threshold calculation
 before_count = 200 # Number of samples to check before a potential transition
 after_count = 200 # Number of samples to check after a potential transition
 min_below_ratio = 0.8 # Minimum ratio of samples that must be below threshold in the before region

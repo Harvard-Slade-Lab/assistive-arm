@@ -6,7 +6,8 @@ import pandas as pd
 import itertools
 from scipy.interpolate import interp1d
 
-def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=True, interpPlot_flag=True):
+def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=True, interpPlot_flag=True, 
+                    grid=False):
     X = []
     Y = []
     segment_lengths = []
@@ -25,9 +26,12 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
         
         print(f"Processing data set from timestamp: {timestamp}")
         
-        if not executed:
-            frequencies = BiasAndSegmentation.sensors_frequencies()
-        executed = True
+        if grid == 'no':
+            if not executed:
+                frequencies = BiasAndSegmentation.sensors_frequencies()
+            executed = True
+        else:
+            frequencies = [519, 519, 222]
 
         # Apply the segmentation and bias correction
         gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
@@ -57,15 +61,25 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
             gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
             or_cols = [f"OR_{col}" for col in or_interp.columns]
             feature_names = acc_cols + gyro_cols + or_cols
+    return X, Y, sorted_timestamps, segment_lengths, feature_names, frequencies
 
-    # Fictitious trials generation
-    add_fictitious = input("Do you want to add fictitious trials? (yes/no): ").strip().lower()
+
+def fictitious_trials(X, Y, sorted_timestamps, segment_lengths, feature_names, frequencies, grid, acc_grid=None, gyro_grid=None, angle_grid=None, warp_min_grid=None, warp_max_grid=None, num_fict_grid=None):
+    if grid == 'yes':
+        add_fictitious = 'yes'
+    else:
+        # Fictitious trials generation
+        add_fictitious = input("Do you want to add fictitious trials? (yes/no): ").strip().lower()
+
     if add_fictitious == 'yes':
-        try:
-            num_fictitious = int(input("Enter the number of fictitious trials to add: "))
-        except ValueError:
-            print("Invalid input. No fictitious trials added.")
-            num_fictitious = 0
+        if grid == 'no':
+            try:
+                num_fictitious = int(input("Enter the number of fictitious trials to add: "))
+            except ValueError:
+                print("Invalid input. No fictitious trials added.")
+                num_fictitious = 0
+        else:
+            num_fictitious = num_fict_grid
         # Modified noise generation section with sensor-specific scaling
         if num_fictitious > 0:
             original_X = X.copy()
@@ -75,14 +89,23 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
             gyro_cols = [i for i,name in enumerate(feature_names) if 'GYRO' in name]
             or_cols = [i for i,name in enumerate(feature_names) if 'OR' in name]
 
-            # Get noise scaling factors from user (example values shown)
-            acc_noise_percent = float(input("Enter accelerometer noise percentage (e.g., 1.0): ")) / 100
-            gyro_noise_percent = float(input("Enter gyroscope noise percentage (e.g., 0.5): ")) / 100
-            # or_noise_percent = float(input("Enter orientation noise percentage (e.g., 0.1): ")) / 100
-
-            angle = int(input("Enter rotation angle (in degrees): "))
-            warp_min = float(input("  Minimum warp factor (e.g., 0.8 for 80perc speed): "))
-            warp_max = float(input("  Maximum warp factor (e.g., 1.2 for 120perc speed): "))
+            if grid == 'no':
+                # Get noise scaling factors from user (example values shown)
+                acc_noise_percent = float(input("Enter accelerometer noise percentage (e.g., 1.0): ")) / 100
+                gyro_noise_percent = float(input("Enter gyroscope noise percentage (e.g., 0.5): ")) / 100
+                # or_noise_percent = float(input("Enter orientation noise percentage (e.g., 0.1): ")) / 100
+                angle = int(input("Enter rotation angle (in degrees): "))
+                warp_min = float(input("  Minimum warp factor (e.g., 0.8 for 80perc speed): "))
+                warp_max = float(input("  Maximum warp factor (e.g., 1.2 for 120perc speed): "))
+            else:
+                # Use grid values for noise scaling factors
+                acc_noise_percent = acc_grid / 100
+                gyro_noise_percent = gyro_grid / 100
+                # or_noise_percent = angle_grid / 100
+                angle = angle_grid
+                warp_min = warp_min_grid
+                warp_max = warp_max_grid
+                
             # Generate angle combinations 
             angles = np.arange(-angle, angle, 2) 
             angle_combinations = list(itertools.product(angles, repeat=3))
@@ -94,8 +117,8 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
                 seg_idx = np.random.randint(0, len(original_X))
                 original_segment = original_X[seg_idx].copy()
                 
-                #print the iteration number
-                print(f"Fictitious trial {_ + 1}/{num_fictitious} with angles: {rot_angles}")
+                # #print the iteration number
+                # print(f"Fictitious trial {_ + 1}/{num_fictitious} with angles: {rot_angles}")
 
                 # Generate rotation matrices for current angles
                 R_x = rotation_matrix_x(rot_angles[0])
