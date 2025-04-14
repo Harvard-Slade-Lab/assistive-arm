@@ -320,7 +320,7 @@ def group_files_by_timestamp(acc_files, gyro_files, or_files):
     
     return complete_groups
 
-def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=False, interpPlot_flag=False):
+def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, frequencies, biasPlot_flag=False, interpPlot_flag=False):
     """
     Create separate matrices for each timestamp, concatenating sensor data along columns.
     
@@ -354,8 +354,7 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, bia
     # Sort timestamps to ensure chronological order
     sorted_timestamps = sorted(grouped_indices.keys())
     
-    # Get frequencies (only need to do this once)
-    frequencies = BiasAndSegmentation.sensors_frequencies()
+
     
     for timestamp in sorted_timestamps:
         indices = grouped_indices[timestamp]

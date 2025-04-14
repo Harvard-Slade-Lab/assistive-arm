@@ -60,6 +60,7 @@ def enhanced_ridge_regression(X,y, feature_names, alpha_range=None, cv=None, plo
     # Get final predictions
     final_pred = model.predict(X)
     
+
     # Extract RidgeCV component
     ridge_cv = model.named_steps['ridgecv']
     
@@ -71,7 +72,8 @@ def enhanced_ridge_regression(X,y, feature_names, alpha_range=None, cv=None, plo
     print(f"Optimal alpha: {ridge_cv.alpha_:.2e}")
     print(f"Cross-validated MSE: {mse:.4e}")
     print(f"R² Score: {r2:.4f}")
-    
+    residuals = (y - final_pred) * 100
+
     # Plot diagnostics
     if plot:
         plt.figure(figsize=(15, 10))
@@ -104,7 +106,7 @@ def enhanced_ridge_regression(X,y, feature_names, alpha_range=None, cv=None, plo
         
         # 4. Residual Analysis
         plt.subplot(2, 2, 4)
-        residuals = (y - final_pred) * 100
+
         plt.scatter(final_pred*100, residuals, alpha=0.5)
         plt.axhline(0, color='r', linestyle='--')
         plt.title('Residual Analysis')
