@@ -31,7 +31,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
 
         # Apply the segmentation and bias correction
         gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
-            gyro, acc, or_data_item, frequencies, plot_flag=biasPlot_flag
+            gyro, acc, or_data_item, frequencies, selectManually=True, plot_flag=biasPlot_flag
         )
         
         # Apply interpolation

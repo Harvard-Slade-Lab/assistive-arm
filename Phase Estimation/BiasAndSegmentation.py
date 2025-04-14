@@ -21,6 +21,7 @@ plt.ion()
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
+from matplotlib.widgets import Cursor
 
 def robust_find_peak_start(signal, threshold_idx, window_size=5, slope_threshold=0.5):
     """Find the true start of peak using robust slope analysis"""
@@ -297,7 +298,7 @@ def check_real_motion(magnitude, threshold_indices, threshold=None,
 import numpy as np
 import matplotlib.pyplot as plt
 
-def segmentation_and_bias(gyro_data, acc_data, orientation_data, frequencies=None, plot_flag=True):
+def segmentation_and_bias(gyro_data, acc_data, orientation_data, frequencies=None, selectManually=False, plot_flag=True):
 
     print(gyro_data.head())
     print(acc_data.head())
@@ -384,8 +385,16 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, frequencies=Non
     threshold = mean_magnitude + offset
     threshold_indices = np.where(magnitude > threshold)[0]
     
-    s_idx, e_idx = check_real_motion(magnitude, threshold_indices, threshold=threshold)
-    start_idx, end_idx = detect_peak_boundaries(magnitude, s_idx, e_idx, threshold, visualize=plot_flag)
+   
+    # Select start and end indices based on threshold crossings or manually
+    if selectManually == True:
+            # Call the function to select indices
+        start_idx, end_idx = select_indices(magnitude, time_gyro[non_zero_index:], threshold, frequencies)
+        start_idx = start_idx - non_zero_index
+        end_idx = end_idx - non_zero_index
+    else:
+        s_idx, e_idx = check_real_motion(magnitude, threshold_indices, threshold=threshold)
+        start_idx, end_idx = detect_peak_boundaries(magnitude, s_idx, e_idx, threshold, visualize=plot_flag)
                                         
     if plot_flag:
         # Magnitude Analysis Plot
@@ -510,3 +519,42 @@ def sensors_frequencies():
 # # Guard to prevent execution when imported
 # if __name__ == "__main__":
 #     segmentation_and_bias()
+
+# Interactive selection of start_idx and end_idx
+# Interactive selection of start_idx and end_idx
+def select_indices(signal, time_vector, threshold, frequencies):
+    indices = []
+
+    def onclick(event):
+        if event.inaxes:
+            idx = int(event.xdata * frequencies[0])  # Convert time to index
+            indices.append(idx)
+            print(f"Selected index: {idx}")
+            if len(indices) == 2:
+                plt.close()
+
+    fig, ax = plt.subplots(figsize=(12, 7))
+    ax.plot(time_vector, signal, label='Magnitude')
+    ax.axhline(threshold, color='green', linestyle='--', label=f'Threshold ({threshold:.2f})')
+    ax.set_title("Select Start and End Indices")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Composite Magnitude")
+    ax.legend()
+    ax.grid(True)
+
+    # Add a cursor that moves with the mouse
+    cursor = Cursor(ax, useblit=True, color='red', linewidth=1)
+
+    # Connect the click event
+    cid = fig.canvas.mpl_connect('button_press_event', onclick)
+
+    plt.show(block=True)
+
+    if len(indices) < 2:
+        print("Error: Both start and end indices must be selected.")
+        return None, None
+
+    return indices[0], indices[1]
+
+
+
