@@ -10,16 +10,17 @@ from Interpolation import interpolate_and_visualize
 import RidgeRegressionCV
 import LassoRegressionCV
 import Linear_Reg
+import RandomForest
 import SVR_Reg
 
-def handle_test_decision(choice, model, frequencies, plot_flag_segment, plot_flag_interp):
+def handle_test_decision(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
     """Handle user decision about testing"""
     test_decision = input("\nDo you want to perform the test? (yes/no): ").lower()
     if test_decision == 'yes':
-        execute_test(choice, model, frequencies, plot_flag_segment, plot_flag_interp)
+        execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp)
 
 
-def execute_test(choice, model, frequencies, plot_flag_segment, plot_flag_interp):
+def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
     # Select folder
     folder_path = select_folder()
     if not folder_path:
@@ -38,7 +39,7 @@ def execute_test(choice, model, frequencies, plot_flag_segment, plot_flag_interp
     
     # Create matrices for each timestamp
     timestamp_matrices, feature_names, frequencies = create_timestamp_matrices(
-        acc_data, gyro_data, or_data, grouped_indices, 
+        acc_data, gyro_data, or_data, grouped_indices, segment_choice,
         biasPlot_flag=plot_flag_segment, interpPlot_flag=plot_flag_interp
     )
     
@@ -100,6 +101,18 @@ def execute_test(choice, model, frequencies, plot_flag_segment, plot_flag_interp
         average_mse = np.mean(mse_vector)
         print(f"Average MSE for SVR: {average_mse}")
     
+    elif choice == '6':
+        for ts, matrix in timestamp_matrices.items():
+            y_pred, mse = RandomForest.test_random_forest(model, matrix, frequencies, Plot_flag=False)
+            # Store the predicted y for this test in a list
+            y_pred_list = globals().get("y_pred_list", [])
+            y_pred_list.append((ts, y_pred))
+            globals()["y_pred_list"] = y_pred_list
+            # Stores mse in a vector to store the results every iteration:
+            mse_vector.append(mse)
+        # compute average of mse_vector:
+        average_mse = np.mean(mse_vector)
+        print(f"Average MSE for Random Forest: {average_mse}")
 
     if choice != '5':
         # Interpolate all y_pred to align them for plotting
@@ -150,10 +163,12 @@ def execute_test(choice, model, frequencies, plot_flag_segment, plot_flag_interp
         model_lasso = model['lasso']
         model_linear = model['linear']
         model_svr = model['svr']
+        model_randomforest = model['randomforest']
         mse_vector_ridge = []  # Initialize mse_vector as an empty list
         mse_vector_lasso = []  # Initialize mse_vector as an empty list
         mse_vector_linear = []  # Initialize mse_vector as an empty list
         mse_vector_svr = []  # Initialize mse_vector as an empty list
+        mse_vector_randomforest = []  # Initialize mse_vector as an empty list
 
         # Perform the test for all the methods taking just the mse
         # Ridge
@@ -189,11 +204,19 @@ def execute_test(choice, model, frequencies, plot_flag_segment, plot_flag_interp
         average_mse_svr = np.mean(mse_vector_svr)
         print(f"Average MSE for SVR: {average_mse_svr}")
 
+        mse_vector_randomforest = []  # Ensure this is initialized before the loop
+        for ts, matrix in timestamp_matrices.items():
+            _, mse_randomforest = RandomForest.test_random_forest(model_randomforest, matrix, frequencies, Plot_flag=False)
+            mse_vector_randomforest.append(mse_randomforest)
+        # Compute average of mse_vector for Random Forest
+        average_mse_randomforest = np.mean(mse_vector_randomforest)
+        print(f"Average MSE for Random Forest: {average_mse_randomforest}")
+
         # Prepare data for plots
-        methods = ['Ridge', 'Lasso', 'Linear', 'SVR']
-        average_mses = [average_mse_ridge, average_mse_lasso, average_mse_linear, average_mse_svr]
-        mse_data = [mse_vector_ridge, mse_vector_lasso, mse_vector_linear, mse_vector_svr]
-        colors = ['blue', 'green', 'orange', 'purple']
+        methods = ['Ridge', 'Lasso', 'Linear', 'SVR', 'Random Forest']
+        average_mses = [average_mse_ridge, average_mse_lasso, average_mse_linear, average_mse_svr, average_mse_randomforest]
+        mse_data = [mse_vector_ridge, mse_vector_lasso, mse_vector_linear, mse_vector_svr, mse_vector_randomforest]
+        colors = ['blue', 'green', 'orange', 'purple', 'brown']
 
         # Option 1: Original bar plot (keep this if you want both visualizations)
         plt.figure(figsize=(8, 6))
@@ -320,7 +343,7 @@ def group_files_by_timestamp(acc_files, gyro_files, or_files):
     
     return complete_groups
 
-def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=False, interpPlot_flag=False):
+def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=False, interpPlot_flag=False):
     """
     Create separate matrices for each timestamp, concatenating sensor data along columns.
     
@@ -369,7 +392,7 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, bia
         
         # Apply the segmentation and bias correction
         gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
-            gyro, acc, or_data_item, frequencies, plot_flag=biasPlot_flag
+            gyro, acc, or_data_item, segment_choice=segment_choice, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
         )
         
         # Apply interpolation
@@ -456,75 +479,3 @@ def visualize_timestamp_matrix(matrix, timestamp, feature_names):
     plt.tight_layout()
     plt.show()
 
-def main():
-    """
-    Main function to execute the script.
-    """
-    # Select folder
-    folder_path = select_folder()
-    if not folder_path:
-        print("No folder selected. Exiting.")
-        return
-    
-    # Load and process files
-    acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = load_and_process_files(folder_path)
-    
-    # Group files by timestamp
-    grouped_indices = group_files_by_timestamp(acc_files, gyro_files, or_files)
-    
-    if not grouped_indices:
-        print("No complete groups of files found. Exiting.")
-        return
-    
-    # Create matrices for each timestamp
-    timestamp_matrices, feature_names, frequencies = create_timestamp_matrices(
-        acc_data, gyro_data, or_data, grouped_indices, 
-        biasPlot_flag=False, interpPlot_flag=False
-    )
-    
-    # Print information about created matrices
-    print(f"\nCreated {len(timestamp_matrices)} matrices for different timestamps:")
-    for ts, matrix in timestamp_matrices.items():
-        print(f"Timestamp: {ts}, Matrix shape: {matrix.shape}")
-    
-    # Example: Visualize a matrix (user can choose which one to visualize)
-    visualize_option = input("\nWould you like to visualize a matrix? (yes/no): ")
-    if visualize_option.lower() == 'yes':
-        print("\nAvailable timestamps:")
-        for i, ts in enumerate(sorted(timestamp_matrices.keys())):
-            print(f"{i+1}. {ts}")
-        
-        try:
-            idx = int(input("\nEnter the number of the timestamp to visualize: ")) - 1
-            timestamps = sorted(timestamp_matrices.keys())
-            if 0 <= idx < len(timestamps):
-                selected_ts = timestamps[idx]
-                visualize_timestamp_matrix(timestamp_matrices[selected_ts], selected_ts, feature_names)
-            else:
-                print("Invalid selection.")
-        except ValueError:
-            print("Invalid input.")
-    
-    # Save matrices to files
-    save_option = input("\nWould you like to save matrices to files? (yes/no): ")
-    if save_option.lower() == 'yes':
-        # Create output directory
-        output_dir = os.path.join(folder_path, "timestamp_matrices")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        for ts, matrix in timestamp_matrices.items():
-            # Create DataFrame with feature names
-            df = pd.DataFrame(matrix, columns=feature_names)
-            
-            # Save to CSV
-            output_file = os.path.join(output_dir, f"matrix_{ts}.csv")
-            df.to_csv(output_file, index=False)
-            
-            # Also save as numpy array for convenience
-            np_output_file = os.path.join(output_dir, f"matrix_{ts}.npy")
-            np.save(np_output_file, matrix)
-            
-        print(f"\nMatrices saved to directory: {output_dir}")
-
-if __name__ == "__main__":
-    main()

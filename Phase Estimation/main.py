@@ -10,6 +10,7 @@ import LassoRegressionCV
 import Linear_Reg
 import TestManager
 import SVR_Reg
+import RandomForest
 
 
 # PLOT Flags:
@@ -36,9 +37,12 @@ try:
     print(f"Found {len(grouped_indices)} complete data sets")
     if not grouped_indices:
         print("No complete data sets found. Exiting...")
+
+    # Segmentation Selection:
+    segment_choice = input("Select segmentation method (1: GyroMagnitude, 2: AREDSegmentation): , 3: SHOESegmentation").strip()
         
     # Create X and Y matrices
-    X, Y, timestamps, segment_lengths, feature_names, frequencies = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=training_segmentation_flag, interpPlot_flag=training_interpolation_flag)
+    X, Y, timestamps, segment_lengths, feature_names, frequencies = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=training_segmentation_flag, interpPlot_flag=training_interpolation_flag)
     print(f"Created X matrix with shape {X.shape} and Y matrix with length {len(Y)}")
     
     # Print column information
@@ -51,7 +55,7 @@ try:
     
     # User interaction
     print("\nRegression Options:")
-    print("1. Ridge Regression\n2. Lasso Regression\n3. Linear Regression\n4. SVR Regression\n5. All regression")
+    print("1. Ridge Regression\n2. Lasso Regression\n3. Linear Regression\n4. SVR Regression\n5. All regression\n6. Random Forest Regression")
     choice = input("Enter your choice (1-5): ")
     
     # Initialize variables
@@ -66,6 +70,8 @@ try:
         lasso_result, y_lasso = LassoRegressionCV.enhanced_lasso_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
     elif choice == '3':
         linear_model, y_linear, _, mse_linear = Linear_Reg.linear_regression(X,Y, frequencies, feature_names=feature_names,  plot=True)
+    elif choice == '6':
+        randomforest_result, y_randomforest = RandomForest.enhanced_random_forest_regression(X,Y,feature_names,param_grid=None, cv=5, plot=True, frequencies=frequencies)
     elif choice == '5':
         # parameter grid for SVR, reduce the number of parameters for faster computation
         # Note: The grid search will take longer with more parameters
@@ -88,6 +94,7 @@ try:
         lasso_result, y_lasso = LassoRegressionCV.enhanced_lasso_regression(X,Y,feature_names,alpha_range=(-7, 7, 40), cv=None, plot=True, frequencies=frequencies)
         linear_model, y_linear, _, mse_linear = Linear_Reg.linear_regression(X,Y, frequencies, feature_names=feature_names, plot=True)
         svr_model, y_svr = SVR_Reg.enhanced_svr_regression(X,Y, kernel='rbf', param_grid=param_grid, plot=True, frequencies=frequencies)
+        randomforest_result, y_randomforest = RandomForest.enhanced_random_forest_regression(X,Y,feature_names,param_grid=None, cv=5, plot=True, frequencies=frequencies)
     elif choice == '4':
         # parameter grid for SVR, reduce the number of parameters for faster computation
         # Note: The grid search will take longer with more parameters
@@ -116,6 +123,7 @@ try:
         mse_lasso = lasso_result['mse']
         mse_linear = mse_linear
         mse_svr = svr_model['mse']
+        mse_randomforest = randomforest_result['mse']
 
         print("\nPlotting comparison...")
         plt.figure(figsize=(12, 6))
@@ -123,6 +131,7 @@ try:
         plt.plot(y_ridge, label='Ridge', color='orange')
         plt.plot(y_lasso, label='Lasso', color='green')
         plt.plot(y_svr, label='SVR', color='purple')
+        plt.plot(y_randomforest, label='Random Forest', color='brown')
         plt.plot(Y, label='Target', color='red', linestyle='--')
         plt.xlabel('Time (s)')
         plt.ylabel('Percentage (%)')
@@ -139,7 +148,8 @@ try:
         mse_text = (f"Linear MSE: {format_mse(mse_linear)}\n"
                 f"Ridge MSE: {format_mse(mse_ridge)}\n"
                 f"Lasso MSE: {format_mse(mse_lasso)}\n"
-                f"SVR MSE: {format_mse(mse_svr)}")
+                f"SVR MSE: {format_mse(mse_svr)}\n"
+                f"Random Forest MSE: {format_mse(mse_randomforest)}")
         
         # Add MSE values as text in the plot, keeping it within the grid
         plt.text(0.95, 0.05, mse_text, fontsize=10, ha='right', va='bottom', 
@@ -151,14 +161,15 @@ try:
             'ridge': ridge_result['model'] if 'ridge_result' in locals() else None,
             'lasso': lasso_result['model'] if 'lasso_result' in locals() else None,
             'linear': linear_model if 'linear_model' in locals() else None,
-            'svr': svr_model['model'] if 'svr_model' in locals() else None
+            'svr': svr_model['model'] if 'svr_model' in locals() else None,
+            'randomforest': randomforest_result['model'] if 'randomforest_result' in locals() else None
         }
 
         # Testing:
-        TestManager.handle_test_decision(choice, current_model, frequencies, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
+        TestManager.handle_test_decision(choice, current_model, frequencies, segment_choice, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
     else:
-        current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else svr_model['model'] if choice == '4' else linear_model
-        TestManager.handle_test_decision(choice, current_model, frequencies, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
+        current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else svr_model['model'] if choice == '4' else randomforest_result['model'] if choice == '6' else linear_model
+        TestManager.handle_test_decision(choice, current_model, frequencies, segment_choice, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
    
    
     plt.show(block=True)

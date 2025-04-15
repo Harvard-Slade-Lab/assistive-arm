@@ -6,7 +6,7 @@ import pandas as pd
 import itertools
 from scipy.interpolate import interp1d
 
-def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag=True, interpPlot_flag=True):
+def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=True, interpPlot_flag=True):
     X = []
     Y = []
     segment_lengths = []
@@ -31,9 +31,9 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, biasPlot_flag
 
         # Apply the segmentation and bias correction
         gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
-            gyro, acc, or_data_item, frequencies, plot_flag=biasPlot_flag
+            gyro, acc, or_data_item, segment_choice=segment_choice, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
         )
-        
+
         # Apply interpolation
         gyro_interp, acc_interp, or_interp = Interpolation.interpolate_and_visualize(
             gyro_processed, acc_processed, or_processed, 
