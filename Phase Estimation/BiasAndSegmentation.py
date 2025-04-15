@@ -13,7 +13,7 @@ import SHOE
 bias_average_window = 1000 # Number of samples to average for bias removal
 plot_flag_gyro = False  # Flag to plot gyro data
 
-
+plt.ion()  # Enable interactive mode for plotting
 def segmentation_and_bias(gyro_data, acc_data, orientation_data, segment_choice, timestamp, frequencies=None, plot_flag=True):
 
     print(gyro_data.head())
