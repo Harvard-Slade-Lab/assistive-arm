@@ -84,7 +84,7 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, segment_choice,
     elif segment_choice == '2':
         start_idx, end_idx = AREDSegmentation.AREDSegmentation(raw_magnitude, timestamp, plot_flag=plot_flag)
     elif segment_choice == '3':
-        start_idx, end_idx = SHOE.shoe_detector(acc_data, gyro_data_centered, window_size=50, gamma=1000)
+        start_idx, end_idx = SHOE.shoe_detector_corrected(acc_data, gyro_data_centered, frequencies, visualize=plot_flag)
    
 
     gyro_data_segmented = gyro_data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)

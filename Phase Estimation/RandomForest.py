@@ -40,14 +40,16 @@ def enhanced_random_forest_regression(X, y, feature_names, param_grid=None, cv=N
         
     # Create target progression (0-100% over time)
     n_samples = len(X)
-    
+     
+
     # Configure default parameter grid if not provided
     if param_grid is None:
         param_grid = {
-            'randomforestregressor__n_estimators': [50, 100, 200],
+            'randomforestregressor__n_estimators': [500, 1000, 2000],
             'randomforestregressor__max_depth': [None, 10, 20, 30],
             'randomforestregressor__min_samples_split': [2, 5, 10]
         }
+    
     
     # Create and fit Random Forest model with GridSearchCV
     base_model = make_pipeline(

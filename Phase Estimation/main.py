@@ -14,7 +14,7 @@ import RandomForest
 
 
 # PLOT Flags:
-training_segmentation_flag = False
+training_segmentation_flag = True
 training_interpolation_flag = False
 tests_segment_flag = False
 tests_interp_flag = False
