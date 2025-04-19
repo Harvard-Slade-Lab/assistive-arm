@@ -6,7 +6,14 @@ from Interpolation import interpolate_and_visualize
 import DataLoader
 import MatrixCreator
 import TestManager
-from Regression_Methods import RidgeRegressionCV, LassoRegressionCV, Linear_Reg, SVR_Reg, RandomForest
+from Regression_Methods import RidgeRegressionCV
+from Regression_Methods import LassoRegressionCV        
+from Regression_Methods import Linear_Reg
+from Regression_Methods import SVR_Reg
+from Regression_Methods import RandomForest
+
+
+
 
 # PLOT Flags:
 training_segmentation_flag = True
@@ -34,7 +41,7 @@ try:
         print("No complete data sets found. Exiting...")
 
     # Segmentation Selection:
-    segment_choice = input("Select segmentation method (1: GyroMagnitude, 2: AREDSegmentation: , 3: SHOESegmentation)").strip()
+    segment_choice = input("Select segmentation method (1: GyroMagnitude, 2: AREDSegmentation: , 3: SHOESegmentation, 4: HMMSegmentation)").strip()
         
     # Create X and Y matrices
     X, Y, timestamps, segment_lengths, feature_names, frequencies = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=training_segmentation_flag, interpPlot_flag=training_interpolation_flag)

@@ -7,11 +7,11 @@ from tkinter import Tk
 from tkinter.filedialog import askdirectory
 import BiasAndSegmentation
 from Interpolation import interpolate_and_visualize
-import RidgeRegressionCV
-import LassoRegressionCV
-import Linear_Reg
-import RandomForest
-import SVR_Reg
+from Regression_Methods import RidgeRegressionCV
+from Regression_Methods import LassoRegressionCV        
+from Regression_Methods import Linear_Reg
+from Regression_Methods import SVR_Reg
+from Regression_Methods import RandomForest
 import DataLoader
 from sklearn.metrics import mean_squared_error
 

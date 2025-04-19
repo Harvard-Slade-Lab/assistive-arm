@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./Phase Estimation/Regression_Methods",
+        "./Phase Estimation/Segmentation_Methods"
+    ]
+}
