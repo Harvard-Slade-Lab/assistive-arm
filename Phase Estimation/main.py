@@ -5,16 +5,11 @@ from tkinter.filedialog import askdirectory
 from Interpolation import interpolate_and_visualize
 import DataLoader
 import MatrixCreator
-import RidgeRegressionCV
-import LassoRegressionCV
-import Linear_Reg
 import TestManager
-import SVR_Reg
-import RandomForest
-
+from Regression_Methods import RidgeRegressionCV, LassoRegressionCV, Linear_Reg, SVR_Reg, RandomForest
 
 # PLOT Flags:
-training_segmentation_flag = False
+training_segmentation_flag = True
 training_interpolation_flag = False
 tests_segment_flag = False
 tests_interp_flag = False
