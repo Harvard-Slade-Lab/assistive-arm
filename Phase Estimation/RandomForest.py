@@ -221,4 +221,4 @@ def test_random_forest(model, X_new, frequencies, Plot_flag=True):
         plt.grid(True)
         plt.show()
         
-    return y_new, mse
+    return y_new, y, mse

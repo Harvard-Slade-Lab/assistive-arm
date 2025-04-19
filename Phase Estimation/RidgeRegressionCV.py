@@ -205,4 +205,4 @@ def test_ridge(model, X_new, frequencies, Plot_flag=True):
         plt.ylabel('Progression (%)')
         plt.legend()
         plt.grid(True)
-    return y_new, mse
+    return y_new, y, mse

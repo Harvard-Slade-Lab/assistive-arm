@@ -13,6 +13,7 @@ import Linear_Reg
 import RandomForest
 import SVR_Reg
 import DataLoader
+from sklearn.metrics import mean_squared_error
 
 def handle_test_decision(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
     """Handle user decision about testing"""
@@ -52,68 +53,137 @@ def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, 
     mse_vector = []  # Initialize mse_vector as an empty list
     if choice == '1':
         for ts, matrix in timestamp_matrices.items():
-            y_pred, mse = RidgeRegressionCV.test_ridge(model, matrix, frequencies, Plot_flag=False)
+            y_pred, y_target, mse = RidgeRegressionCV.test_ridge(model, matrix, frequencies, Plot_flag=False)
             # Store the predicted y for this test in a list
             y_pred_list = globals().get("y_pred_list", [])
             y_pred_list.append((ts, y_pred))
             globals()["y_pred_list"] = y_pred_list
+            
+            # Store the target y for this test in a list
+            y_target_list = globals().get("y_target_list", [])
+            y_target_list.append((ts, y_target))
+            globals()["y_target_list"] = y_target_list
             # Stores mse in a vector to store the results every iteration:
             mse_vector.append(mse)
         # compute average of mse_vector:
         average_mse = np.mean(mse_vector)
-        print(f"Average MSE for Ridge Regression: {average_mse}")
+        y_target_combined = np.concatenate([y for _, y in y_target_list])
+        y_pred_combined = np.concatenate([y for _, y in y_pred_list])
+        average_mse_2 = mean_squared_error(y_target_combined, y_pred_combined)
 
+        standard_deviation_2 = np.std(y_target_combined - y_pred_combined)
+        standard_deviation_mse = np.std(mse_vector)
+        
+        print(f"Average MSE for Ridge Regression: {average_mse}")
+        print(f"Standard Deviation of errors for Ridge Regression (using target): {standard_deviation_2:.4f}")
+        print(f"Standard Deviation of MSE for Ridge Regression: {standard_deviation_mse:.4f}")
     elif choice == '2':
         for ts, matrix in timestamp_matrices.items():
-            y_pred, mse = LassoRegressionCV.test_lasso(model, matrix, frequencies, Plot_flag=False)
+            y_pred, y_target, mse = LassoRegressionCV.test_lasso(model, matrix, frequencies, Plot_flag=False)
             # Store the predicted y for this test in a list
             y_pred_list = globals().get("y_pred_list", [])
             y_pred_list.append((ts, y_pred))
             globals()["y_pred_list"] = y_pred_list
+            
+            # Store the target y for this test in a list
+            y_target_list = globals().get("y_target_list", [])
+            y_target_list.append((ts, y_target))
+            globals()["y_target_list"] = y_target_list
             # Stores mse in a vector to store the results every iteration:
             mse_vector.append(mse)
         # compute average of mse_vector:
         average_mse = np.mean(mse_vector)
+        y_target_combined = np.concatenate([y for _, y in y_target_list])
+        y_pred_combined = np.concatenate([y for _, y in y_pred_list])
+        average_mse_2 = mean_squared_error(y_target_combined, y_pred_combined)
+
+        standard_deviation_2 = np.std(y_target_combined - y_pred_combined)
+        standard_deviation_mse = np.std(mse_vector)
+        
         print(f"Average MSE for Lasso Regression: {average_mse}")
+        print(f"Standard Deviation of errors for Lasso Regression (using target): {standard_deviation_2:.4f}")
+        print(f"Standard Deviation of MSE for Lasso Regression: {standard_deviation_mse:.4f}")
 
     elif choice == '3':
         for ts, matrix in timestamp_matrices.items():
-            y_pred, _, mse = Linear_Reg.test_regression(model, matrix, frequencies, Plot_flag=False)
+            y_pred, y_target, mse = Linear_Reg.test_regression(model, matrix, frequencies, Plot_flag=False)
             # Store the predicted y for this test in a list
             y_pred_list = globals().get("y_pred_list", [])
             y_pred_list.append((ts, y_pred))
             globals()["y_pred_list"] = y_pred_list
+            
+            # Store the target y for this test in a list
+            y_target_list = globals().get("y_target_list", [])
+            y_target_list.append((ts, y_target))
+            globals()["y_target_list"] = y_target_list
             # Stores mse in a vector to store the results every iteration:
             mse_vector.append(mse)
         # compute average of mse_vector:
         average_mse = np.mean(mse_vector)
+        y_target_combined = np.concatenate([y for _, y in y_target_list])
+        y_pred_combined = np.concatenate([y for _, y in y_pred_list])
+        average_mse_2 = mean_squared_error(y_target_combined, y_pred_combined)
+
+        standard_deviation_2 = np.std(y_target_combined - y_pred_combined)
+        standard_deviation_mse = np.std(mse_vector)
+        
         print(f"Average MSE for Linear Regression: {average_mse}")
+        print(f"Standard Deviation of errors for Linear Regression (using target): {standard_deviation_2:.4f}")
+        print(f"Standard Deviation of MSE for Linear Regression: {standard_deviation_mse:.4f}")
 
     elif choice == '4':
         for ts, matrix in timestamp_matrices.items():
-            y_pred, mse = SVR_Reg.test_svr(model, matrix, frequencies, Plot_flag=False)
+            y_pred, y_target, mse = SVR_Reg.test_svr(model, matrix, frequencies, Plot_flag=False)
             # Store the predicted y for this test in a list
             y_pred_list = globals().get("y_pred_list", [])
             y_pred_list.append((ts, y_pred))
             globals()["y_pred_list"] = y_pred_list
+            
+            # Store the target y for this test in a list
+            y_target_list = globals().get("y_target_list", [])
+            y_target_list.append((ts, y_target))
+            globals()["y_target_list"] = y_target_list
             # Stores mse in a vector to store the results every iteration:
             mse_vector.append(mse)
         # compute average of mse_vector:
         average_mse = np.mean(mse_vector)
+        y_target_combined = np.concatenate([y for _, y in y_target_list])
+        y_pred_combined = np.concatenate([y for _, y in y_pred_list])
+        average_mse_2 = mean_squared_error(y_target_combined, y_pred_combined)
+
+        standard_deviation_2 = np.std(y_target_combined - y_pred_combined)
+        standard_deviation_mse = np.std(mse_vector)
+        
         print(f"Average MSE for SVR: {average_mse}")
-    
+        print(f"Standard Deviation of errors for SVR (using target): {standard_deviation_2:.4f}")
+        print(f"Standard Deviation of MSE for SVR: {standard_deviation_mse:.4f}")
+        
     elif choice == '6':
         for ts, matrix in timestamp_matrices.items():
-            y_pred, mse = RandomForest.test_random_forest(model, matrix, frequencies, Plot_flag=False)
+            y_pred, y_target, mse = RandomForest.test_random_forest(model, matrix, frequencies, Plot_flag=False)
             # Store the predicted y for this test in a list
             y_pred_list = globals().get("y_pred_list", [])
             y_pred_list.append((ts, y_pred))
             globals()["y_pred_list"] = y_pred_list
+            
+            # Store the target y for this test in a list
+            y_target_list = globals().get("y_target_list", [])
+            y_target_list.append((ts, y_target))
+            globals()["y_target_list"] = y_target_list
             # Stores mse in a vector to store the results every iteration:
             mse_vector.append(mse)
         # compute average of mse_vector:
         average_mse = np.mean(mse_vector)
+        y_target_combined = np.concatenate([y for _, y in y_target_list])
+        y_pred_combined = np.concatenate([y for _, y in y_pred_list])
+        average_mse_2 = mean_squared_error(y_target_combined, y_pred_combined)
+
+        standard_deviation_2 = np.std(y_target_combined - y_pred_combined)
+        standard_deviation_mse = np.std(mse_vector)
+        
         print(f"Average MSE for Random Forest: {average_mse}")
+        print(f"Standard Deviation of errors for Random Forest (using target): {standard_deviation_2:.4f}")
+        print(f"Standard Deviation of MSE for Random Forest: {standard_deviation_mse:.4f}")
 
     if choice != '5':
         # Interpolate all y_pred to align them for plotting

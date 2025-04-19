@@ -244,4 +244,4 @@ def test_svr(model, X_new, frequencies=None, Plot_flag=True):
         plt.grid(True)
         plt.show()
 
-    return y_new, mse
+    return y_new, y_expected, mse

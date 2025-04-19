@@ -107,7 +107,7 @@ def test_regression(model, X_new, frequencies_test, Plot_flag=True):
         plt.grid(True)
         plt.show()
 
-    return y_pred_new, time_new, mse
+    return y_pred_new, y, mse
 
 def calculate_time_array(gyro_interp, acc_interp, or_interp, frequencies):
     """
