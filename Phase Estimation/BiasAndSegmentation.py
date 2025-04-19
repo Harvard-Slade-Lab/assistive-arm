@@ -46,6 +46,10 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, segment_choice,
 
     # Removing the zero values from the gyro data:
     gyro_data_trimmed = gyro_data_centered.iloc[non_zero_index:].reset_index(drop=True)
+    non_zero_index_acc = int(non_zero_index * frequencies[1] / frequencies[0])
+    acc_data_trimmed = acc_data.iloc[non_zero_index_acc:].reset_index(drop=True)
+    non_zero_index_or = int(non_zero_index * frequencies[2] / frequencies[0])
+    or_data_trimmed = orientation_data.iloc[non_zero_index_or:].reset_index(drop=True)
 
     # Computing Magnitude:
     print("Calculating magnitude...")
@@ -84,7 +88,7 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, segment_choice,
     elif segment_choice == '2':
         start_idx, end_idx = AREDSegmentation.AREDSegmentation(raw_magnitude, timestamp, plot_flag=plot_flag)
     elif segment_choice == '3':
-        start_idx, end_idx = SHOE.shoe_detector_corrected(acc_data, gyro_data_centered, frequencies, visualize=plot_flag)
+        start_idx, end_idx = SHOE.motion_segmenter(acc_data_trimmed, gyro_data_trimmed, frequency=519, visualize=True)
    
 
     gyro_data_segmented = gyro_data_trimmed.iloc[start_idx:end_idx].reset_index(drop=True)
@@ -93,16 +97,12 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, segment_choice,
     # Process acceleration data
     start_idx_acc = int(start_idx * frequencies[1] / frequencies[0])
     end_idx_acc = int(end_idx * frequencies[1] / frequencies[0])
-    non_zero_index_acc = int(non_zero_index * frequencies[1] / frequencies[0])
-    acc_data_trimmed = acc_data.iloc[non_zero_index_acc:].reset_index(drop=True)
     acc_data_segmented = acc_data_trimmed.iloc[start_idx_acc:end_idx_acc].reset_index(drop=True)
     time_acc_segmented = time_acc[non_zero_index_acc + start_idx_acc:non_zero_index_acc + end_idx_acc]
 
     # Process orientation data
     start_idx_or = int(start_idx * frequencies[2] / frequencies[0])
     end_idx_or = int(end_idx * frequencies[2] / frequencies[0])
-    non_zero_index_or = int(non_zero_index * frequencies[2] / frequencies[0])
-    or_data_trimmed = orientation_data.iloc[non_zero_index_or:].reset_index(drop=True)
     or_data_segmented = or_data_trimmed.iloc[start_idx_or:end_idx_or].reset_index(drop=True)
     time_orientation_segmented = time_orientation[non_zero_index_or + start_idx_or:non_zero_index_or + end_idx_or]
 

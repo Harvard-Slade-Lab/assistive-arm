@@ -1,190 +1,214 @@
 import numpy as np
+import pandas as pd
 from scipy import signal
 import matplotlib.pyplot as plt
 
-def shoe_detector_corrected(accel, gyro, frequencies, visualize=False):
+# Hyperparameters:
+interval_size = 500
+derivative_threshold = 0.15
+threshold_offset = 5
+
+def motion_segmenter(acc_data, gyro_data, frequency=519, visualize=False):
     """
-    Corrected SHOE detector implementation
-    
+    Robust motion segmentation using SHOE detector with dual-threshold refinement.
+
     Parameters:
-        accel (np.ndarray): Accelerometer data (Nx3)
-        gyro (np.ndarray): Gyroscope data (Nx3)
-        frequency (int): Sampling frequency in Hz
-        visualize (bool): Whether to show visualization
-        
+    acc_data (pd.DataFrame): Raw accelerometer data (x, y, z)
+    gyro_data (pd.DataFrame): Raw gyroscope data (x, y, z)
+    frequency (int): Sampling frequency in Hz
+    visualize (bool): Whether to show debug plots
+
     Returns:
-        start_idx, end_idx: Indices of detected motion
+    tuple: (start_idx, end_idx) of refined motion segment
     """
-    frequency = frequencies[0]  # Assuming first frequency is for accelerometer
-    # Ensure proper shape
-    accel = np.asarray(accel)
-    gyro = np.asarray(gyro)
+    # Convert to numpy arrays and ensure proper shape
+    acc_array = acc_data.values.astype(float)
+    gyro_array = gyro_data.values.astype(float)
+
+    # Remove gravity component from acceleration
+    linear_acc = remove_gravity(acc_array, frequency)
+
+    # Compute optimal parameters
+    window_size = int(0.25 * frequency) # 0.25s window
+    gamma = calculate_optimal_gamma(linear_acc, gyro_array)
+
+    # Detect motion using SHOE
+    motion_metric = compute_shoe_metric(linear_acc, gyro_array, window_size)
+
+    # Find initial transitions with hysteresis
+    initial_start, initial_end = find_initial_transitions(motion_metric, gamma, frequency)
     
-    # 1. Remove gravity from acceleration
-    accel = remove_gravity(accel, frequency)
-    
-    # 2. Compute correct SHOE metric
-    window_size = int(0.2 * frequency)  # 0.2 seconds window
-    shoe_metric = improved_shoe_metric(accel, gyro, window_size)
-    
-    # 3. Calculate proper adaptive threshold
-    gamma = calculate_adaptive_threshold(shoe_metric)
-    
-    # 4. Detect motion with hysteresis
-    start_idx, end_idx = detect_motion_with_hysteresis(shoe_metric, gamma)
-    
-    # 5. Refine boundaries
-    refined_start = refine_boundary(shoe_metric, start_idx, direction='backward')
-    refined_end = refine_boundary(shoe_metric, end_idx, direction='forward')
-    
+    # Refine motion boundaries with fixed thresholds and rate of change analysis
+    refined_start, refined_end = refine_motion_boundaries(motion_metric, initial_start, initial_end)
+
     if visualize:
-        plot_results(accel, gyro, shoe_metric, gamma, refined_start, refined_end, frequency)
-    
+        plot_segmentation_with_thresholds(acc_array, gyro_array, motion_metric,
+                               gamma, initial_start, initial_end, 
+                               refined_start, refined_end, frequency)
+
     return refined_start, refined_end
 
-def remove_gravity(accel, frequency):
-    """Remove gravity component using low-pass filter"""
-    cutoff = 0.1  # 0.1 Hz cutoff (standard for gravity)
-    b, a = signal.butter(4, cutoff, 'low', fs=frequency)
-    gravity = signal.filtfilt(b, a, accel, axis=0)
-    return accel - gravity
+def remove_gravity(acc_data, frequency):
+    """Remove gravity using Butterworth low-pass filter"""
+    b, a = signal.butter(4, 0.1, 'low', fs=frequency)
+    gravity = signal.filtfilt(b, a, acc_data, axis=0)
+    return acc_data - gravity
 
-def improved_shoe_metric(accel, gyro, window_size):
-    """Compute correct SHOE metric with proper normalization"""
-    n_samples = len(accel)
-    combined_metric = np.zeros(n_samples)
-    
-    # Get baseline from first 0.5 seconds
-    baseline_len = min(int(0.5 * 519), n_samples // 10)
-    
-    # Process each axis
-    for axis in range(3):
-        # Get variance (add epsilon to avoid division by zero)
-        accel_var = np.var(accel[:baseline_len, axis]) + 1e-10
-        gyro_var = np.var(gyro[:baseline_len, axis]) + 1e-10
-        
-        # Normalized squared values
-        accel_norm = (accel[:, axis]**2) / accel_var
-        gyro_norm = (gyro[:, axis]**2) / gyro_var
-        
-        # Add to combined metric
-        combined_metric += accel_norm + gyro_norm
-    
-    # Apply smoothing window
-    window = np.ones(window_size) / window_size
-    return np.convolve(combined_metric, window, mode='same')
+def calculate_optimal_gamma(linear_acc, gyro_data):
+    """Automatically determine gamma threshold"""
+    acc_var = np.var(linear_acc, axis=0)
+    gyro_var = np.var(gyro_data, axis=0)
 
-def calculate_adaptive_threshold(metric):
-    """Calculate appropriate threshold based on signal statistics"""
-    # Use first 10% of data as baseline (assumed stationary)
-    baseline_len = int(len(metric) * 0.1)
-    baseline = metric[:baseline_len]
-    
-    # Calculate statistics
-    mean_val = np.mean(baseline)
-    std_val = np.std(baseline)
-    
-    # Set threshold using standard robust statistical methods
-    # 3-sigma rule is common for outlier detection
-    return mean_val + 3 * std_val
+    # Compute baseline noise levels
+    acc_baseline = np.mean(np.linalg.norm(linear_acc[:100], axis=1))
+    gyro_baseline = np.mean(np.linalg.norm(gyro_data[:100], axis=1))
 
-def detect_motion_with_hysteresis(metric, gamma, hysteresis_factor=0.2):
-    """Detect motion with hysteresis to avoid rapid switching"""
-    n_samples = len(metric)
-    in_motion = np.zeros(n_samples, dtype=bool)
-    
-    # Apply hysteresis thresholding
-    upper_threshold = gamma * (1 + hysteresis_factor)
-    lower_threshold = gamma * (1 - hysteresis_factor)
-    
-    # State machine for hysteresis
-    state = False  # Start in stationary state
-    for i in range(n_samples):
-        if not state and metric[i] > upper_threshold:
-            state = True  # Enter motion state
-        elif state and metric[i] < lower_threshold:
-            state = False  # Exit motion state
+    return 5 * (acc_baseline/np.mean(acc_var) + gyro_baseline/np.mean(gyro_var))
+
+def compute_shoe_metric(linear_acc, gyro_data, window_size):
+    """Compute SHOE detection metric"""
+    # Compute squared norms
+    acc_sq = np.linalg.norm(linear_acc, axis=1)**2
+    gyro_sq = np.linalg.norm(gyro_data, axis=1)**2
+
+    # Compute variances
+    acc_var = np.var(linear_acc, axis=0).mean()
+    gyro_var = np.var(gyro_data, axis=0).mean()
+
+    # Normalize and combine
+    combined = (acc_sq/acc_var) + (gyro_sq/gyro_var)
+
+    # Apply moving average
+    window = np.ones(window_size)/window_size
+    return np.convolve(combined, window, mode='same')
+
+def find_initial_transitions(metric, gamma, frequency):
+    """Find initial motion start/end indices with hysteresis"""
+    # Apply threshold with hysteresis
+    in_motion = np.zeros_like(metric)
+    #Compute threshold as median of last 500 samples of metric:
+    threshold = np.median(metric[-500:]) + 5
+    state = 0
+    for i in range(len(metric)):
+        if state == 0 and metric[i] > threshold:
+            state = 1
+        elif state == 1 and metric[i] < threshold:
+            state = 0
         in_motion[i] = state
-    
+
     # Find transitions
-    transitions = np.diff(in_motion.astype(int))
+    transitions = np.diff(in_motion)
     starts = np.where(transitions == 1)[0]
     ends = np.where(transitions == -1)[0]
     
+    print(f"Starts: {starts}, Ends: {ends}")
     # Handle edge cases
-    if len(starts) == 0:
-        return 0, n_samples - 1
-    if len(ends) == 0 or ends[-1] < starts[-1]:
-        ends = np.append(ends, n_samples - 1)
+    if len(starts) == 0 or len(ends) == 0:
+        return 0, 0
     
-    # Get primary motion segment (largest)
-    if len(starts) > 1 and len(ends) > 1:
-        durations = ends - starts
-        longest_idx = np.argmax(durations)
-        return starts[longest_idx], ends[longest_idx]
-    
-    return starts[0], ends[0]
+    start_idx = starts[0]
+    end_idx = ends[-1]
 
-def refine_boundary(metric, idx, direction='backward', window_size=50):
-    """Refine boundary using gradient analysis"""
-    if direction == 'backward':
-        window = metric[max(0, idx-window_size):idx+1]
-        if len(window) < 3:
-            return idx
-        
-        # Calculate gradient
-        grad = np.gradient(window)
-        
-        # Find where gradient becomes significant
-        threshold = np.std(grad) * 1.5
-        for i in range(len(grad)-1, -1, -1):
-            if abs(grad[i]) > threshold:
-                return max(0, idx-window_size+i)
-        
-        return idx
-    else:  # forward
-        window = metric[idx:min(len(metric), idx+window_size)]
-        if len(window) < 3:
-            return idx
-        
-        # Calculate gradient
-        grad = np.gradient(window)
-        
-        # Find where gradient becomes significant
-        threshold = np.std(grad) * 1.5
-        for i in range(len(grad)):
-            if abs(grad[i]) > threshold:
-                return min(len(metric)-1, idx+i)
-        
-        return idx
+    # print start and end in seconds:
+    print(f"Initial motion segment: {start_idx/frequency:.2f}s to {end_idx/frequency:.2f}s")
+    return start_idx, end_idx
 
-def plot_results(accel, gyro, metric, threshold, start_idx, end_idx, freq):
-    """Visualize results with correct scaling"""
-    time = np.arange(len(metric)) / freq
+def refine_motion_boundaries(metric, rough_start, rough_end):
+    """
+    Refine the motion boundaries using fixed thresholds and rate of change analysis.
     
+    Parameters:
+    -----------
+    metric : array-like
+        The SHOE metric signal
+    rough_start : int
+        Initial estimate of motion start index
+    rough_end : int
+        Initial estimate of motion end index
+        
+    Returns:
+    --------
+    refined_start : int
+        Refined motion start index
+    refined_end : int
+        Refined motion end index
+    """
+    refined_start = rough_start
+    refined_end = rough_end
+
+
+    # Verify refinement with rate of change to avoid noise artifacts
+    # Calculate first derivative of metric signal
+    metric_diff_smoothed = np.diff(metric)
+    
+    # # Smooth the derivative using Savitzky-Golay filter
+    # metric_diff_smoothed = signal.savgol_filter(
+    #     np.concatenate(([0], metric_diff)),
+    #     window_length=11, polyorder=2
+    # )
+    
+    # For start point: look for significant positive rate of change
+    start_search_range = (max(0, refined_start - interval_size), 
+                         min(len(metric_diff_smoothed)-1, refined_start))
+    
+    print(f"Start search range: {start_search_range}")
+    for i in range(start_search_range[1], start_search_range[0], -1):
+        if metric_diff_smoothed[i] < metric_diff_smoothed[refined_start] * derivative_threshold:
+            refined_start = i
+            break
+    
+    # For end point: look for significant negative rate of change
+    end_search_range = (max(0, refined_end), 
+                       min(len(metric_diff_smoothed)-1, refined_end + interval_size))
+    print(f"End search range: {end_search_range}")
+
+    for i in range(end_search_range[0], end_search_range[1]):
+        if metric_diff_smoothed[i] > metric_diff_smoothed[refined_end] * derivative_threshold:
+            refined_end = i
+            break
+    print(metric_diff_smoothed[refined_end] * derivative_threshold)
+    return refined_start, refined_end
+
+def plot_segmentation_with_thresholds(acc, gyro, metric, gamma, initial_start, initial_end, 
+                                     refined_start, refined_end, freq):
+    """Enhanced visualization function showing dual thresholds"""
+    time = np.arange(len(metric))/freq
+    
+    threshold = np.median(metric[-500:]) + threshold_offset
+    # Fixed thresholds for refinement
+    start_threshold = threshold
+    end_threshold = threshold
+
     fig, ax = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
-    
+
     # Accelerometer plot
-    ax[0].plot(time, accel)
-    ax[0].axvspan(time[start_idx], time[end_idx], color='red', alpha=0.3)
+    ax[0].plot(time, acc)
     ax[0].set_ylabel('Linear Acceleration (m/s²)')
-    ax[0].set_title('Linear Acceleration with Detected Motion')
-    
+    ax[0].axvspan(time[initial_start], time[initial_end], color='red', alpha=0.2, label='Original Segment')
+    ax[0].axvspan(time[refined_start], time[refined_end], color='green', alpha=0.3, label='Refined Segment')
+    ax[0].legend(loc='upper right')
+
     # Gyroscope plot
     ax[1].plot(time, gyro)
-    ax[1].axvspan(time[start_idx], time[end_idx], color='red', alpha=0.3)
     ax[1].set_ylabel('Angular Velocity (rad/s)')
-    ax[1].set_title('Angular Velocity with Detected Motion')
-    
-    # SHOE metric plot (with proper scaling)
+    ax[1].axvspan(time[initial_start], time[initial_end], color='red', alpha=0.2)
+    ax[1].axvspan(time[refined_start], time[refined_end], color='green', alpha=0.3)
+
+    # SHOE metric plot with all thresholds
     ax[2].plot(time, metric, label='SHOE Metric')
-    ax[2].axhline(threshold, color='red', linestyle='--', label=f'Threshold: {threshold:.2f}')
-    ax[2].axvline(time[start_idx], color='green', linewidth=2, label='Motion Start')
-    ax[2].axvline(time[end_idx], color='blue', linewidth=2, label='Motion End')
-    ax[2].set_xlabel('Time (s)')
-    ax[2].set_ylabel('SHOE Metric')
-    ax[2].set_title('SHOE Metric with Corrected Threshold')
-    ax[2].legend()
+    ax[2].axhline(gamma, color='r', linestyle='--', label='Original Threshold')
+    ax[2].axhline(start_threshold, color='g', linestyle='--', label='Start Threshold (5)')
+    ax[2].axhline(end_threshold, color='b', linestyle='--', label='End Threshold (10)')
     
+    # Mark the refined points
+    ax[2].plot(time[refined_start], metric[refined_start], 'go', markersize=8, label='Refined Start')
+    ax[2].plot(time[refined_end], metric[refined_end], 'bo', markersize=8, label='Refined End')
+    
+    ax[2].axvspan(time[initial_start], time[initial_end], color='red', alpha=0.2)
+    ax[2].axvspan(time[refined_start], time[refined_end], color='green', alpha=0.3)
+    ax[2].set_xlabel('Time (s)')
+    ax[2].legend()
+
+    plt.suptitle(f'Motion Segmentation with Dual-Threshold Refinement:\nOriginal: {initial_start/freq:.2f}s to {initial_end/freq:.2f}s\nRefined: {refined_start/freq:.2f}s to {refined_end/freq:.2f}s')
     plt.tight_layout()
     plt.show()
