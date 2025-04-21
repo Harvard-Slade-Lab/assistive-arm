@@ -13,6 +13,8 @@ from Regression_Methods import Linear_Reg
 from Regression_Methods import SVR_Reg
 from Regression_Methods import RandomForest
 import DataLoader
+import DataLoaderYinkai
+import CYCLIC  # Ensure CYCLIC is imported if it exists in your project
 from sklearn.metrics import mean_squared_error
 
 def handle_test_decision(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
@@ -29,11 +31,18 @@ def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, 
         print("No folder selected. Exiting.")
         return
     
-    # Load and process files
-    acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoader.load_and_process_files(folder_path)
-    
-    # Group files by timestamp
-    grouped_indices = DataLoader.group_files_by_timestamp(acc_files, gyro_files, or_files)
+    if segment_choice == '5':
+        # Load and process files
+        acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderYinkai.load_and_process_files(folder_path)
+        
+        # Group files by timestamp
+        grouped_indices = DataLoaderYinkai.group_files_by_timestamp(acc_files, gyro_files, or_files)
+    else:
+        # Load and process files
+        acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoader.load_and_process_files(folder_path)
+        
+        # Group files by timestamp
+        grouped_indices = DataLoader.group_files_by_timestamp(acc_files, gyro_files, or_files)
     
     if not grouped_indices:
         print("No complete groups of files found. Exiting.")
@@ -376,20 +385,26 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
         
         print(f"Processing data set from timestamp: {timestamp}")
         
-        # Apply the segmentation and bias correction
-        gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
-            gyro, acc, or_data_item, segment_choice=segment_choice, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
-        )
+        if segment_choice != '5':
+            # Apply the segmentation and bias correction
+            gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
+                gyro, acc, or_data_item, segment_choice=segment_choice, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
+            )
+            
+            # Apply interpolation
+            gyro_interp, acc_interp, or_interp = interpolate_and_visualize(
+                gyro_processed, acc_processed, or_processed, 
+                frequencies, plot_flag=interpPlot_flag
+            )
+            
+            # Concatenate features horizontally for this timestamp's matrix
+            features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
+
+        else:
+            timestamp_matrices, feature_names = CYCLIC.motion_segmenter(
+                gyro, acc, or_data_item, timestamp=timestamp, test_flag = True, frequencies=frequencies, plot_flag=biasPlot_flag
+            )
         
-        # Apply interpolation
-        gyro_interp, acc_interp, or_interp = interpolate_and_visualize(
-            gyro_processed, acc_processed, or_processed, 
-            frequencies, plot_flag=interpPlot_flag
-        )
-        
-        # Concatenate features horizontally for this timestamp's matrix
-        features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
-        timestamp_matrices[timestamp] = features
         
         # Store feature names (first time only)
         if not feature_names:

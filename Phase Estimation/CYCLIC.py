@@ -8,7 +8,7 @@ import Interpolation
 
 plot_flag_gyro = False  # Flag to plot gyro data
 
-def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, frequencies=None, plot_flag=True):
+def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag = False, frequencies=None, plot_flag=True):
 
     X1 = []
     Y1 = []
@@ -100,6 +100,8 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, frequenci
             'duration': (end-start)/frequencies[0]
         })
     
+    timestamp_matrices = {}
+    
     # Print head of step data for debugging
     for step in step_data:
         # Apply interpolation
@@ -114,28 +116,39 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, frequenci
         
         # Concatenate features for X matrix
         features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
-        X1.append(features)
 
-        dataset_length = len(features)
-        segment_lengths1.append(dataset_length)
+        if test_flag == True:
+            timestamp_matrices[step['step_number']] = features
+            
+        else:
+            X1.append(features)
 
-        # Create Y matrix segment
-        dataset_length = len(features)
-        y = np.linspace(0, 1, dataset_length)
-        Y1.append(y)
-        
-        print(f"Step {step['step_number']}:\n", step['gyro'].head())
-        print(f"Step {step['step_number']} Acc:\n", step['acc'].head())
-        print(f"Step {step['step_number']} Orientation:\n", step['orientation'].head())
-    print(f"Detected {len(step_data)} steps")
-    acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
-    gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
-    or_cols = [f"OR_{col}" for col in or_interp.columns]
-    feature_names = acc_cols + gyro_cols + or_cols
+            dataset_length = len(features)
+            segment_lengths1.append(dataset_length)
 
+            # Create Y matrix segment
+            dataset_length = len(features)
+            y = np.linspace(0, 1, dataset_length)
+            Y1.append(y)
+            
+            print(f"Step {step['step_number']}:\n", step['gyro'].head())
+            print(f"Step {step['step_number']} Acc:\n", step['acc'].head())
+            print(f"Step {step['step_number']} Orientation:\n", step['orientation'].head())
     
-
-    return X1, Y1, segment_lengths1, feature_names  # Return the start and end indices of the first segment
+    if test_flag == True:
+        print(f"Detected {len(step_data)} steps")
+        acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
+        gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
+        or_cols = [f"OR_{col}" for col in or_interp.columns]
+        feature_names = acc_cols + gyro_cols + or_cols
+        return timestamp_matrices, feature_names
+    else:
+        print(f"Detected {len(step_data)} steps")
+        acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
+        gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
+        or_cols = [f"OR_{col}" for col in or_interp.columns]
+        feature_names = acc_cols + gyro_cols + or_cols
+        return X1, Y1, segment_lengths1, feature_names  # Return the start and end indices of the first segment
 
 def segment_gait_cycles(magnitude_signal, time_vector, plot_results=True):
     # Find peaks with constraints

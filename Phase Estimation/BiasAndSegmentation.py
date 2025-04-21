@@ -7,7 +7,6 @@ from Segmentation_Methods import AREDSegmentation
 from Segmentation_Methods import GyroMagnitudeSegmentation
 from Segmentation_Methods import SHOESegmentation
 from Segmentation_Methods import HMMSegmentation
-import CYCLIC
 
 
 # ----------- HYPERPARAMETERS -----------------
