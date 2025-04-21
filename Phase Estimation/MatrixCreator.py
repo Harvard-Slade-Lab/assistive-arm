@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import itertools
 from scipy.interpolate import interp1d
+import CYCLIC
 
 def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=True, interpPlot_flag=True):
     X = []
@@ -29,34 +30,44 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
             frequencies = BiasAndSegmentation.sensors_frequencies()
         executed = True
 
-        # Apply the segmentation and bias correction
-        gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
-            gyro, acc, or_data_item, segment_choice=segment_choice, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
-        )
+        if segment_choice != '5':
+            # Apply the segmentation and bias correction
+            gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
+                gyro, acc, or_data_item, segment_choice=segment_choice, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
+            )
 
-        # Apply interpolation
-        gyro_interp, acc_interp, or_interp = Interpolation.interpolate_and_visualize(
-            gyro_processed, acc_processed, or_processed, 
-            frequencies, plot_flag=interpPlot_flag
-        )
-        
-        # Concatenate features for X matrix
-        features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
-        X.append(features)
-        
-        # Create Y matrix segment
-        dataset_length = len(features)
-        y = np.linspace(0, 1, dataset_length)
-        Y.append(y)
-        
-        segment_lengths.append(dataset_length)
-        
-        # Store feature names (first time only)
-        if not feature_names:
-            acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
-            gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
-            or_cols = [f"OR_{col}" for col in or_interp.columns]
-            feature_names = acc_cols + gyro_cols + or_cols
+            # Apply interpolation
+            gyro_interp, acc_interp, or_interp = Interpolation.interpolate_and_visualize(
+                gyro_processed, acc_processed, or_processed, 
+                frequencies, plot_flag=interpPlot_flag
+            )
+            
+            # Concatenate features for X matrix
+            features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
+            X.append(features)
+            
+            # Create Y matrix segment
+            dataset_length = len(features)
+            y = np.linspace(0, 1, dataset_length)
+            Y.append(y)
+            
+            segment_lengths.append(dataset_length)
+            
+            # Store feature names (first time only)
+            if not feature_names:
+                acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
+                gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
+                or_cols = [f"OR_{col}" for col in or_interp.columns]
+                feature_names = acc_cols + gyro_cols + or_cols
+            
+        else:
+            X1, Y1, segment_lengths1, feature_names = CYCLIC.motion_segmenter(
+                gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
+            )
+            X.extend(X1)
+            Y.extend(Y1)
+            segment_lengths.append(segment_lengths1)   
+
 
     # Fictitious trials generation
     add_fictitious = input("Do you want to add fictitious trials? (yes/no): ").strip().lower()
@@ -171,10 +182,11 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
     X_matrix = np.vstack(X)
     Y_matrix = np.concatenate(Y)
     
+    
     return X_matrix, Y_matrix, sorted_timestamps, segment_lengths, feature_names, frequencies
 
 # Visualization function remains unchanged
-def visualize_matrices(X, Y, timestamps, segment_lengths, feature_names):
+def visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, feature_names):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
     
     # Create separate axes for different sensor types
@@ -224,12 +236,7 @@ def visualize_matrices(X, Y, timestamps, segment_lengths, feature_names):
     ax1.grid(True)
     
     # Plot progress indicators (Y matrix)
-    current_pos = 0
-    for ts, length in zip(timestamps, segment_lengths):
-        segment_range = np.arange(current_pos, current_pos + length)
-        segment_values = Y[current_pos:current_pos + length]
-        ax2.plot(segment_range, segment_values, label=f"Segment {ts}")
-        current_pos += length
+    ax2.plot(Y, label="Progress Indicators")
     
     ax2.set_title("Dataset Progress Indicators (0 to 1)")
     ax2.set_xlabel("Time Steps")
@@ -237,14 +244,10 @@ def visualize_matrices(X, Y, timestamps, segment_lengths, feature_names):
     ax2.grid(True)
     
     # Add vertical lines to separate different datasets
-    current_pos = 0
-    for ts, length in zip(timestamps, segment_lengths):
-        current_pos += length
-        
-        if current_pos < X.shape[0]:  # Don't draw a line after the last dataset
-            ax1.axvline(x=current_pos, color='r', linestyle='--', alpha=0.5)
-            ax2.axvline(x=current_pos, color='r', linestyle='--', alpha=0.5)
-    
+    current_pos = np.cumsum(segment_lengths)[:-1]  # Exclude the last cumulative position
+    for pos in current_pos:
+        ax1.axvline(x=pos, color='r', linestyle='--', alpha=0.5)
+        ax2.axvline(x=pos, color='r', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.show()
 

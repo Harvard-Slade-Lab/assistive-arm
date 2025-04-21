@@ -7,6 +7,8 @@ from Segmentation_Methods import AREDSegmentation
 from Segmentation_Methods import GyroMagnitudeSegmentation
 from Segmentation_Methods import SHOESegmentation
 from Segmentation_Methods import HMMSegmentation
+import CYCLIC
+
 
 # ----------- HYPERPARAMETERS -----------------
 # Hyperparameters for bias removal
@@ -33,6 +35,7 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, segment_choice,
     time_acc = np.arange(len(acc_data)) / frequencies[1]
     time_orientation = np.arange(len(orientation_data)) / frequencies[2]
     
+    
     # Removing BIAS from gyro data:
     print("Removing bias...")
     non_zero_index = (gyro_data != 0).any(axis=1).idxmax()
@@ -42,6 +45,7 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, segment_choice,
         print("Initial mean values:", means)
     else:
         print("Not enough data after first non-zero value")
+
     gyro_data_centered = gyro_data - means
 
     # Removing the zero values from the gyro data:

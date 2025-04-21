@@ -4,6 +4,7 @@ import pandas as pd
 from tkinter.filedialog import askdirectory
 from Interpolation import interpolate_and_visualize
 import DataLoader
+import DataLoaderYinkai
 import MatrixCreator
 import TestManager
 from Regression_Methods import RidgeRegressionCV
@@ -13,10 +14,8 @@ from Regression_Methods import SVR_Reg
 from Regression_Methods import RandomForest
 
 
-
-
 # PLOT Flags:
-training_segmentation_flag = True
+training_segmentation_flag = False
 training_interpolation_flag = False
 tests_segment_flag = False
 tests_interp_flag = False
@@ -30,19 +29,30 @@ if not folder_path:
 print(f"Selected folder: {folder_path}")
 
 try:
-    # Load and process files
-    acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoader.load_and_process_files(folder_path)
-    print(f"Loaded {len(acc_files)} ACC files, {len(gyro_files)} GYRO files, and {len(or_files)} OR files")
-    
-    # Group files by timestamp
-    grouped_indices = DataLoader.group_files_by_timestamp(acc_files, gyro_files, or_files)
-    print(f"Found {len(grouped_indices)} complete data sets")
-    if not grouped_indices:
-        print("No complete data sets found. Exiting...")
-
     # Segmentation Selection:
-    segment_choice = input("Select segmentation method (1: GyroMagnitude, 2: AREDSegmentation: , 3: SHOESegmentation, 4: HMMSegmentation)").strip()
+    segment_choice = input("Select segmentation method:\n1. GyroMagnitude Segmentation\n2. ARED Segmentation\n3. SHOE Segmentation\n4. HMMSegmentation\n5. Cyclic Segmentation").strip()
+     
+    if segment_choice == '5':
+        # Load and process files
+        acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderYinkai.load_and_process_files(folder_path)
+        print(f"Loaded {len(acc_files)} ACC files, {len(gyro_files)} GYRO files, and {len(or_files)} OR files")
         
+        # Group files by timestamp
+        grouped_indices = DataLoaderYinkai.group_files_by_timestamp(acc_files, gyro_files, or_files)
+        print(f"Found {len(grouped_indices)} complete data sets")
+        if not grouped_indices:
+            print("No complete data sets found. Exiting...")
+    else:
+        # Load and process files
+        acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoader.load_and_process_files(folder_path)
+        print(f"Loaded {len(acc_files)} ACC files, {len(gyro_files)} GYRO files, and {len(or_files)} OR files")
+        
+        # Group files by timestamp
+        grouped_indices = DataLoader.group_files_by_timestamp(acc_files, gyro_files, or_files)
+        print(f"Found {len(grouped_indices)} complete data sets")
+        if not grouped_indices:
+            print("No complete data sets found. Exiting...")
+
     # Create X and Y matrices
     X, Y, timestamps, segment_lengths, feature_names, frequencies = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=training_segmentation_flag, interpPlot_flag=training_interpolation_flag)
     print(f"Created X matrix with shape {X.shape} and Y matrix with length {len(Y)}")
@@ -51,9 +61,9 @@ try:
     print("\nColumn information:")
     for i, name in enumerate(feature_names):
         print(f"Column {i}: {name}")
-    
+
     # Visualize matrices
-    MatrixCreator.visualize_matrices(X, Y, timestamps, segment_lengths, feature_names)
+    MatrixCreator.visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, feature_names)
     
     # User interaction
     print("\nRegression Options:")
