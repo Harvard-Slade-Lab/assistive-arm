@@ -6,7 +6,7 @@ from scipy import interpolate
 from Segmentation_Methods import AREDSegmentation
 from Segmentation_Methods import GyroMagnitudeSegmentation
 from Segmentation_Methods import SHOESegmentation
-from Segmentation_Methods import HMMSegmentation
+from Segmentation_Methods import AREDVariation
 
 
 # ----------- HYPERPARAMETERS -----------------
@@ -87,13 +87,13 @@ def segmentation_and_bias(gyro_data, acc_data, orientation_data, segment_choice,
 
     # Apply the chosen segmetation method:
     if segment_choice == '1':
-        start_idx, end_idx = GyroMagnitudeSegmentation.GyroMagnitudeSegmentation(frequencies, raw_magnitude, gyro_data_trimmed, time_gyro, non_zero_index, threshold=5, plot_flag=plot_flag)
+        start_idx, end_idx = GyroMagnitudeSegmentation.GyroMagnitudeSegmentation(frequencies, raw_magnitude, gyro_data_trimmed, time_gyro, non_zero_index, threshold=7, plot_flag=plot_flag)
     elif segment_choice == '2':
         start_idx, end_idx = AREDSegmentation.AREDSegmentation(raw_magnitude, timestamp, plot_flag=plot_flag)
     elif segment_choice == '3':
         start_idx, end_idx = SHOESegmentation.motion_segmenter(acc_data_trimmed, gyro_data_trimmed, frequency=519, visualize=plot_flag)
     elif segment_choice == '4':
-        start_idx, end_idx = HMMSegmentation.HMMSegmentation(raw_magnitude, timestamp, plot_flag=plot_flag)
+        start_idx, end_idx = AREDVariation.ARED_VARSegmentation(raw_magnitude, timestamp, plot_flag=plot_flag)
 
    
 

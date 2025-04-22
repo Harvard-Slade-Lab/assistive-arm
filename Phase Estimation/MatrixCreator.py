@@ -163,9 +163,16 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
                 #     rotated_gyro[:, 1] ** 2 + 
                 #     rotated_gyro[:, 2] ** 2
                 # )
+                # rotated_gyro[:, 3] = np.sqrt(
+                #     rotated_gyro[:, 0] ** 2 + 
+                #     rotated_gyro[:, 1] ** 2 + 
+                #     rotated_gyro[:, 2] ** 2
+                # )
 
                 # Recombine rotated components
                 fictitious_segment = np.hstack([rotated_acc, rotated_gyro, rotated_or])
+
+                print(f"Fictitious segment shape: {fictitious_segment.shape}")
                 
                 # Append to matrices
                 X.append(fictitious_segment)

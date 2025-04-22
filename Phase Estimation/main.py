@@ -152,7 +152,7 @@ try:
         plt.plot(y_linear, label='Linear', color='blue')
         plt.plot(y_ridge, label='Ridge', color='orange')
         plt.plot(y_lasso, label='Lasso', color='green')
-        plt.plot(y_svr, label='SVR', color='purple')
+        plt.plot(y_svr, label='SVR', color5='purple')
         plt.plot(y_randomforest, label='Random Forest', color='brown')
         plt.plot(Y, label='Target', color='red', linestyle='--')
         plt.xlabel('Time (s)')

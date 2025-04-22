@@ -112,16 +112,16 @@ class RefinedMotionSegmenter:
     
     def refine_motion_boundaries(self, ared_signal, rough_start, rough_end):
         """
-        Refine the motion boundaries by searching for true start and end points.
+        Improved refinement of motion boundaries to avoid local optima caused by oscillations.
         
         Parameters:
         -----------
         ared_signal : array-like
             The ARED signal
         rough_start : int
-            Initial estimate of motion start index
+            Initial rough start index
         rough_end : int
-            Initial estimate of motion end index
+            Initial rough end index
             
         Returns:
         --------
@@ -133,38 +133,54 @@ class RefinedMotionSegmenter:
         # Calculate peak value in the motion segment
         peak_value = np.max(ared_signal[rough_start:rough_end+1])
         
-        # Calculate the edge detection threshold as a percentage of peak value
-        # Ensure it's above the noise floor
+        # Calculate noise floor
         noise_floor = self.estimate_noise_floor(ared_signal)
+        
+        # Calculate edge threshold (for values near noise level)
         edge_threshold = max(self.refinement_threshold * peak_value, noise_floor * 2)
         
-
-        # Verify refinement with rate of change to avoid noise artifacts
-        # Calculate first derivative of ARED signal
+        # Calculate first derivative and smooth it
         ared_diff = np.diff(ared_signal)
-        
-        # Smooth the derivative
         ared_diff_smoothed = signal.savgol_filter(np.concatenate(([0], ared_diff)), 
-                                                 window_length=11, polyorder=2)
+                                                window_length=11, polyorder=2)
+        
+        # Initialize refined points with rough points
         refined_start = rough_start
         refined_end = rough_end
-
-        # For start point: look for significant positive rate of change
-        start_search_range = max(0, rough_start - 100), min(len(ared_diff_smoothed)-1, rough_start)
-        for i in range(start_search_range[1], start_search_range[0], -1):
-            if ared_diff_smoothed[i] < ared_diff_smoothed[rough_start] * 0.2:
-                refined_start = i
-                break
         
-        # For end point: look for significant negative rate of change
-        end_search_range = max(0, rough_end), min(len(ared_diff_smoothed)-1, rough_end + 100)
-        for i in range(end_search_range[0], end_search_range[1]):
-            if ared_diff_smoothed[i] > ared_diff_smoothed[rough_end] * 0.2:
-                refined_end = i
-                break
-
-
+        # Define window size for searching candidates
+        window_search = 100
+        
+        # ----- IMPROVED START POINT SEARCH -----
+        # Look for all candidate points within the search window
+        start_range_min = max(0, rough_start - window_search)
+        start_range_max = min(len(ared_diff_smoothed) - 1, rough_start)
+        
+        candidate_starts = []
+        for i in range(start_range_min, start_range_max + 1):
+            if ared_diff_smoothed[i] < edge_threshold:
+                candidate_starts.append(i)
+        
+        if candidate_starts:
+            # Choose the candidate with the minimum ARED value as the global optimum
+            refined_start = min(candidate_starts, key=lambda x: ared_signal[x])
+        
+        # ----- IMPROVED END POINT SEARCH -----
+        # Look for all candidate points within the search window
+        end_range_min = max(0, rough_end)
+        end_range_max = min(len(ared_diff_smoothed) - 1, rough_end + window_search)
+        
+        candidate_ends = []
+        for i in range(end_range_min, end_range_max + 1):
+            if ared_diff_smoothed[i] > -edge_threshold:
+                candidate_ends.append(i)
+        
+        if candidate_ends:
+            # Choose the furthest candidate to capture the complete motion
+            refined_end = max(candidate_ends)
+        
         return refined_start, refined_end
+
     
     def segment_motion(self, magnitude):
         """
@@ -269,7 +285,7 @@ class RefinedMotionSegmenter:
         plt.tight_layout()
         plt.show()
 
-def AREDSegmentation(raw_magnitude, timestamp, plot_flag=False):
+def ARED_VARSegmentation(raw_magnitude, timestamp, plot_flag=False):
 
     # Initialize motion segmenter
     segmenter = RefinedMotionSegmenter(
