@@ -14,7 +14,6 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
     Y1 = []
     segment_lengths1 = []
     
-
     print(gyro_data.head())
     print(acc_data.head())
     print(orientation_data.head())
@@ -28,48 +27,11 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
     time_acc = np.arange(len(acc_data)) / frequencies[1]
     time_orientation = np.arange(len(orientation_data)) / frequencies[2]
 
-
-    # Removing BIAS from gyro data:
-    print("Removing bias...")
-    non_zero_index = 0
-
-    # Removing the zero values from the gyro data:
-    gyro_data_trimmed = gyro_data.iloc[non_zero_index:].reset_index(drop=True)
-    non_zero_index_acc = int(non_zero_index * frequencies[1] / frequencies[0])
-    acc_data_trimmed = acc_data.iloc[non_zero_index_acc:].reset_index(drop=True)
-    non_zero_index_or = int(non_zero_index * frequencies[2] / frequencies[0])
-    or_data_trimmed = orientation_data.iloc[non_zero_index_or:].reset_index(drop=True)
-
     # Computing Magnitude:
     print("Calculating magnitude...")
-    raw_magnitude = np.sqrt(gyro_data_trimmed.iloc[:,0]**2 + 
-                       gyro_data_trimmed.iloc[:,1]**2 + 
-                       gyro_data_trimmed.iloc[:,2]**2)
-
-    if plot_flag_gyro:
-        # FIGURE 1: Gyro processed data
-        fig, axs = plt.subplots(3, 1, figsize=(15, 10))      
-        # Raw Data Plot
-        for column in gyro_data.columns:
-            axs[0].plot(time_gyro, gyro_data[column], label=column)
-        axs[0].set_title("Raw Gyro Data")
-        axs[0].set(xlabel="Time (s)", ylabel="Angular Velocity (rad/s)")
-        axs[0].legend().set_visible(True)
-        axs[0].grid(True)
-        # Bias-Removed Plot
-        for column in gyro_data.columns:
-            axs[1].plot(time_gyro, gyro_data[column], label=column)
-        axs[1].set_title("Bias-Removed Data")
-        axs[1].set(xlabel="Time (s)", ylabel="Angular Velocity (rad/s)")
-        axs[1].legend().set_visible(True)
-        axs[1].grid(True)
-        # Trimmed Data Plot
-        for column in gyro_data_trimmed.columns:
-            axs[2].plot(time_gyro[non_zero_index:], gyro_data_trimmed[column], label=column)
-        axs[2].set_title("Trimmed Sensor Data")
-        axs[2].set(xlabel="Time (s)", ylabel="Angular Velocity (rad/s)")
-        axs[2].legend().set_visible(True)
-        axs[2].grid(True)
+    raw_magnitude = np.sqrt(gyro_data.iloc[:,0]**2 + 
+                       gyro_data.iloc[:,1]**2 + 
+                       gyro_data.iloc[:,2]**2)
 
     # Magitude Filtering:
     sampling_rate = frequencies[0]  # Hz
@@ -79,30 +41,25 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
     b, a = butter(4, normal_cutoff, btype='low', analog=False)
     magnitude = filtfilt(b, a, raw_magnitude)
 
-    # Storing the magnitude in the gyro_data dataframe:
-    gyro_data_trimmed['magnitude'] = magnitude
-
-    # After calculating raw_magnitude in your function:
-    time_trimmed = np.arange(len(gyro_data_trimmed)) / frequencies[0]
-
     # Segment the gait cycles
-    segments, peaks = segment_gait_cycles(magnitude, time_trimmed)
+    segments, peaks = segment_gait_cycles(magnitude, time_gyro)
 
     # Store individual step data
     step_data = []
     for i, (start, end) in enumerate(segments):
         step_data.append({
             'step_number': i+1,
-            'gyro': gyro_data_trimmed.iloc[start:end],
-            'acc': acc_data_trimmed.iloc[int(start*frequencies[1]/frequencies[0]):int(end*frequencies[1]/frequencies[0])],
-            'orientation': or_data_trimmed.iloc[int(start*frequencies[2]/frequencies[0]):int(end*frequencies[2]/frequencies[0])],
+            'gyro': gyro_data.iloc[start:end],
+            'acc': acc_data.iloc[int(start*frequencies[1]/frequencies[0]):int(end*frequencies[1]/frequencies[0])],
+            'orientation': orientation_data.iloc[int(start*frequencies[2]/frequencies[0]):int(end*frequencies[2]/frequencies[0])],
             'magnitude': magnitude[start:end],
             'duration': (end-start)/frequencies[0]
         })
     
+
+
     timestamp_matrices = {}
-    
-    # Print head of step data for debugging
+
     for step in step_data:
         # Apply interpolation
         gyro_processed = step['gyro']

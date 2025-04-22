@@ -14,7 +14,7 @@ from Regression_Methods import SVR_Reg
 from Regression_Methods import RandomForest
 import DataLoader
 import DataLoaderYinkai
-import CYCLIC  # Ensure CYCLIC is imported if it exists in your project
+from Segmentation_Methods import CyclicPeaksSegmentation
 from sklearn.metrics import mean_squared_error
 
 def handle_test_decision(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
@@ -401,7 +401,7 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
             features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
 
         else:
-            timestamp_matrices, feature_names = CYCLIC.motion_segmenter(
+            timestamp_matrices, feature_names = CyclicPeaksSegmentation.motion_segmenter(
                 gyro, acc, or_data_item, timestamp=timestamp, test_flag = True, frequencies=frequencies, plot_flag=biasPlot_flag
             )
         

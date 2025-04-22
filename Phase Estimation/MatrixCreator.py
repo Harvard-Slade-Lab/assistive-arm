@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import itertools
 from scipy.interpolate import interp1d
-import CYCLIC
+from Segmentation_Methods import CyclicPeaksSegmentation
 
 def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=True, interpPlot_flag=True):
     X = []
@@ -61,7 +61,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
                 feature_names = acc_cols + gyro_cols + or_cols
             
         else:
-            X1, Y1, segment_lengths1, feature_names = CYCLIC.motion_segmenter(
+            X1, Y1, segment_lengths1, feature_names = CyclicPeaksSegmentation.motion_segmenter(
                 gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
             )
             X.extend(X1)

@@ -30,7 +30,7 @@ print(f"Selected folder: {folder_path}")
 
 try:
     # Segmentation Selection:
-    segment_choice = input("Select segmentation method:\n1. GyroMagnitude Segmentation\n2. ARED Segmentation\n3. SHOE Segmentation\n4. HMMSegmentation\n5. Cyclic Segmentation").strip()
+    segment_choice = input("Select segmentation method:\n1. GyroMagnitude Segmentation\n2. ARED Segmentation\n3. SHOE Segmentation\n4. ARED_VARSegmentation\n5. Cyclic Segmentation").strip()
      
     if segment_choice == '5':
         # Load and process files
