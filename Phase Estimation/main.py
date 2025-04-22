@@ -89,11 +89,16 @@ try:
         # Note: The grid search will take longer with more parameters
         fast_comput = input("Do you want to reduce the number of parameters for faster SVR computation? (yes/no): ").strip().lower()
         if fast_comput == 'yes':
-            # Reduced grid (3x3x3 = 27 combinations)
+            # # Reduced grid (3x3x3 = 27 combinations)
+            # param_grid = {
+            #     'svr__C': np.logspace(1, 3, 3),       # [10, 100, 1000]
+            #     'svr__epsilon': np.logspace(-3, -1, 3), # [0.001, 0.01, 0.1]
+            #     'svr__gamma': np.logspace(-3, -1, 3)   # [0.001, 0.01, 0.1]
+            # }   
             param_grid = {
-                'svr__C': np.logspace(1, 3, 3),       # [10, 100, 1000]
-                'svr__epsilon': np.logspace(-3, -1, 3), # [0.001, 0.01, 0.1]
-                'svr__gamma': np.logspace(-3, -1, 3)   # [0.001, 0.01, 0.1]
+                'svr__C': [100],      # [10, 100, 1000]
+                'svr__epsilon': [0.01], # [0.001, 0.01, 0.1]
+                'svr__gamma': [0.01]   # [0.001, 0.01, 0.1]
             }   
         else:
             # Enhanced grid (7x4x6 = 168 combinations)
@@ -112,12 +117,17 @@ try:
         # Note: The grid search will take longer with more parameters
         fast_comput = input("Do you want to reduce the number of parameters for faster SVR computation? (yes/no): ").strip().lower()
         if fast_comput == 'yes':
-            # Reduced grid (3x3x3 = 27 combinations)
+             # # Reduced grid (3x3x3 = 27 combinations)
+            # param_grid = {
+            #     'svr__C': np.logspace(1, 3, 3),       # [10, 100, 1000]
+            #     'svr__epsilon': np.logspace(-3, -1, 3), # [0.001, 0.01, 0.1]
+            #     'svr__gamma': np.logspace(-3, -1, 3)   # [0.001, 0.01, 0.1]
+            # }   
             param_grid = {
-                'svr__C': np.logspace(1, 3, 3),       # [10, 100, 1000]
-                'svr__epsilon': np.logspace(-3, -1, 3), # [0.001, 0.01, 0.1]
-                'svr__gamma': np.logspace(-3, -1, 3)   # [0.001, 0.01, 0.1]
-            }   
+                'svr__C': [100],      # [10, 100, 1000]
+                'svr__epsilon': [0.01], # [0.001, 0.01, 0.1]
+                'svr__gamma': [0.01]   # [0.001, 0.01, 0.1]
+            }     
         else:
             # Enhanced grid (7x4x6 = 168 combinations)
             param_grid = {

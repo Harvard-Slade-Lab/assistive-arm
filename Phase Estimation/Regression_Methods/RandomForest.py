@@ -45,7 +45,7 @@ def enhanced_random_forest_regression(X, y, feature_names, param_grid=None, cv=N
     # Configure default parameter grid if not provided
     if param_grid is None:
         param_grid = {
-            'randomforestregressor__n_estimators': [500, 1000, 2000],
+            'randomforestregressor__n_estimators': [500, 1000],
             'randomforestregressor__max_depth': [None, 10, 20, 30],
             'randomforestregressor__min_samples_split': [2, 5, 10]
         }
@@ -70,6 +70,10 @@ def enhanced_random_forest_regression(X, y, feature_names, param_grid=None, cv=N
     # Get best model
     best_model = grid_search.best_estimator_
     
+    # Print optimal parameters
+    print("Optimal parameters from param_grid:")
+    for param, value in grid_search.best_params_.items():
+        print(f"{param}: {value}")
     # Get final predictions
     final_pred = best_model.predict(X)
     

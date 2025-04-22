@@ -141,14 +141,14 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
         gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
         or_cols = [f"OR_{col}" for col in or_interp.columns]
         feature_names = acc_cols + gyro_cols + or_cols
-        return timestamp_matrices, feature_names
+        return timestamp_matrices, feature_names # In case of testing, returns the segments singularly
     else:
         print(f"Detected {len(step_data)} steps")
         acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
         gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
         or_cols = [f"OR_{col}" for col in or_interp.columns]
         feature_names = acc_cols + gyro_cols + or_cols
-        return X1, Y1, segment_lengths1, feature_names  # Return the start and end indices of the first segment
+        return X1, Y1, segment_lengths1, feature_names  # In case of training, returns the segments all together in a matrix format
 
 def segment_gait_cycles(magnitude_signal, time_vector, plot_results=True):
     # Find peaks with constraints
@@ -156,6 +156,18 @@ def segment_gait_cycles(magnitude_signal, time_vector, plot_results=True):
                           height=150,          # Minimum peak height (adjust based on your data)
                           distance=300,         # Minimum samples between peaks
                           prominence=50)       # Minimum peak prominence
+    # Find valleys (local minima) preceding the peaks
+    # valleys, _ = find_peaks(-magnitude_signal, 
+    #                         distance=300)       # Minimum samples between valleys
+
+    # # Filter valleys to ensure they precede the detected peaks
+    # filtered_valleys = []
+    # for peak in peaks:
+    #     preceding_valleys = [valley for valley in valleys if valley < peak]
+    #     if preceding_valleys:
+    #         filtered_valleys.append(preceding_valleys[-1])  # Take the closest preceding valley
+
+    # valleys = np.array(filtered_valleys)
     
     # Create segments based on peaks
     segments = []
