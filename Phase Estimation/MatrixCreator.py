@@ -7,7 +7,7 @@ import itertools
 from scipy.interpolate import interp1d
 import CyclicSegmentationManager
 
-def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=True, interpPlot_flag=True):
+def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=True, interpPlot_flag=True):
     X = []
     Y = []
     segment_lengths = []
@@ -25,10 +25,6 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         or_data_item = or_data[indices["or"]]
         
         print(f"Processing data set from timestamp: {timestamp}")
-        
-        if not executed:
-            frequencies = BiasAndSegmentation.sensors_frequencies()
-        executed = True
 
         if segment_choice != '5':
             # Apply the segmentation and bias correction
@@ -79,8 +75,11 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
                     frequencies, plot_flag=False
                 )
                 
+                # # Concatenate features for X matrix
+                # features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
+
                 # Concatenate features for X matrix
-                features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
+                features = np.concatenate([gyro_interp.values], axis=1)
 
                 X1.append(features)
                 dataset_length = len(features)
@@ -91,14 +90,15 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
                 Y1.append(y)
                 
                 print(f"Step {step['step_number']}:\n", step['gyro'].head())
-                print(f"Step {step['step_number']} Acc:\n", step['acc'].head())
-                print(f"Step {step['step_number']} Orientation:\n", step['orientation'].head())
+                # print(f"Step {step['step_number']} Acc:\n", step['acc'].head())
+                # print(f"Step {step['step_number']} Orientation:\n", step['orientation'].head())
 
             print(f"Detected {len(step_data)} steps")
-            acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
+            # acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
             gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
-            or_cols = [f"OR_{col}" for col in or_interp.columns]
-            feature_names = acc_cols + gyro_cols + or_cols
+            # or_cols = [f"OR_{col}" for col in or_interp.columns]
+            # feature_names = acc_cols + gyro_cols + or_cols
+            feature_names = gyro_cols
             X.extend(X1)
             Y.extend(Y1)
             segment_lengths.append(segment_lengths1)
@@ -225,7 +225,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
     Y_matrix = np.concatenate(Y)
     
     
-    return X_matrix, Y_matrix, sorted_timestamps, segment_lengths, feature_names, frequencies
+    return X_matrix, Y_matrix, sorted_timestamps, segment_lengths, feature_names
 
 # Visualization function remains unchanged
 def visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, feature_names):

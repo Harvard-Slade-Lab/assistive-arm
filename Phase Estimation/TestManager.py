@@ -50,8 +50,8 @@ def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, 
         return
     
     # Create matrices for each timestamp
-    timestamp_matrices, feature_names, frequencies = create_timestamp_matrices(
-        acc_data, gyro_data, or_data, grouped_indices, segment_choice,
+    timestamp_matrices, feature_names = create_timestamp_matrices(
+        acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies,
         biasPlot_flag=plot_flag_segment, interpPlot_flag=plot_flag_interp
     )
     
@@ -355,7 +355,7 @@ def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, 
 
 
 
-def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=False, interpPlot_flag=False):
+def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=False, interpPlot_flag=False):
     """
     Create separate matrices for each timestamp, concatenating sensor data along columns.
     
@@ -388,9 +388,6 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
     
     # Sort timestamps to ensure chronological order
     sorted_timestamps = sorted(grouped_indices.keys())
-    
-    # Get frequencies (only need to do this once)
-    frequencies = BiasAndSegmentation.sensors_frequencies()
     
     for timestamp in sorted_timestamps:
         indices = grouped_indices[timestamp]
@@ -434,14 +431,18 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
                     frequencies, plot_flag=False
                 )
                 
+                # # Concatenate features for X matrix
+                # features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
+
                 # Concatenate features for X matrix
-                features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
+                features = np.concatenate([gyro_interp.values], axis=1)
                 timestamp_matrices[step['step_number']] = features
             print(f"Detected {len(step_data)} steps")
-            acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
+            # acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
             gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
-            or_cols = [f"OR_{col}" for col in or_interp.columns]
-            feature_names = acc_cols + gyro_cols + or_cols
+            # or_cols = [f"OR_{col}" for col in or_interp.columns]
+            # feature_names = acc_cols + gyro_cols + or_cols
+            feature_names = gyro_cols
         
         
         # Store feature names (first time only)
@@ -451,7 +452,7 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
             or_cols = [f"OR_{col}" for col in or_interp.columns]
             feature_names = acc_cols + gyro_cols + or_cols
     
-    return timestamp_matrices, feature_names, frequencies
+    return timestamp_matrices, feature_names
 
 def visualize_timestamp_matrix(matrix, timestamp, feature_names):
     """

@@ -13,6 +13,10 @@ from Regression_Methods import Linear_Reg
 from Regression_Methods import SVR_Reg
 from Regression_Methods import RandomForest
 
+# Frequencies:
+frequencies = [519, 519, 222]  # Gyro, Acc, OR
+# frequencies = [370.3704, 370.3704, 74.0741]  # Gyro, Acc, OR
+
 
 # PLOT Flags:
 training_segmentation_flag = False
@@ -54,7 +58,7 @@ try:
             print("No complete data sets found. Exiting...")
 
     # Create X and Y matrices
-    X, Y, timestamps, segment_lengths, feature_names, frequencies = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, biasPlot_flag=training_segmentation_flag, interpPlot_flag=training_interpolation_flag)
+    X, Y, timestamps, segment_lengths, feature_names = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=training_segmentation_flag, interpPlot_flag=training_interpolation_flag)
     print(f"Created X matrix with shape {X.shape} and Y matrix with length {len(Y)}")
     
     # Print column information
