@@ -16,6 +16,7 @@ import DataLoader
 import DataLoaderYinkai
 from Segmentation_Methods import CyclicPeaksSegmentation
 from sklearn.metrics import mean_squared_error
+import Interpolation
 
 def handle_test_decision(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
     """Handle user decision about testing"""
@@ -399,11 +400,32 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
             
             # Concatenate features horizontally for this timestamp's matrix
             features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
+            timestamp_matrices[timestamp] = features
 
         else:
-            timestamp_matrices, feature_names = CyclicPeaksSegmentation.motion_segmenter(
-                gyro, acc, or_data_item, timestamp=timestamp, test_flag = True, frequencies=frequencies, plot_flag=biasPlot_flag
+            step_data = CyclicPeaksSegmentation.motion_segmenter(
+                gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
             )
+            timestamp_matrices = {}
+            for step in step_data:
+                # Apply interpolation
+                gyro_processed = step['gyro']
+                acc_processed = step['acc']
+                or_processed = step['orientation']
+
+                gyro_interp, acc_interp, or_interp = Interpolation.interpolate_and_visualize(
+                    gyro_processed, acc_processed, or_processed, 
+                    frequencies, plot_flag=False
+                )
+                
+                # Concatenate features for X matrix
+                features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
+                timestamp_matrices[step['step_number']] = features
+            print(f"Detected {len(step_data)} steps")
+            acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
+            gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
+            or_cols = [f"OR_{col}" for col in or_interp.columns]
+            feature_names = acc_cols + gyro_cols + or_cols
         
         
         # Store feature names (first time only)

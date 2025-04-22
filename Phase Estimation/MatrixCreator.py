@@ -61,12 +61,47 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
                 feature_names = acc_cols + gyro_cols + or_cols
             
         else:
-            X1, Y1, segment_lengths1, feature_names = CyclicPeaksSegmentation.motion_segmenter(
+            step_data = CyclicPeaksSegmentation.motion_segmenter(
                 gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
             )
+            X1 = []
+            Y1 = []
+            segment_lengths1 = []
+
+            for step in step_data:
+                # Apply interpolation
+                gyro_processed = step['gyro']
+                acc_processed = step['acc']
+                or_processed = step['orientation']
+
+                gyro_interp, acc_interp, or_interp = Interpolation.interpolate_and_visualize(
+                    gyro_processed, acc_processed, or_processed, 
+                    frequencies, plot_flag=False
+                )
+                
+                # Concatenate features for X matrix
+                features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
+
+                X1.append(features)
+                dataset_length = len(features)
+                segment_lengths1.append(dataset_length)
+
+                # Create Y matrix segment
+                y = np.linspace(0, 1, dataset_length)
+                Y1.append(y)
+                
+                print(f"Step {step['step_number']}:\n", step['gyro'].head())
+                print(f"Step {step['step_number']} Acc:\n", step['acc'].head())
+                print(f"Step {step['step_number']} Orientation:\n", step['orientation'].head())
+
+            print(f"Detected {len(step_data)} steps")
+            acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
+            gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
+            or_cols = [f"OR_{col}" for col in or_interp.columns]
+            feature_names = acc_cols + gyro_cols + or_cols
             X.extend(X1)
             Y.extend(Y1)
-            segment_lengths.append(segment_lengths1)   
+            segment_lengths.append(segment_lengths1)
 
 
     # Fictitious trials generation
