@@ -14,7 +14,7 @@ from Regression_Methods import SVR_Reg
 from Regression_Methods import RandomForest
 import DataLoader
 import DataLoaderYinkai
-from Segmentation_Methods import CyclicPeaksSegmentation
+import CyclicSegmentationManager
 from sklearn.metrics import mean_squared_error
 import Interpolation
 
@@ -159,6 +159,7 @@ def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, 
         average_mse = np.mean(mse_vector)
         y_target_combined = np.concatenate([y for _, y in y_target_list])
         y_pred_combined = np.concatenate([y for _, y in y_pred_list])
+
         average_mse_2 = mean_squared_error(y_target_combined, y_pred_combined)
 
         standard_deviation_2 = np.std(y_target_combined - y_pred_combined)
@@ -208,17 +209,32 @@ def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, 
                     y_pred
                 )
                 plt.plot(interpolated_y_pred, label=f'Test {i}', alpha=0.7)
+                # Store y_pred in a matrix for later use
+                if i == 1:
+                    y_pred_matrix = np.zeros((len(globals()["y_pred_list"]), target_length))
+                y_pred_matrix[i - 1, :] = interpolated_y_pred
+            # Calculate the mean of the y_pred matrix
+            mean_y_pred = np.mean(y_pred_matrix, axis=0)*100
+            
+            plt.plot(mean_y_pred, label='Mean Prediction', color='red', linewidth=2)
+            # Plot the standard deviation of the predictions
+            std_y_pred = np.std(y_pred_matrix, axis=0)*100
+            plt.fill_between(np.arange(target_length), mean_y_pred - std_y_pred, mean_y_pred + std_y_pred, color='red', alpha=0.2, label='Std Dev')
             # Plot the target as a reference
-            target = np.linspace(0, 1, target_length)
+            target = np.linspace(0, 100, target_length)
             plt.plot(target, label='Target', color='black', linestyle='--', linewidth=2)
-            plt.xlabel('Index')
-            plt.ylabel('Value')
-            plt.title('Test Predictions')
-            plt.grid(alpha=0.5)
+            plt.xlabel('Task Completion (%)', fontsize=6)
+            plt.ylabel('Estimated Phase (%)', fontsize=6)
+            plt.xticks(fontsize=6)
+            plt.yticks(fontsize=6)
+            plt.title('Test Predictions', fontsize=6)
             plt.tight_layout()
             # Add legend inside the plot area with a smaller font size and reduced markers
             plt.legend(loc='best', fontsize='x-small', markerscale=0.7)
             plt.show()
+            # Save it as SVG file:
+            plt.savefig('test_predictions.svg', format='svg', bbox_inches='tight')
+
         else:
             print("No predictions available to plot.")
 
@@ -403,7 +419,7 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
             timestamp_matrices[timestamp] = features
 
         else:
-            step_data = CyclicPeaksSegmentation.motion_segmenter(
+            step_data = CyclicSegmentationManager.motion_segmenter(
                 gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
             )
             timestamp_matrices = {}
