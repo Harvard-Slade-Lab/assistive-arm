@@ -7,6 +7,7 @@ from scipy.signal import find_peaks
 import Interpolation
 from Segmentation_Methods import AREDCyclicSegm
 from Segmentation_Methods import Cyclic_PeaksSegmentation
+from Segmentation_Methods import GyroSaggitalSegm
 
 plot_flag_gyro = False  # Flag to plot gyro data
 
@@ -43,12 +44,12 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
     b, a = butter(4, normal_cutoff, btype='low', analog=False)
     magnitude = filtfilt(b, a, raw_magnitude)
 
-    AREDCyclicSegm.AREDSegmCycl(magnitude)
-    print("Press ENTER to continue...")
-    input()
+    segments = GyroSaggitalSegm.GyroSaggitalSegm(gyro_data, frequencies[0])
+    # print("Press ENTER to continue...")
+    # input()
 
-    # Segment the gait cycles
-    segments, peaks = Cyclic_PeaksSegmentation.segment_gait_cycles(magnitude, time_gyro)
+    # # Segment the gait cycles
+    # segments, peaks = Cyclic_PeaksSegmentation.segment_gait_cycles(magnitude, time_gyro)
 
     # Store individual step data
     step_data = []
@@ -61,6 +62,7 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
             'magnitude': magnitude[start:end],
             'duration': (end-start)/frequencies[0]
         })
+
     
     return step_data
 
