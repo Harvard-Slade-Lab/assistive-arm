@@ -131,7 +131,7 @@ try:
                 'svr__C': [100],      # [10, 100, 1000]
                 'svr__epsilon': [0.01], # [0.001, 0.01, 0.1]
                 'svr__gamma': [0.01]   # [0.001, 0.01, 0.1]
-            }     
+            }   
         else:
             # Enhanced grid (7x4x6 = 168 combinations)
             param_grid = {

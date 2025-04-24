@@ -199,8 +199,10 @@ def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, 
     if choice != '5':
         # Interpolate all y_pred to align them for plotting
         if "y_pred_list" in globals():
-            plt.figure(figsize=(12, 6))
-            # Determine the minimum length among all y_pred
+            plt.figure(figsize=(12, 12))
+
+            # Subplot 1: Plot all interpolated_y_pred with target from 0 to 1
+            plt.subplot(2, 1, 1)
             target_length = min(len(y_pred) for _, y_pred in globals()["y_pred_list"])
             for i, (ts, y_pred) in enumerate(globals()["y_pred_list"], start=1):
                 interpolated_y_pred = np.interp(
@@ -208,18 +210,35 @@ def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, 
                     np.arange(len(y_pred)),
                     y_pred
                 )
-                plt.plot(interpolated_y_pred, label=f'Test {i}', alpha=0.7)
+                plt.plot(interpolated_y_pred, alpha=0.7)
                 # Store y_pred in a matrix for later use
                 if i == 1:
                     y_pred_matrix = np.zeros((len(globals()["y_pred_list"]), target_length))
                 y_pred_matrix[i - 1, :] = interpolated_y_pred
-            # Calculate the mean of the y_pred matrix
-            mean_y_pred = np.mean(y_pred_matrix, axis=0)*100
-            
+            # Plot the target as a reference
+            target = np.linspace(0, 1, target_length)
+            plt.plot(target, label='Target', color='black', linestyle='--', linewidth=2)
+            plt.xlabel('Task Completion (%)', fontsize=6)
+            plt.ylabel('Estimated Phase (0-1)', fontsize=6)
+            plt.xticks(fontsize=6)
+            plt.yticks(fontsize=6)
+            plt.title('Test Predictions (Normalized)', fontsize=6)
+            plt.legend(loc='best', fontsize='x-small', markerscale=0.7)
+            plt.grid(True)
+
+            # Subplot 2: Plot mean, std, and target from 0 to 100
+            plt.subplot(2, 1, 2)
+            mean_y_pred = np.mean(y_pred_matrix, axis=0) * 100
+            std_y_pred = np.std(y_pred_matrix, axis=0) * 100
             plt.plot(mean_y_pred, label='Mean Prediction', color='red', linewidth=2)
-            # Plot the standard deviation of the predictions
-            std_y_pred = np.std(y_pred_matrix, axis=0)*100
-            plt.fill_between(np.arange(target_length), mean_y_pred - std_y_pred, mean_y_pred + std_y_pred, color='red', alpha=0.2, label='Std Dev')
+            plt.fill_between(
+                np.arange(target_length),
+                mean_y_pred - std_y_pred,
+                mean_y_pred + std_y_pred,
+                color='red',
+                alpha=0.2,
+                label='Std Dev'
+            )
             # Plot the target as a reference
             target = np.linspace(0, 100, target_length)
             plt.plot(target, label='Target', color='black', linestyle='--', linewidth=2)
@@ -227,10 +246,11 @@ def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, 
             plt.ylabel('Estimated Phase (%)', fontsize=6)
             plt.xticks(fontsize=6)
             plt.yticks(fontsize=6)
-            plt.title('Test Predictions', fontsize=6)
-            plt.tight_layout()
-            # Add legend inside the plot area with a smaller font size and reduced markers
+            plt.title('Mean and Std Dev of Predictions', fontsize=6)
             plt.legend(loc='best', fontsize='x-small', markerscale=0.7)
+            plt.grid(True)
+
+            plt.tight_layout()
             plt.show()
             # Save it as SVG file:
             plt.savefig('test_predictions.svg', format='svg', bbox_inches='tight')
@@ -425,24 +445,33 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
                 gyro_processed = step['gyro']
                 acc_processed = step['acc']
                 or_processed = step['orientation']
+                abs_filtered_gyro_derivative = step['absgyro']
+
+                gyro_processed = pd.concat([gyro_processed, abs_filtered_gyro_derivative], axis=1)
 
                 gyro_interp, acc_interp, or_interp = Interpolation.interpolate_and_visualize(
                     gyro_processed, acc_processed, or_processed, 
                     frequencies, plot_flag=False
                 )
-                
-                # # Concatenate features for X matrix
-                # features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
 
+                abs_filtered_gyro_derivative_interp = gyro_interp.iloc[:, -3:]
+                gyro_interp = gyro_interp.iloc[:, :-3]
+
+                
                 # Concatenate features for X matrix
-                features = np.concatenate([gyro_interp.values], axis=1)
+                features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values, abs_filtered_gyro_derivative_interp.values], axis=1)
+
+                # # Concatenate features for X matrix
+                # features = np.concatenate([gyro_interp.values, abs_filtered_gyro_derivative.values], axis=1)
+
                 timestamp_matrices[step['step_number']] = features
             print(f"Detected {len(step_data)} steps")
-            # acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
+            acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
             gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
-            # or_cols = [f"OR_{col}" for col in or_interp.columns]
-            # feature_names = acc_cols + gyro_cols + or_cols
-            feature_names = gyro_cols
+            abs_filtered_gyro_cols = [f"ABSGYRO_{col}" for col in abs_filtered_gyro_derivative_interp.columns]
+            or_cols = [f"OR_{col}" for col in or_interp.columns]
+            feature_names = acc_cols + gyro_cols + or_cols + abs_filtered_gyro_cols
+            # feature_names = gyro_cols + abs_filtered_gyro_cols
         
         
         # Store feature names (first time only)

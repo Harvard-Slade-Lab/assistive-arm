@@ -17,6 +17,13 @@ def GyroSaggitalSegm(gyro_data, gyro_freq):
     b, a = butter(4, normal_cutoff, btype='low')
     filtered_gyro = filtfilt(b, a, downsampled_gyro)
 
+    # Absolute value of the filtered signal
+    abs_filtered_gyro = np.abs(filtered_gyro)   
+    # Derivative of the absolute value
+    abs_filtered_gyro_derivative = np.gradient(abs_filtered_gyro)
+  
+
+
     # Improved zero-crossing detection with hysteresis
     threshold = 0.1  # Noise threshold (adjust based on signal)
     positive_deriv_crossings = []
@@ -45,21 +52,32 @@ def GyroSaggitalSegm(gyro_data, gyro_freq):
         end = positive_deriv_crossings[i+1]
         segments.append((start, end))
 
-    # Visualization
-    plt.figure(figsize=(12, 6))
-    plt.plot(filtered_gyro, label='Filtered Signal')
-    
-    # Plot segments with different colors
+    # Visualization as subplots
+    fig, axs = plt.subplots(2, 1, figsize=(12, 12))
+    # Plot filtered signal with segments
+    axs[0].plot(filtered_gyro, label='Filtered Signal')
     colors = plt.cm.tab10.colors
     for idx, (start, end) in enumerate(zip(positive_deriv_crossings[:-1], 
-                                        positive_deriv_crossings[1:])):
-        plt.axvspan(start, end, color=colors[idx % 10], alpha=0.3)
-        plt.axvline(start, color='k', linestyle='--', alpha=0.5)
-    
-    plt.title('Signal Segmentation at Positive Zero-Crossings')
-    plt.xlabel('Samples')
-    plt.ylabel('Angular Velocity (rad/s)')
-    plt.legend()
+                                           positive_deriv_crossings[1:])):
+        axs[0].axvspan(start, end, color=colors[idx % 10], alpha=0.3)
+        axs[0].axvline(start, color='k', linestyle='--', alpha=0.5)
+    axs[0].set_title('Signal Segmentation at Positive Zero-Crossings')
+    axs[0].set_xlabel('Samples')
+    axs[0].set_ylabel('Angular Velocity (rad/s)')
+    axs[0].legend()
+    # Plot derivative of the absolute value with segments
+    axs[1].plot(abs_filtered_gyro_derivative, label='Derivative of Absolute Value')
+    for idx, (start, end) in enumerate(zip(positive_deriv_crossings[:-1], 
+                                           positive_deriv_crossings[1:])):
+        axs[1].axvspan(start, end, color=colors[idx % 10], alpha=0.3)
+        axs[1].axvline(start, color='k', linestyle='--', alpha=0.5)
+    axs[1].set_title('Derivative of Absolute Value with Segments')
+    axs[1].set_xlabel('Samples')
+    axs[1].set_ylabel('Derivative Value')
+    axs[1].legend()
+    # Adjust layout and show the plot
+    plt.tight_layout()
     plt.show()
 
-    return segments
+
+    return segments, abs_filtered_gyro_derivative

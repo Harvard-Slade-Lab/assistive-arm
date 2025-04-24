@@ -6,6 +6,7 @@ import pandas as pd
 import itertools
 from scipy.interpolate import interp1d
 import CyclicSegmentationManager
+from Segmentation_Methods import GyroSaggitalSegm
 
 def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=True, interpPlot_flag=True):
     X = []
@@ -69,17 +70,23 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
                 gyro_processed = step['gyro']
                 acc_processed = step['acc']
                 or_processed = step['orientation']
+                abs_filtered_gyro_derivative = step['absgyro']
+
+                gyro_processed = pd.concat([gyro_processed, abs_filtered_gyro_derivative], axis=1)
 
                 gyro_interp, acc_interp, or_interp = Interpolation.interpolate_and_visualize(
                     gyro_processed, acc_processed, or_processed, 
                     frequencies, plot_flag=False
                 )
-                
-                # # Concatenate features for X matrix
-                # features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
 
+                abs_filtered_gyro_derivative_interp = gyro_interp.iloc[:, -3:]
+                gyro_interp = gyro_interp.iloc[:, :-3]
+                
                 # Concatenate features for X matrix
-                features = np.concatenate([gyro_interp.values], axis=1)
+                features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values, abs_filtered_gyro_derivative_interp.values], axis=1)
+
+                # # Concatenate features for X matrix
+                # features = np.concatenate([gyro_interp.values, abs_filtered_gyro_derivative.values], axis=1)
 
                 X1.append(features)
                 dataset_length = len(features)
@@ -94,11 +101,12 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
                 # print(f"Step {step['step_number']} Orientation:\n", step['orientation'].head())
 
             print(f"Detected {len(step_data)} steps")
-            # acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
+            acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
             gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
-            # or_cols = [f"OR_{col}" for col in or_interp.columns]
-            # feature_names = acc_cols + gyro_cols + or_cols
-            feature_names = gyro_cols
+            abs_filtered_gyro_cols = [f"ABSGYRO_{col}" for col in abs_filtered_gyro_derivative_interp.columns]
+            or_cols = [f"OR_{col}" for col in or_interp.columns]
+            feature_names = acc_cols + gyro_cols + or_cols + abs_filtered_gyro_cols
+            # feature_names = gyro_cols + abs_filtered_gyro_cols
             X.extend(X1)
             Y.extend(Y1)
             segment_lengths.append(segment_lengths1)

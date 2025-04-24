@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from scipy.signal import butter
@@ -44,9 +45,19 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
     b, a = butter(4, normal_cutoff, btype='low', analog=False)
     magnitude = filtfilt(b, a, raw_magnitude)
 
-    segments = GyroSaggitalSegm.GyroSaggitalSegm(gyro_data, frequencies[0])
-    # print("Press ENTER to continue...")
-    # input()
+    
+    segments, abs_filtered_gyro_derivative = GyroSaggitalSegm.GyroSaggitalSegm(gyro_data, frequencies[0])
+
+    abs_filtered_gyro_derivative = pd.DataFrame(
+    abs_filtered_gyro_derivative, 
+    columns=['x']
+    )
+    abs_filtered_gyro_derivative = pd.concat(
+        [abs_filtered_gyro_derivative]*3, 
+        axis=1
+    )
+    abs_filtered_gyro_derivative.columns = ['x', 'y', 'z']
+
 
     # # Segment the gait cycles
     # segments, peaks = Cyclic_PeaksSegmentation.segment_gait_cycles(magnitude, time_gyro)
@@ -60,8 +71,10 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
             'acc': acc_data.iloc[int(start*frequencies[1]/frequencies[0]):int(end*frequencies[1]/frequencies[0])],
             'orientation': orientation_data.iloc[int(start*frequencies[2]/frequencies[0]):int(end*frequencies[2]/frequencies[0])],
             'magnitude': magnitude[start:end],
-            'duration': (end-start)/frequencies[0]
+            'duration': (end-start)/frequencies[0],
+            'absgyro': abs_filtered_gyro_derivative.iloc[start:end]  # Changed to .iloc
         })
+
 
     
     return step_data
