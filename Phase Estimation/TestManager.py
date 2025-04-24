@@ -18,21 +18,21 @@ import CyclicSegmentationManager
 from sklearn.metrics import mean_squared_error
 import Interpolation
 
-def handle_test_decision(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
+def handle_test_decision(choice, model, frequencies, segment_choice, load_choice, plot_flag_segment, plot_flag_interp):
     """Handle user decision about testing"""
     test_decision = input("\nDo you want to perform the test? (yes/no): ").lower()
     if test_decision == 'yes':
-        execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp)
+        execute_test(choice, model, frequencies, segment_choice, load_choice, plot_flag_segment, plot_flag_interp)
 
 
-def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
+def execute_test(choice, model, frequencies, segment_choice, load_choice, plot_flag_segment, plot_flag_interp):
     # Select folder
     folder_path = DataLoader.select_folder()
     if not folder_path:
         print("No folder selected. Exiting.")
         return
     
-    if segment_choice == '5':
+    if load_choice == '2':
         # Load and process files
         acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderYinkai.load_and_process_files(folder_path)
         

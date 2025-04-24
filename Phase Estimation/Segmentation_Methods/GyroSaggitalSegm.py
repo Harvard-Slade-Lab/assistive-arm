@@ -47,9 +47,10 @@ def GyroSaggitalSegm(gyro_data, gyro_freq):
 
     # Create segments between consecutive positive crossings
     segments = []
-    for i in range(len(positive_deriv_crossings)-1):
+    for i in range(0, len(positive_deriv_crossings) - 2, 2):
         start = positive_deriv_crossings[i]
-        end = positive_deriv_crossings[i+1]
+        middle = positive_deriv_crossings[i + 1]
+        end = positive_deriv_crossings[i + 2]
         segments.append((start, end))
 
     # Visualization as subplots
@@ -57,8 +58,7 @@ def GyroSaggitalSegm(gyro_data, gyro_freq):
     # Plot filtered signal with segments
     axs[0].plot(filtered_gyro, label='Filtered Signal')
     colors = plt.cm.tab10.colors
-    for idx, (start, end) in enumerate(zip(positive_deriv_crossings[:-1], 
-                                           positive_deriv_crossings[1:])):
+    for idx, (start, end) in enumerate(segments):
         axs[0].axvspan(start, end, color=colors[idx % 10], alpha=0.3)
         axs[0].axvline(start, color='k', linestyle='--', alpha=0.5)
     axs[0].set_title('Signal Segmentation at Positive Zero-Crossings')
@@ -67,8 +67,7 @@ def GyroSaggitalSegm(gyro_data, gyro_freq):
     axs[0].legend()
     # Plot derivative of the absolute value with segments
     axs[1].plot(abs_filtered_gyro_derivative, label='Derivative of Absolute Value')
-    for idx, (start, end) in enumerate(zip(positive_deriv_crossings[:-1], 
-                                           positive_deriv_crossings[1:])):
+    for idx, (start, end) in enumerate(segments):
         axs[1].axvspan(start, end, color=colors[idx % 10], alpha=0.3)
         axs[1].axvline(start, color='k', linestyle='--', alpha=0.5)
     axs[1].set_title('Derivative of Absolute Value with Segments')

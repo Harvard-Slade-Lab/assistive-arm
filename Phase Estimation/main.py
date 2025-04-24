@@ -35,8 +35,10 @@ print(f"Selected folder: {folder_path}")
 try:
     # Segmentation Selection:
     segment_choice = input("Select segmentation method:\n1. GyroMagnitude Segmentation\n2. ARED Segmentation\n3. SHOE Segmentation\n4. ARED_VARSegmentation\n5. Cyclic Segmentation").strip()
-     
-    if segment_choice == '5':
+    # Decide to load Yinkai's choice or not
+    load_choice = input("Select loading method:\n1. Original choice\n2. Yinkai's choice").strip()
+
+    if load_choice == '2':
         # Load and process files
         acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderYinkai.load_and_process_files(folder_path)
         print(f"Loaded {len(acc_files)} ACC files, {len(gyro_files)} GYRO files, and {len(or_files)} OR files")
@@ -192,10 +194,10 @@ try:
         }
 
         # Testing:
-        TestManager.handle_test_decision(choice, current_model, frequencies, segment_choice, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
+        TestManager.handle_test_decision(choice, current_model, frequencies, segment_choice, load_choice, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
     else:
         current_model = ridge_result['model'] if choice == '1' else lasso_result['model'] if choice == '2' else svr_model['model'] if choice == '4' else randomforest_result['model'] if choice == '6' else linear_model
-        TestManager.handle_test_decision(choice, current_model, frequencies, segment_choice, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
+        TestManager.handle_test_decision(choice, current_model, frequencies, segment_choice, load_choice, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
    
    
     plt.show(block=True)

@@ -3,6 +3,7 @@ from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 
 def segment_gait_cycles(magnitude_signal, time_vector, plot_results=True):
+
     # Find peaks with constraints
     peaks, _ = find_peaks(magnitude_signal, 
                           height=150,          # Minimum peak height (adjust based on your data)
@@ -20,10 +21,6 @@ def segment_gait_cycles(magnitude_signal, time_vector, plot_results=True):
         preceding_valleys = [valley for valley in valleys if valley < peak]
         if preceding_valleys:
             filtered_valleys.append(preceding_valleys[-1])  # Take the closest preceding valley
-            # print peak and valley indices for debugging
-            print(f"Peak at {time_vector[peak]:.2f}s, Valley at {time_vector[preceding_valleys[-1]]:.2f}s")
-            print(f"Peak index: {peak}, Valley index: {preceding_valleys[-1]}")
-            
 
     valleys = np.array(filtered_valleys)
     
@@ -52,5 +49,5 @@ def segment_gait_cycles(magnitude_signal, time_vector, plot_results=True):
         plt.ylabel('Magnitude')
         plt.grid(True)
         plt.show()
-    
-    return segments, peaks
+
+    return segments

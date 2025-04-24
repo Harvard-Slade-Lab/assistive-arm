@@ -60,7 +60,7 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
 
 
     # # Segment the gait cycles
-    # segments, peaks = Cyclic_PeaksSegmentation.segment_gait_cycles(magnitude, time_gyro)
+    # segments = Cyclic_PeaksSegmentation.segment_gait_cycles(magnitude, time_gyro)
 
     # Store individual step data
     step_data = []
@@ -75,7 +75,62 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
             'absgyro': abs_filtered_gyro_derivative.iloc[start:end]  # Changed to .iloc
         })
 
+    # Downsample all gyro data but use only gyroz for plotting
+    min_length = min(len(step['gyro']) for step in step_data)
 
+    for step in step_data:
+        # Downsample all gyro components to the smallest length
+        downsampled_gyro = np.array([
+            np.interp(
+                np.linspace(0, len(step['gyro'].iloc[:, i]) - 1, min_length),
+                np.arange(len(step['gyro'].iloc[:, i])),
+                step['gyro'].iloc[:, i]
+            ) for i in range(step['gyro'].shape[1])
+        ]).T
+        step['downsampled_gyroz'] = downsampled_gyro[:, 2]  # Store only the z component
+
+#################################################### PLOT #######################################################
+
+    plt.figure(figsize=(10, 6))
+    for step in step_data:
+        # Plot all downsampled gyroz overlapped
+        plt.plot(step['downsampled_gyroz'], alpha=0.7)
+    plt.title("Overlapped Step GyroZ")
+    plt.xlabel("Normalized Time")
+    plt.ylabel("GyroZ")
+    plt.grid(True)
+    plt.show()
+
+    # Calculate the mean and standard deviation of downsampled gyroz across all steps
+    all_downsampled_gyroz = np.array([step['downsampled_gyroz'] for step in step_data])
+    mean_gyroz = np.mean(all_downsampled_gyroz, axis=0)
+    std_gyroz = np.std(all_downsampled_gyroz, axis=0)
+
+    # Plot the mean and standard deviation
+    plt.figure(figsize=(10, 6))
+    plt.plot(mean_gyroz, label='Mean GyroZ', color='blue')
+    plt.fill_between(
+        np.arange(len(mean_gyroz)),
+        mean_gyroz - std_gyroz,
+        mean_gyroz + std_gyroz,
+        color='blue',
+        alpha=0.2,
+        label='Mean ± Std Dev'
+    )
+    plt.title("Mean and Standard Deviation of Step GyroZ")
+    plt.xlabel("Normalized Time")
+    plt.ylabel("GyroZ")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # Calculate and print the overall mse and standard deviation of downsampled gyroz
+    mse = np.mean((all_downsampled_gyroz - mean_gyroz) ** 2)
+    overall_std_gyroz = np.mean(std_gyroz)
+    print("Mean Squared Error (MSE) of downsampled gyroz:", mse)
+    print("Overall Standard Deviation of downsampled gyroz:", overall_std_gyroz)
+
+    input("Press Enter to continue...")
     
     return step_data
 
