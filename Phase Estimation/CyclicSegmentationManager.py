@@ -37,7 +37,7 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
                        gyro_data.iloc[:,1]**2 + 
                        gyro_data.iloc[:,2]**2)
 
-    # Magitude Filtering:
+    # Magnitude Filtering:
     sampling_rate = frequencies[0]  # Hz
     nyquist = 0.5 * sampling_rate
     cutoff = 5  # Hz
@@ -74,6 +74,7 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
             'duration': (end-start)/frequencies[0],
             'absgyro': abs_filtered_gyro_derivative.iloc[start:end]  # Changed to .iloc
         })
+        print(f"Step {i+1}: Start = {start}, End = {end}, ")
 
     # Downsample all gyro data but use only gyroz for plotting
     min_length = min(len(step['gyro']) for step in step_data)
@@ -130,7 +131,6 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
     print("Mean Squared Error (MSE) of downsampled gyroz:", mse)
     print("Overall Standard Deviation of downsampled gyroz:", overall_std_gyroz)
 
-    input("Press Enter to continue...")
     
     return step_data
 

@@ -4,18 +4,16 @@ from scipy.signal import butter, filtfilt
 
 def GyroSaggitalSegm(gyro_data, gyro_freq):
     # Extract Sagittal plane gyro (GyroZ)
-    gyro_saggital = gyro_data.iloc[:, 2].values
+    gyro_saggital = gyro_data.iloc[:, 0].values
 
-    # Downsample to 200Hz
-    downsample_factor = int(gyro_freq / 200)
-    downsampled_gyro = gyro_saggital[::downsample_factor]
+    
     
     # Filter parameters
-    cutoff_freq = 3  # Hz
+    cutoff_freq = 0.5  # Hz
     nyquist = 0.5 * 200
     normal_cutoff = cutoff_freq / nyquist
     b, a = butter(4, normal_cutoff, btype='low')
-    filtered_gyro = filtfilt(b, a, downsampled_gyro)
+    filtered_gyro = filtfilt(b, a, gyro_saggital)
 
     # Absolute value of the filtered signal
     abs_filtered_gyro = np.abs(filtered_gyro)   
@@ -47,14 +45,15 @@ def GyroSaggitalSegm(gyro_data, gyro_freq):
 
     # Create segments between consecutive positive crossings
     segments = []
-    for i in range(0, len(positive_deriv_crossings) - 2, 2):
+    for i in range(0, len(positive_deriv_crossings) - 1):
         start = positive_deriv_crossings[i]
-        middle = positive_deriv_crossings[i + 1]
-        end = positive_deriv_crossings[i + 2]
+        # middle = positive_deriv_crossings[i + 1]
+        end = positive_deriv_crossings[i + 1]
         segments.append((start, end))
 
     # Visualization as subplots
-    fig, axs = plt.subplots(2, 1, figsize=(12, 12))
+    fig, axs = plt.subplots(3, 1, figsize=(12, 18))
+    
     # Plot filtered signal with segments
     axs[0].plot(filtered_gyro, label='Filtered Signal')
     colors = plt.cm.tab10.colors
@@ -65,6 +64,7 @@ def GyroSaggitalSegm(gyro_data, gyro_freq):
     axs[0].set_xlabel('Samples')
     axs[0].set_ylabel('Angular Velocity (rad/s)')
     axs[0].legend()
+    
     # Plot derivative of the absolute value with segments
     axs[1].plot(abs_filtered_gyro_derivative, label='Derivative of Absolute Value')
     for idx, (start, end) in enumerate(segments):
@@ -74,6 +74,19 @@ def GyroSaggitalSegm(gyro_data, gyro_freq):
     axs[1].set_xlabel('Samples')
     axs[1].set_ylabel('Derivative Value')
     axs[1].legend()
+    
+    # Plot original gyro_data (all three columns) with segments
+    axs[2].plot(gyro_data.iloc[:, 0], label='GyroX')
+    axs[2].plot(gyro_data.iloc[:, 1], label='GyroY')
+    axs[2].plot(gyro_data.iloc[:, 2], label='GyroZ')
+    for idx, (start, end) in enumerate(segments):
+        axs[2].axvspan(start, end, color=colors[idx % 10], alpha=0.3)
+        axs[2].axvline(start, color='k', linestyle='--', alpha=0.5)
+    axs[2].set_title('Original Gyro Data with Segments')
+    axs[2].set_xlabel('Samples')
+    axs[2].set_ylabel('Angular Velocity (rad/s)')
+    axs[2].legend()
+    
     # Adjust layout and show the plot
     plt.tight_layout()
     plt.show()
