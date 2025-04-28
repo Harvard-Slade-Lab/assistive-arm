@@ -10,6 +10,7 @@ from data_preprocessing import prepare_opencap_markers
 from datetime import datetime
 import json
 
+
 def add_contact_spheres_and_forces_refactor(model, sphere_name, radius, relative_distance, reference_socketframe, reference_contact_space, params):
 
     bodySet = model.get_BodySet() # Retrieves all bodies in the model, which will be used to attach the contact geometries.

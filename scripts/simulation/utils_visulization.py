@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-
+  
 def plot_GRF_osim(df_sim_floor, df_sim_chair, fontsize, figsize, fig_path):
     
     # Define custom colors

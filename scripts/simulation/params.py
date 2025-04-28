@@ -21,7 +21,7 @@ PARAMS = {
     # Moco solver parameters
     'mesh_interval': 0.05,
     'max_iterations': None,
-
+  
     # ---- Kinematics error cost weights
     'tracking_weight': 1, # W_S, Global penalization
     'kinematic_state_tracking_weight': 10, # camille's thesis value (fixed)
