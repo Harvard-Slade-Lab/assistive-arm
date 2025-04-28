@@ -5,12 +5,10 @@ from scipy.signal import butter, filtfilt
 def GyroSaggitalSegm(gyro_data, gyro_freq):
     # Extract Sagittal plane gyro (GyroZ)
     gyro_saggital = gyro_data.iloc[:, 0].values
-
-    
     
     # Filter parameters
-    cutoff_freq = 0.5  # Hz
-    nyquist = 0.5 * 200
+    cutoff_freq = 1  # Hz
+    nyquist = 0.5 * gyro_freq
     normal_cutoff = cutoff_freq / nyquist
     b, a = butter(4, normal_cutoff, btype='low')
     filtered_gyro = filtfilt(b, a, gyro_saggital)
@@ -19,11 +17,20 @@ def GyroSaggitalSegm(gyro_data, gyro_freq):
     abs_filtered_gyro = np.abs(filtered_gyro)   
     # Derivative of the absolute value
     abs_filtered_gyro_derivative = np.gradient(abs_filtered_gyro)
+
+
+    # Filter again only the gyro with lower cutoff so that the derivative (used for training) is less filtered than the saggital gyro (used just for the segmentation)
+    # Filter parameters
+    cutoff_freq = 1  # Hz
+    nyquist = 0.5 * gyro_freq
+    normal_cutoff = cutoff_freq / nyquist
+    b, a = butter(4, normal_cutoff, btype='low')
+    filtered_gyro = filtfilt(b, a, gyro_saggital)
   
 
 
     # Improved zero-crossing detection with hysteresis
-    threshold = 0.1  # Noise threshold (adjust based on signal)
+    threshold = 0  # Noise threshold (adjust based on signal)
     positive_deriv_crossings = []
     
     # Calculate first derivative

@@ -454,12 +454,12 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
                     frequencies, plot_flag=False
                 )
 
-                abs_filtered_gyro_derivative_interp = gyro_interp.iloc[:, -3:]
-                gyro_interp = gyro_interp.iloc[:, :-3]
+                abs_filtered_gyro_derivative_interp = gyro_interp.iloc[:, -1]
+                gyro_interp = gyro_interp.iloc[:, :3]
 
                 
                 # Concatenate features for X matrix
-                features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values, abs_filtered_gyro_derivative_interp.values], axis=1)
+                features = np.concatenate([acc_interp.values, gyro_interp.values, abs_filtered_gyro_derivative_interp.values.reshape(-1, 1)], axis=1)
 
                 # # Concatenate features for X matrix
                 # features = np.concatenate([gyro_interp.values, abs_filtered_gyro_derivative.values], axis=1)
@@ -468,9 +468,9 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
             print(f"Detected {len(step_data)} steps")
             acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
             gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
-            abs_filtered_gyro_cols = [f"ABSGYRO_{col}" for col in abs_filtered_gyro_derivative_interp.columns]
+            abs_filtered_gyro_cols = [f"ABSGYRO_{col}" for col in pd.DataFrame(abs_filtered_gyro_derivative_interp).columns]
             or_cols = [f"OR_{col}" for col in or_interp.columns]
-            feature_names = acc_cols + gyro_cols + or_cols + abs_filtered_gyro_cols
+            feature_names = acc_cols + gyro_cols + abs_filtered_gyro_cols
             # feature_names = gyro_cols + abs_filtered_gyro_cols
         
         

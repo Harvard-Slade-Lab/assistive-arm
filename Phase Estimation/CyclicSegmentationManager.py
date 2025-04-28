@@ -48,16 +48,7 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
     
     segments, abs_filtered_gyro_derivative = GyroSaggitalSegm.GyroSaggitalSegm(gyro_data, frequencies[0])
 
-    abs_filtered_gyro_derivative = pd.DataFrame(
-    abs_filtered_gyro_derivative, 
-    columns=['x']
-    )
-    abs_filtered_gyro_derivative = pd.concat(
-        [abs_filtered_gyro_derivative]*3, 
-        axis=1
-    )
-    abs_filtered_gyro_derivative.columns = ['x', 'y', 'z']
-
+    abs_filtered_gyro_derivative = pd.DataFrame(abs_filtered_gyro_derivative, columns=['x'])  # Replace 'col1' with the actual column name
 
     # # Segment the gait cycles
     # segments = Cyclic_PeaksSegmentation.segment_gait_cycles(magnitude, time_gyro)
@@ -72,7 +63,7 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
             'orientation': orientation_data.iloc[int(start*frequencies[2]/frequencies[0]):int(end*frequencies[2]/frequencies[0])],
             'magnitude': magnitude[start:end],
             'duration': (end-start)/frequencies[0],
-            'absgyro': abs_filtered_gyro_derivative.iloc[start:end]  # Changed to .iloc
+            'absgyro': abs_filtered_gyro_derivative.iloc[start:end]
         })
         print(f"Step {i+1}: Start = {start}, End = {end}, ")
 
@@ -88,7 +79,7 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
                 step['gyro'].iloc[:, i]
             ) for i in range(step['gyro'].shape[1])
         ]).T
-        step['downsampled_gyroz'] = downsampled_gyro[:, 2]  # Store only the z component
+        step['downsampled_gyroz'] = downsampled_gyro[:, 0]  # Store only the z component
 
 #################################################### PLOT #######################################################
 
@@ -96,9 +87,9 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
     for step in step_data:
         # Plot all downsampled gyroz overlapped
         plt.plot(step['downsampled_gyroz'], alpha=0.7)
-    plt.title("Overlapped Step GyroZ")
+    plt.title("Segmented Saggital Gyro")
     plt.xlabel("Normalized Time")
-    plt.ylabel("GyroZ")
+    plt.ylabel("Gyro")
     plt.grid(True)
     plt.show()
 
@@ -118,9 +109,9 @@ def motion_segmenter(gyro_data, acc_data, orientation_data, timestamp, test_flag
         alpha=0.2,
         label='Mean ± Std Dev'
     )
-    plt.title("Mean and Standard Deviation of Step GyroZ")
+    plt.title("Mean and Standard Deviation of Step saggital Gyro")
     plt.xlabel("Normalized Time")
-    plt.ylabel("GyroZ")
+    plt.ylabel("Gyro")
     plt.legend()
     plt.grid(True)
     plt.show()
