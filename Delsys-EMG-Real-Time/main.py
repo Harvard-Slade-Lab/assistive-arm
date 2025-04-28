@@ -6,9 +6,9 @@ def main():
     # Set main parameters here
     window_duration = 5  # Duration in seconds
 
-    data_directory = "C:/Users/patty/Desktop/Nate_3rd_arm/code/assistive-arm/Data/"
+    data_directory = "C:/Users/patty/Desktop/new_data_acquisition/assistive-arm/Data_Place/"
     # Flag for real time plots
-    plot = False
+    plot = True
     # Flag for Socket connection (can be changed with reconnect to raspi)
     socket = False
 

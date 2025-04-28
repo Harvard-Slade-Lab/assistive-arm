@@ -3,7 +3,9 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import datetime
-PROJECT_DIR_REMOTE = Path("/Users/nathanirniger/Desktop/MA/Project/Code/assistive-arm")
+import subprocess
+
+PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data")
 
 class DataExporter:
     def __init__(self, parent):
@@ -169,11 +171,15 @@ class DataExporter:
         day = current_date.strftime("%d")
 
         # Create remote directories
+
+
         remote_dir_emg = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}" / "EMG").as_posix()
         remote_dir_log = Path(PROJECT_DIR_REMOTE / "subject_logs" / f"subject_{self.parent.subject_number}" / f"{month}_{day}").as_posix()
         try:
-            os.system(f"ssh macbook mkdir -p {remote_dir_emg}")
-            os.system(f"ssh macbook mkdir -p {remote_dir_log}")
+            private_key_path = os.path.expanduser("~/.ssh/id_rsa_filipo_mbp")
+            subprocess.run(["ssh", "-i", private_key_path, "macbook", "mkdir", "-p", remote_dir_emg])
+            subprocess.run(["ssh", "-i", private_key_path, "macbook", "mkdir", "-p", remote_dir_log])
+
         except Exception as e:
             print(f"Error creating remote directories: {e}")
 
