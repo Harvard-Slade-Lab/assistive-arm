@@ -195,3 +195,6 @@ torque_profiles/
 paper_figures/
 .DS_STORE
 paper_figures/
+
+# ignore tracking the data on script/visualization
+scripts/visualization/data/**
