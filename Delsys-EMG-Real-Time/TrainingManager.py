@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pandas as pd
 from tkinter.filedialog import askdirectory
+import joblib
 import path_setup
 from Interpolation import interpolate_and_visualize
 import DataLoader
@@ -58,6 +60,8 @@ def Training_Manager(frequencies, training_segmentation_flag = False, training_i
             'svr__gamma': np.logspace(-4, 1, 6)
             }
     svr_model, y_svr = SVR_Reg.enhanced_svr_regression(X,Y, kernel='rbf', param_grid=param_grid, plot=True, frequencies=frequencies)
+    # Save the model
+    joblib.dump(svr_model, 'svr_phase_model.joblib')
 
     current_model = svr_model['model']
 

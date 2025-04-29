@@ -27,8 +27,10 @@ from EMGutils.socket import SocketServer
 from concurrent.futures import ThreadPoolExecutor
 
 class EMGDataCollector(QtWidgets.QMainWindow):
-    def __init__(self, plot=False, socket=False, imu_processing=False, mixed_processing=False, emg_control=False, real_time_processing = False, window_duration=5, data_directory="Data"):
+    def __init__(self, current_model, plot=False, socket=False, imu_processing=False, mixed_processing=False, emg_control=False, real_time_processing = False, window_duration=5, data_directory="Data"):
         super().__init__()
+        self.current_model = current_model
+
         self.window_duration = window_duration
         self.data_directory = data_directory
 

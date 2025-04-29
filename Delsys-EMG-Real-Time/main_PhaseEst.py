@@ -19,8 +19,7 @@ def main():
 
     data_directory = "C:/Users/patty/Desktop/new_data_acquisition/assistive-arm/Data_Place/"
     # Flag for real time plots
-    plot = False
-
+    plot = True
     # Flag for Socket connection (can be changed with reconnect to raspi)
     socket = False
 
@@ -51,8 +50,9 @@ def main():
         print("You chose to train the model.")
         print("Starting EMG Data Collector for training...")
 
+        current_model = None 
         appQt = QtWidgets.QApplication(sys.argv)
-        collector = EMGDataCollector(plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
+        collector = EMGDataCollector(current_model, plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
         collector.connect_base()
         collector.scan_and_pair_sensors()
         appQt.exec_()
@@ -73,9 +73,12 @@ def main():
     current_model, segment_choice = Training_Manager(frequencies, training_segmentation_flag, training_interpolation_flag, tests_segment_flag, tests_interp_flag)
 
     ######################################################### TEST ################################################################################
+    appQt = QtWidgets.QApplication(sys.argv)
+    collector = EMGDataCollector(current_model, plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
+    collector.connect_base()
+    collector.scan_and_pair_sensors()
+    appQt.exec_()
 
-    # choice = 4
-    # TestManager.handle_test_decision(choice, current_model, frequencies, segment_choice, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
-    
+
 if __name__ == "__main__":
     main()

@@ -1,6 +1,9 @@
 import pyqtgraph as pg
 from PyQt5 import QtWidgets, QtCore
 import numpy as np
+import threading
+import os
+import joblib
 
 class Plotter:
     def __init__(self, parent):
@@ -10,21 +13,25 @@ class Plotter:
         self.plot_timer.start(50)  # Update plot every 50 ms
 
     def initialize_plot(self):
-        """Initialize the plot for EMG, ACC, and GYRO data streaming using PyQtGraph."""
-        # Set window title
+        """Initialize the plot for EMG, ACC, GYRO, OR, and Phase Estimation."""
         self.parent.setWindowTitle(f'Subject {self.parent.subject_number} Trial {self.parent.trial_number}')
-
-        # Number of sensors
         sensor_labels = list(self.parent.sensor_names.keys())
         total_rows = len(sensor_labels)
-
-        # Create a grid layout for plots
         self.parent.plot_layout = QtWidgets.QGridLayout(self.parent.plot_widget)
 
         self.emg_plots = {}
         self.acc_plots = {}
         self.gyro_plots = {}
         self.or_plots = {}
+
+        # Phase Estimation Plot
+        self.phase_plot = pg.PlotWidget(title='Estimated Phase')
+        self.phase_plot.setLabel('left', 'Phase', units='(0-1)')
+        self.phase_plot.setLabel('bottom', 'Time', units='s')
+        self.phase_plot.showGrid(x=True, y=True)
+        self.parent.plot_layout.addWidget(self.phase_plot, 0, 4, total_rows, 1)
+        self.phase_history = []
+        self.phase_time = []
 
         for i, sensor_label in enumerate(sensor_labels):
             sensor_name = self.parent.sensor_names.get(sensor_label, f"Sensor {sensor_label}")
@@ -72,12 +79,12 @@ class Plotter:
                 self.or_plots[sensor_label] = pw_or
 
     def update_plot(self):
-        """Update the plot with new data."""
+        """Update the plot with new data and estimate phase."""
         with self.parent.plot_data_lock:
-            plot_data_emg_copy = self.parent.plot_data_emg.copy()
-            plot_data_acc_copy = {k: v.copy() for k, v in self.parent.plot_data_acc.items()}
-            plot_data_gyro_copy = {k: v.copy() for k, v in self.parent.plot_data_gyro.items()}
-            plot_data_or_copy = {k: v.copy() for k, v in self.parent.plot_data_or.items()}
+            plot_data_emg_copy = {k: v.copy() for k, v in self.parent.plot_data_emg.items()}
+            plot_data_acc_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_acc.items()}
+            plot_data_gyro_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_gyro.items()}
+            plot_data_or_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_or.items()}
 
         # Calculate elapsed time based on EMG data
         elapsed_times = []
@@ -92,12 +99,12 @@ class Plotter:
         else:
             elapsed_time = 0
 
-        self.parent.time_label.setText(f'Elapsed Time: {self.parent.total_elapsed_time + elapsed_time:.2f} s')  # Display cumulative elapsed time
+        self.parent.time_label.setText(f'Elapsed Time: {self.parent.total_elapsed_time + elapsed_time:.2f} s')
 
         # EMG Plots
         for sensor_label, data in plot_data_emg_copy.items():
             if len(data) == 0:
-                continue  # Skip if no data
+                continue
             y = np.array(data)
             sample_rate = self.parent.emg_sampling_frequencies[sensor_label]
             time_array = np.arange(len(y)) / sample_rate + self.parent.total_elapsed_time
@@ -149,10 +156,23 @@ class Plotter:
             pw_or.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
             pw_or.addLegend()
 
+        if self.parent.current_model is not None:
+            # Phase estimation and plot
+            predicted_phase = self.estimated_phase()
+
+            # Plot Predicted Phase
+            if predicted_phase is not None:
+                self.phase_history.append(predicted_phase)
+                self.phase_time.append(self.parent.total_elapsed_time + elapsed_time)
+                self.phase_plot.clear()
+                self.phase_plot.plot(self.phase_time, self.phase_history, pen='y', name='Predicted Phase')
+                self.phase_plot.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
+                self.phase_plot.setYRange(0, 1)
+
         # Check if it reached the window size, increment the cumulative time
         window_reached = any(len(data) >= self.parent.emg_window_sizes[sensor_label] for sensor_label, data in self.parent.plot_data_emg.items())
         if window_reached:
-            self.parent.total_elapsed_time += self.parent.window_duration  # Increment total elapsed time by the window duration
+            self.parent.total_elapsed_time += self.parent.window_duration
             self.parent.data_processor.reset_plot_data()
 
     def autoscale_plots(self):
@@ -195,3 +215,56 @@ class Plotter:
                     y_min = y.min()
                     y_max = y.max()
                     self.or_plots[sensor_label].setYRange(y_min, y_max)
+
+    def estimated_phase(self):
+        """
+        Create a feature vector by concatenating ACC, GYRO, and OR data for all sensors
+        using a single window size, predict phase using a trained model, and plot in real time.
+        """
+        # Get copies of the current data with thread safety
+        with self.parent.plot_data_lock:
+            plot_data_acc_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_acc.items()}
+            plot_data_gyro_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_gyro.items()}
+            plot_data_or_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_or.items()}
+        
+        # Create a feature vector by concatenating the most recent data from all sensors
+        feature_vector = []
+        
+        # Get the list of sensor labels
+        sensor_labels = list(self.parent.sensor_names.keys())
+        miao = 0
+        # Concatenate ACC, GYRO, and OR data for each sensor
+        for sensor_label in sensor_labels:
+            # ACC data (X, Y, Z)
+            if miao == 0:
+                miao = 1
+                if sensor_label in plot_data_acc_copy:
+                    for axis in ['X', 'Y', 'Z']:
+                        data = plot_data_acc_copy[sensor_label].get(axis, [])
+                        feature_vector.append(data[-1] if data else 0.0)
+                    print("Acc_FeatureVect", feature_vector)
+            
+            # GYRO data (X, Y, Z)
+            if sensor_label in plot_data_gyro_copy:
+                for axis in ['X', 'Y', 'Z']:
+                    data = plot_data_gyro_copy[sensor_label].get(axis, [])
+                    feature_vector.append(data[-1] if data else 0.0)
+            
+            # Orientation data (W, X, Y, Z)
+            if sensor_label in plot_data_or_copy:
+                for axis in ['W', 'X', 'Y', 'Z']:
+                    data = plot_data_or_copy[sensor_label].get(axis, [])
+                    feature_vector.append(data[-1] if data else 0.0)
+        
+        # Check if we have any features
+        if not feature_vector:
+            return
+ 
+        print(f"Feature vector: {feature_vector}")
+
+        predicted_phase = self.parent.current_model.predict([feature_vector])[0]
+
+        print(f"Predicted phase: {predicted_phase}")
+
+        return predicted_phase
+
