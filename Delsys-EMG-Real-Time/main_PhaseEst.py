@@ -1,6 +1,6 @@
-# import sys
-# from PyQt5 import QtWidgets
-# from EMGDataCollector import EMGDataCollector
+import sys
+from PyQt5 import QtWidgets
+from EMGDataCollector import EMGDataCollector
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -51,12 +51,12 @@ def main():
         print("You chose to train the model.")
         print("Starting EMG Data Collector for training...")
 
-        # appQt = QtWidgets.QApplication(sys.argv)
-        # collector = EMGDataCollector(plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
-        # collector.connect_base()
-        # collector.scan_and_pair_sensors()
-        # appQt.exec_()
-        # print("Qt application closed, continuing execution...")
+        appQt = QtWidgets.QApplication(sys.argv)
+        collector = EMGDataCollector(plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
+        collector.connect_base()
+        collector.scan_and_pair_sensors()
+        appQt.exec_()
+        print("Qt application closed, continuing execution...")
     
     elif user_choice == "2":
         print("You chose to use existing training data.")
