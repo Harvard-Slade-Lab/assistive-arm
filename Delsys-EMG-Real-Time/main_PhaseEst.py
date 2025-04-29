@@ -15,7 +15,7 @@ def main():
     frequencies = [519, 519, 222]  # Gyro, Acc, OR
     # frequencies = [370.3704, 370.3704, 74.0741]  # Gyro, Acc, OR
 
-    data_directory =
+    data_directory = "C:/Users/patty/Desktop/new_data_acquisition/assistive-arm/Data_Place/"
     # Flag for real time plots
     plot = False
     # Flag for Socket connection (can be changed with reconnect to raspi)
@@ -60,6 +60,7 @@ def main():
         # Add any additional logic for loading existing training data if needed
 
     ######################################################## PROCESSING DATA FOR TRAINING ########################################################
+    print("Processing data for training...")
     # PLOT Flags:
     training_segmentation_flag = False
     training_interpolation_flag = False

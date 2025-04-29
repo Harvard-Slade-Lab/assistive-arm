@@ -3,10 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tkinter import filedialog, Tk
 from scipy import interpolate
-from Segmentation_Methods import AREDSegmentation
-from Segmentation_Methods import GyroMagnitudeSegmentation
-from Segmentation_Methods import SHOESegmentation
-from Segmentation_Methods import AREDVariation
+from Phase_Estimation.Segmentation_Methods import AREDSegmentation
+from Phase_Estimation.Segmentation_Methods import GyroMagnitudeSegmentation
+from Phase_Estimation.Segmentation_Methods import SHOESegmentation
+from Phase_Estimation.Segmentation_Methods import AREDVariation
 
 
 # ----------- HYPERPARAMETERS -----------------

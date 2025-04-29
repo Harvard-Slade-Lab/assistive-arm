@@ -4,8 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
-import BiasAndSegmentation
-from Interpolation import interpolate_and_visualize
+
 
 # Function to select folder
 def select_folder():

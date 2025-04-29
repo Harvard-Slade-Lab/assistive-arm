@@ -2,6 +2,10 @@ import sys
 from PyQt5 import QtWidgets
 from EMGDataCollector import EMGDataCollector
 
+import sys
+print(sys.path)
+
+
 def main():
     # Set main parameters here
     window_duration = 5  # Duration in seconds

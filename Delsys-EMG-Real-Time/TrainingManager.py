@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tkinter.filedialog import askdirectory
+import path_setup
 from Interpolation import interpolate_and_visualize
 import DataLoader
 import DataLoaderYinkai

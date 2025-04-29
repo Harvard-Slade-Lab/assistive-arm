@@ -1,4 +1,4 @@
-import BiasAndSegmentation
+from Phase_Estimation import BiasAndSegmentation
 import Interpolation
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,7 +6,7 @@ import pandas as pd
 import itertools
 from scipy.interpolate import interp1d
 import CyclicSegmentationManager
-from Segmentation_Methods import GyroSaggitalSegm
+from Phase_Estimation.Segmentation_Methods import GyroSaggitalSegm
 
 def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=True, interpPlot_flag=True):
     X = []
