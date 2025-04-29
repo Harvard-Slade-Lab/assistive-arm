@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from tkinter.filedialog import askdirectory
 from TrainingManager import Training_Manager
+import path_setup
+import TestManager
 
 def main():
     # HYPERPARAMETERS
