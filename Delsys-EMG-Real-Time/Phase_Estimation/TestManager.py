@@ -13,37 +13,30 @@ from Regression_Methods import Linear_Reg
 from Regression_Methods import SVR_Reg
 from Regression_Methods import RandomForest
 import DataLoader
-import DataLoaderYinkai
 import CyclicSegmentationManager
 from sklearn.metrics import mean_squared_error
 import Interpolation
 
-def handle_test_decision(choice, model, frequencies, segment_choice, load_choice, plot_flag_segment, plot_flag_interp):
+def handle_test_decision(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
     """Handle user decision about testing"""
     test_decision = input("\nDo you want to perform the test? (yes/no): ").lower()
     if test_decision == 'yes':
-        execute_test(choice, model, frequencies, segment_choice, load_choice, plot_flag_segment, plot_flag_interp)
+        execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp)
 
 
-def execute_test(choice, model, frequencies, segment_choice, load_choice, plot_flag_segment, plot_flag_interp):
+def execute_test(choice, model, frequencies, segment_choice, plot_flag_segment, plot_flag_interp):
     # Select folder
     folder_path = DataLoader.select_folder()
     if not folder_path:
         print("No folder selected. Exiting.")
         return
     
-    if load_choice == '2':
-        # Load and process files
-        acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderYinkai.load_and_process_files(folder_path)
-        
-        # Group files by timestamp
-        grouped_indices = DataLoaderYinkai.group_files_by_timestamp(acc_files, gyro_files, or_files)
-    else:
-        # Load and process files
-        acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoader.load_and_process_files(folder_path)
-        
-        # Group files by timestamp
-        grouped_indices = DataLoader.group_files_by_timestamp(acc_files, gyro_files, or_files)
+
+    # Load and process files
+    acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoader.load_and_process_files(folder_path)
+    
+    # Group files by timestamp
+    grouped_indices = DataLoader.group_files_by_timestamp(acc_files, gyro_files, or_files)
     
     if not grouped_indices:
         print("No complete groups of files found. Exiting.")
@@ -419,10 +412,10 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
         
         print(f"Processing data set from timestamp: {timestamp}")
         
-        if segment_choice != '5':
+        if segment_choice == 1:
             # Apply the segmentation and bias correction
             gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
-                gyro, acc, or_data_item, segment_choice=segment_choice, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
+                gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
             )
             
             # Apply interpolation
@@ -435,7 +428,7 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
             features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values], axis=1)
             timestamp_matrices[timestamp] = features
 
-        else:
+        elif segment_choice == 2:
             step_data = CyclicSegmentationManager.motion_segmenter(
                 gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
             )

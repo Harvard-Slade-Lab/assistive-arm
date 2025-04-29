@@ -1,4 +1,4 @@
-from Phase_Estimation import BiasAndSegmentation
+import BiasAndSegmentation
 import Interpolation
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +16,6 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
     
     # Sort timestamps to ensure chronological order
     sorted_timestamps = sorted(grouped_indices.keys())
-    executed = False
     for timestamp in sorted_timestamps:
         indices = grouped_indices[timestamp]
         
@@ -27,10 +26,10 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         
         print(f"Processing data set from timestamp: {timestamp}")
 
-        if segment_choice != '5':
+        if segment_choice == '1':
             # Apply the segmentation and bias correction
             gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
-                gyro, acc, or_data_item, segment_choice=segment_choice, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
+                gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
             )
 
             # Apply interpolation
@@ -57,7 +56,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
                 or_cols = [f"OR_{col}" for col in or_interp.columns]
                 feature_names = acc_cols + gyro_cols + or_cols
             
-        else:
+        elif segment_choice == '2':
             step_data = CyclicSegmentationManager.motion_segmenter(
                 gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
             )
@@ -239,7 +238,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
     return X_matrix, Y_matrix, sorted_timestamps, segment_lengths, feature_names
 
 # Visualization function remains unchanged
-def visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, feature_names):
+def visualize_matrices(X, Y, timestamps, segment_lengths, feature_names):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
     
     # Create separate axes for different sensor types

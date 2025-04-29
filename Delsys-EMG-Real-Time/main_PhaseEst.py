@@ -1,6 +1,6 @@
-import sys
-from PyQt5 import QtWidgets
-from EMGDataCollector import EMGDataCollector
+# import sys
+# from PyQt5 import QtWidgets
+# from EMGDataCollector import EMGDataCollector
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -20,6 +20,7 @@ def main():
     data_directory = "C:/Users/patty/Desktop/new_data_acquisition/assistive-arm/Data_Place/"
     # Flag for real time plots
     plot = False
+
     # Flag for Socket connection (can be changed with reconnect to raspi)
     socket = False
 
@@ -50,12 +51,12 @@ def main():
         print("You chose to train the model.")
         print("Starting EMG Data Collector for training...")
 
-        appQt = QtWidgets.QApplication(sys.argv)
-        collector = EMGDataCollector(plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
-        collector.connect_base()
-        collector.scan_and_pair_sensors()
-        appQt.exec_()
-        print("Qt application closed, continuing execution...")
+        # appQt = QtWidgets.QApplication(sys.argv)
+        # collector = EMGDataCollector(plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
+        # collector.connect_base()
+        # collector.scan_and_pair_sensors()
+        # appQt.exec_()
+        # print("Qt application closed, continuing execution...")
     
     elif user_choice == "2":
         print("You chose to use existing training data.")
@@ -69,12 +70,12 @@ def main():
     tests_segment_flag = False
     tests_interp_flag = False
 
-    current_model, segment_choice, load_choice = Training_Manager(frequencies, training_segmentation_flag, training_interpolation_flag, tests_segment_flag, tests_interp_flag)
+    current_model, segment_choice = Training_Manager(frequencies, training_segmentation_flag, training_interpolation_flag, tests_segment_flag, tests_interp_flag)
 
     ######################################################### TEST ################################################################################
 
-    choice = 4
-    TestManager.handle_test_decision(choice, current_model, frequencies, segment_choice, load_choice, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
+    # choice = 4
+    # TestManager.handle_test_decision(choice, current_model, frequencies, segment_choice, plot_flag_segment=tests_segment_flag, plot_flag_interp=tests_interp_flag)
     
 if __name__ == "__main__":
     main()

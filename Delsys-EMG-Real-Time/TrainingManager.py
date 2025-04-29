@@ -5,14 +5,8 @@ from tkinter.filedialog import askdirectory
 import path_setup
 from Interpolation import interpolate_and_visualize
 import DataLoader
-import DataLoaderYinkai
 import MatrixCreator
-import TestManager
-from Regression_Methods import RidgeRegressionCV
-from Regression_Methods import LassoRegressionCV        
-from Regression_Methods import Linear_Reg
 from Regression_Methods import SVR_Reg
-from Regression_Methods import RandomForest
 
 def Training_Manager(frequencies, training_segmentation_flag = False, training_interpolation_flag = False, tests_segment_flag = False, tests_interp_flag = False):
     # Select folder
@@ -24,10 +18,7 @@ def Training_Manager(frequencies, training_segmentation_flag = False, training_i
     print(f"Selected folder: {folder_path}")
 
     # Segmentation Selection:
-    segment_choice = input("Select segmentation method:\n1. GyroMagnitude Segmentation\n2. ARED Segmentation\n3. SHOE Segmentation\n4. ARED_VARSegmentation\n5. Cyclic Segmentation").strip()
-    # Decide to load Yinkai's choice or not
-    load_choice = 1
-
+    segment_choice = input("Select segmentation method:\n1. ARED Segmentation\n2. Cyclic Segmentation").strip()
 
     # Load and process files
     acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoader.load_and_process_files(folder_path)
@@ -36,8 +27,6 @@ def Training_Manager(frequencies, training_segmentation_flag = False, training_i
     # Group files by timestamp
     grouped_indices = DataLoader.group_files_by_timestamp(acc_files, gyro_files, or_files)
     print(f"Found {len(grouped_indices)} complete data sets")
-    if not grouped_indices:
-        print("No complete data sets found. Exiting...")
 
     # Create X and Y matrices
     X, Y, timestamps, segment_lengths, feature_names = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=training_segmentation_flag, interpPlot_flag=training_interpolation_flag)
@@ -49,23 +38,17 @@ def Training_Manager(frequencies, training_segmentation_flag = False, training_i
         print(f"Column {i}: {name}")
 
     # Visualize matrices
-    MatrixCreator.visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, feature_names)
+    MatrixCreator.visualize_matrices(X, Y, timestamps, segment_lengths, feature_names)
 
     # SVR Regression
     # parameter grid for SVR, reduce the number of parameters for faster computation
     # Note: The grid search will take longer with more parameters
     fast_comput = input("Do you want to reduce the number of parameters for faster SVR computation? (yes/no): ").strip().lower()
     if fast_comput == 'yes':
-            # # Reduced grid (3x3x3 = 27 combinations)
-        # param_grid = {
-        #     'svr__C': np.logspace(1, 3, 3),       # [10, 100, 1000]
-        #     'svr__epsilon': np.logspace(-3, -1, 3), # [0.001, 0.01, 0.1]
-        #     'svr__gamma': np.logspace(-3, -1, 3)   # [0.001, 0.01, 0.1]
-        # }   
         param_grid = {
-            'svr__C': [100],      # [10, 100, 1000]
-            'svr__epsilon': [0.01], # [0.001, 0.01, 0.1]
-            'svr__gamma': [0.01]   # [0.001, 0.01, 0.1]
+            'svr__C': [100],
+            'svr__epsilon': [0.01],
+            'svr__gamma': [0.01]
         }   
     else:
         # Enhanced grid (7x4x6 = 168 combinations)
@@ -78,6 +61,8 @@ def Training_Manager(frequencies, training_segmentation_flag = False, training_i
 
     current_model = svr_model['model']
 
-    return current_model, segment_choice, load_choice
-    
     plt.show(block= True)
+
+    return current_model, segment_choice
+    
+    
