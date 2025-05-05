@@ -115,7 +115,8 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
 
 
     # Fictitious trials generation
-    add_fictitious = input("Do you want to add fictitious trials? (yes/no): ").strip().lower()
+    # add_fictitious = input("Do you want to add fictitious trials? (yes/no): ").strip().lower()
+    add_fictitious = 'no'
     if add_fictitious == 'yes':
         try:
             num_fictitious = int(input("Enter the number of fictitious trials to add: "))

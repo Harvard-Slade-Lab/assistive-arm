@@ -38,6 +38,7 @@ class UISetup:
         self.parent.reconnect_button = QtWidgets.QPushButton("Reconnect to Raspi")
         self.parent.scp_button = QtWidgets.QPushButton("Export Data to Host")
         self.parent.test_button = QtWidgets.QPushButton("Test")
+        self.parent.train_button = QtWidgets.QPushButton("Train")
         if self.plot_flag:
             self.parent.autoscale_button = QtWidgets.QPushButton("Autoscale")
         self.parent.quit_button = QtWidgets.QPushButton("Quit")
@@ -50,6 +51,7 @@ class UISetup:
         first_page_layout.addWidget(self.parent.reconnect_button)
         first_page_layout.addWidget(self.parent.scp_button)
         first_page_layout.addWidget(self.parent.test_button)
+        first_page_layout.addWidget(self.parent.train_button)
         if self.plot_flag:
             first_page_layout.addWidget(self.parent.autoscale_button)
         first_page_layout.addWidget(self.parent.quit_button)
@@ -93,6 +95,7 @@ class UISetup:
         self.parent.reconnect_button.clicked.connect(self.parent.reconnect_to_raspi)
         self.parent.scp_button.clicked.connect(self.parent.export_to_host)
         self.parent.test_button.clicked.connect(self.toggle_test_flag)
+        self.parent.train_button.clicked.connect(self.train_model)
         if self.plot_flag:
             self.parent.autoscale_button.clicked.connect(self.parent.plotter.autoscale_plots)
         self.parent.quit_button.clicked.connect(self.parent.on_quit)
@@ -107,6 +110,10 @@ class UISetup:
 
         self.parent.show()
 
+    def train_model(self):
+        
+        self.parent.train_model()
+        
     def toggle_test_flag(self):
         self.parent.test_flag = not self.parent.test_flag
         if self.parent.test_flag:

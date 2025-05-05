@@ -13,10 +13,6 @@ def main():
     # HYPERPARAMETERS
     window_duration = 5  # Duration in seconds
 
-    # Frequencies:
-    frequencies = [519, 519, 222]  # Gyro, Acc, OR
-    # frequencies = [370.3704, 370.3704, 74.0741]  # Gyro, Acc, OR
-
     data_directory = "C:/Users/patty/Desktop/new_data_acquisition/assistive-arm/Data_Place/"
     # Flag for real time plots
     plot = True
@@ -43,42 +39,13 @@ def main():
     # Peak is detected by function "detect_peak_and_calculate", which can be used by uncommenting in stream_data function
     # Needs more testing though
 
-    # Prompt user to decide whether to train the model or use existing training data
-    user_choice = input("Do you want to train the model or use existing training data?\n1: Train\n2: Use").strip().lower()
-
-    if user_choice == "1":
-        print("You chose to train the model.")
-        print("Starting EMG Data Collector for training...")
-
-        current_model = None 
-        appQt = QtWidgets.QApplication(sys.argv)
-        collector = EMGDataCollector(current_model, plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
-        collector.connect_base()
-        collector.scan_and_pair_sensors()
-        appQt.exec_()
-        print("Qt application closed, continuing execution...")
-    
-    elif user_choice == "2":
-        print("You chose to use existing training data.")
-        # Add any additional logic for loading existing training data if needed
-
-    ######################################################## PROCESSING DATA FOR TRAINING ########################################################
-    print("Processing data for training...")
-    # PLOT Flags:
-    training_segmentation_flag = False
-    training_interpolation_flag = False
-    tests_segment_flag = False
-    tests_interp_flag = False
-
-    current_model, segment_choice = Training_Manager(frequencies, training_segmentation_flag, training_interpolation_flag, tests_segment_flag, tests_interp_flag)
-
-    ######################################################### TEST ################################################################################
+    current_model = None 
     appQt = QtWidgets.QApplication(sys.argv)
     collector = EMGDataCollector(current_model, plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
     collector.connect_base()
     collector.scan_and_pair_sensors()
     appQt.exec_()
-
+    print("Qt application closed, continuing execution...")
 
 if __name__ == "__main__":
     main()

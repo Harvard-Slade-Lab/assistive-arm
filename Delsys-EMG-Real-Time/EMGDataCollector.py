@@ -161,6 +161,21 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         self.load_activation_means()
 
+    def train_model(self):
+        from TrainingManager import Training_Manager_GUI
+        print("Processing data for training...")
+        # PLOT Flags:
+        training_segmentation_flag = False
+        training_interpolation_flag = False
+        tests_segment_flag = False
+        tests_interp_flag = False
+        model, segment_choice = Training_Manager_GUI(parent=self)
+        if model:
+            print("Model trained successfully.")
+            self.current_model = model
+        else:
+            print("Training aborted or failed.")
+        
     def load_activation_means(self):
         # means = pd.read_csv("EMGutils/means.csv")
         with open('C:/Users/patty/Desktop/Nate_3rd_arm/code/assistive-arm/Delsys-EMG-Real-Time/EMGutils/means.json', 'r') as f:
