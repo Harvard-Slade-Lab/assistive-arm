@@ -5,14 +5,12 @@ import pandas as pd
 from tkinter.filedialog import askdirectory
 import joblib
 import path_setup
-from Interpolation import interpolate_and_visualize
 import DataLoader
 import MatrixCreator
 from Regression_Methods import SVR_Reg
 from PyQt5.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
-def Training_Manager_GUI(parent=None, training_segmentation_flag=False, training_interpolation_flag=False,
-                          tests_segment_flag=False, tests_interp_flag=False):
+def Training_Manager_GUI(parent=None, training_segmentation_flag=False):
     # Frequencies:
     frequencies = parent.frequency_vector
     print(f"Frequencies: {frequencies}")
@@ -43,11 +41,11 @@ def Training_Manager_GUI(parent=None, training_segmentation_flag=False, training
     grouped_indices = DataLoader.group_files_by_timestamp(acc_files, gyro_files, or_files)
     print(f"Found {len(grouped_indices)} complete data sets")
 
+    # If you want to add fictitious trials, there is a section in create_matrices that can be modified
     X, Y, timestamps, segment_lengths, feature_names = MatrixCreator.create_matrices(
         acc_data, gyro_data, or_data, grouped_indices,
         segment_choice, frequencies,
-        biasPlot_flag=training_segmentation_flag,
-        interpPlot_flag=training_interpolation_flag
+        biasPlot_flag=training_segmentation_flag
     )
 
     print(f"Created X matrix with shape {X.shape} and Y matrix with length {len(Y)}")
@@ -92,5 +90,5 @@ def Training_Manager_GUI(parent=None, training_segmentation_flag=False, training
 
     plt.show(block=False)  # Non-blocking for GUI compatibility
 
-    return current_model, segment_choice
+    return current_model
     

@@ -204,11 +204,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
                 rotated_acc = apply_time_warping(rotated_acc, warp_factor, 'acc')
                 rotated_gyro = apply_time_warping(rotated_gyro, warp_factor, 'gyro') 
                 rotated_or = apply_time_warping(rotated_or, warp_factor, 'or')
-                # rotated_gyro[:, 3] = np.sqrt(
-                #     rotated_gyro[:, 0] ** 2 + 
-                #     rotated_gyro[:, 1] ** 2 + 
-                #     rotated_gyro[:, 2] ** 2
-                # )
+                
                 # rotated_gyro[:, 3] = np.sqrt(
                 #     rotated_gyro[:, 0] ** 2 + 
                 #     rotated_gyro[:, 1] ** 2 + 

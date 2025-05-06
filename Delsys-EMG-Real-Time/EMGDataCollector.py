@@ -166,10 +166,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         print("Processing data for training...")
         # PLOT Flags:
         training_segmentation_flag = False
-        training_interpolation_flag = False
-        tests_segment_flag = False
-        tests_interp_flag = False
-        model, segment_choice = Training_Manager_GUI(parent=self)
+        
+        model= Training_Manager_GUI(parent=self, training_segmentation_flag=training_segmentation_flag)   
         if model:
             print("Model trained successfully.")
             self.current_model = model
