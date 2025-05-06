@@ -12,7 +12,7 @@ def main():
     # HYPERPARAMETERS
     window_duration = 5  # Duration in seconds
 
-    data_directory = "C:/Users/patty/Desktop/new_data_acquisition/assistive-arm/Data_Place/"
+    data_directory = "C:/Users/patty/Desktop/new_data_acquisition/Data_Place/"
     # Flag for real time plots
     plot = True
     # Flag for Socket connection (can be changed with reconnect to raspi)
@@ -38,9 +38,11 @@ def main():
     # Peak is detected by function "detect_peak_and_calculate", which can be used by uncommenting in stream_data function
     # Needs more testing though
 
+    # PLOT Flags:
+    training_segmentation_flag = True
     current_model = None 
     appQt = QtWidgets.QApplication(sys.argv)
-    collector = EMGDataCollector(current_model, plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory)
+    collector = EMGDataCollector(current_model, plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory, training_segmentation_flag=training_segmentation_flag)
     collector.connect_base()
     collector.scan_and_pair_sensors()
     appQt.exec_()

@@ -8,7 +8,7 @@ from scipy.interpolate import interp1d
 import CyclicSegmentationManager
 from Phase_Estimation.Segmentation_Methods import GyroSaggitalSegm
 
-def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=True, interpPlot_flag=True):
+def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=True, interpPlot_flag=False):
     X = []
     Y = []
     segment_lengths = []

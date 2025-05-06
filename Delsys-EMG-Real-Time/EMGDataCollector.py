@@ -27,8 +27,9 @@ from EMGutils.socket import SocketServer
 from concurrent.futures import ThreadPoolExecutor
 
 class EMGDataCollector(QtWidgets.QMainWindow):
-    def __init__(self, current_model, plot=False, socket=False, imu_processing=False, mixed_processing=False, emg_control=False, real_time_processing = False, window_duration=5, data_directory="Data"):
+    def __init__(self, current_model, plot=False, socket=False, imu_processing=False, mixed_processing=False, emg_control=False, real_time_processing = False, window_duration=5, data_directory="Data", training_segmentation_flag = False):
         super().__init__()
+        self.training_segmentation_flag = training_segmentation_flag
         self.current_model = current_model
 
         self.window_duration = window_duration
@@ -164,10 +165,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
     def train_model(self):
         from TrainingManager import Training_Manager_GUI
         print("Processing data for training...")
-        # PLOT Flags:
-        training_segmentation_flag = False
         
-        model= Training_Manager_GUI(parent=self, training_segmentation_flag=training_segmentation_flag)   
+        model= Training_Manager_GUI(parent=self, training_segmentation_flag=self.training_segmentation_flag)   
         if model:
             print("Model trained successfully.")
             self.current_model = model
@@ -210,7 +209,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         while True:
             project_name = input("Enter project name (n if no project defined): ").strip()
-            if project_name in ['n', 'sts',]:
+            if project_name in ['n', 'sts', 'phasest']:
                 break  # Exit the loop if a valid name is entered
             else:
                 print("Invalid project name. Please enter a valid project name.")
@@ -261,7 +260,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         if project_name == 'sts':
             id_to_name = {"000140e7": "IMU", "00014173": "RF_R", "000140e6": "VM_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L", "0001416e": "OR"}
             # id_to_name = {"000140e7": "VM_R", "00014173": "RF_R", "00014163": "BF_R", "00013f5b": "G_R", "000140dd": "TA_R", "000140e9": "SO_R", "00014174": "RF_L", "00013f2a": "VM_L", "00014178": "BF_L", "00014111": "G_L", "00013f2d": "TA_L", "0001416d": "SO_L", "0001416e": "OR"}
-
             self.sensor_label_to_index = {}
             for idx, sensor in enumerate(self.base.all_scanned_sensors):
                 label = sensor.PairNumber
@@ -270,7 +268,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 sensor_id = str(sensor.Id)[:8]
                 if sensor_id in id_to_name:
                     self.sensor_names[label] = id_to_name[sensor_id]
-
             for label, sensor_index in self.sensor_label_to_index.items():
                 # self.sensor_names[label] = sensor_names[sensor_index+1]
                 modes = self.base.getSampleModes(sensor_index)
@@ -280,6 +277,25 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     self.base.setSampleMode(sensor_index, modes[207]) 
                 else:
                     self.base.setSampleMode(sensor_index, modes[4])
+
+        if project_name == 'phasest':
+            id_to_name = {"000140e7": "IMU", "00014173": "OR"}
+            self.sensor_label_to_index = {}
+            for idx, sensor in enumerate(self.base.all_scanned_sensors):
+                label = sensor.PairNumber
+                self.sensor_label_to_index[label] = idx
+                # Extract first 8 characters of the sensor ID
+                sensor_id = str(sensor.Id)[:8]
+                if sensor_id in id_to_name:
+                    self.sensor_names[label] = id_to_name[sensor_id]
+            for label, sensor_index in self.sensor_label_to_index.items():
+                # self.sensor_names[label] = sensor_names[sensor_index+1]
+                modes = self.base.getSampleModes(sensor_index)
+                if self.sensor_names[label] == 'IMU':
+                    self.base.setSampleMode(sensor_index, modes[110])
+                elif self.sensor_names[label] == 'OR':
+                    self.base.setSampleMode(sensor_index, modes[207]) 
+            self.frequency_vector = [518.519, 518.519, 222.222]
 
         # Get subject number
         self.subject_number = input("Enter subject number: ").strip()

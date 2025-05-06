@@ -54,7 +54,7 @@ def Training_Manager_GUI(parent=None, training_segmentation_flag=False):
     for i, name in enumerate(feature_names):
         print(f"Column {i}: {name}")
 
-    # MatrixCreator.visualize_matrices(X, Y, timestamps, segment_lengths, feature_names)
+    MatrixCreator.visualize_matrices(X, Y, timestamps, segment_lengths, feature_names)
 
     # Ask user if they want faster computation
     fast_comput, ok = QInputDialog.getItem(
