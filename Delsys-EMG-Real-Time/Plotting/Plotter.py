@@ -4,6 +4,7 @@ import numpy as np
 import threading
 import os
 import joblib
+from Phase_Estimation.RealTime_PhaseEst import estimated_phase
 
 class Plotter:
     def __init__(self, parent):
@@ -156,10 +157,10 @@ class Plotter:
             pw_or.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
             pw_or.addLegend()
 
+        # Phase Estimation Plot:
         if self.parent.current_model is not None:
             # Phase estimation and plot
-            predicted_phase = self.estimated_phase()
-
+            predicted_phase = estimated_phase(self)
             # Plot Predicted Phase
             if predicted_phase is not None:
                 self.phase_history.append(predicted_phase)
@@ -215,56 +216,4 @@ class Plotter:
                     y_min = y.min()
                     y_max = y.max()
                     self.or_plots[sensor_label].setYRange(y_min, y_max)
-
-    def estimated_phase(self):
-        """
-        Create a feature vector by concatenating ACC, GYRO, and OR data for all sensors
-        using a single window size, predict phase using a trained model, and plot in real time.
-        """
-        # Get copies of the current data with thread safety
-        with self.parent.plot_data_lock:
-            plot_data_acc_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_acc.items()}
-            plot_data_gyro_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_gyro.items()}
-            plot_data_or_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_or.items()}
-        
-        # Create a feature vector by concatenating the most recent data from all sensors
-        feature_vector = []
-        
-        # Get the list of sensor labels
-        sensor_labels = list(self.parent.sensor_names.keys())
-        miao = 0
-        # Concatenate ACC, GYRO, and OR data for each sensor
-        for sensor_label in sensor_labels:
-            # ACC data (X, Y, Z)
-            if miao == 0:
-                miao = 1
-                if sensor_label in plot_data_acc_copy:
-                    for axis in ['X', 'Y', 'Z']:
-                        data = plot_data_acc_copy[sensor_label].get(axis, [])
-                        feature_vector.append(data[-1] if data else 0.0)
-                    print("Acc_FeatureVect", feature_vector)
-            
-            # GYRO data (X, Y, Z)
-            if sensor_label in plot_data_gyro_copy:
-                for axis in ['X', 'Y', 'Z']:
-                    data = plot_data_gyro_copy[sensor_label].get(axis, [])
-                    feature_vector.append(data[-1] if data else 0.0)
-            
-            # Orientation data (W, X, Y, Z)
-            if sensor_label in plot_data_or_copy:
-                for axis in ['W', 'X', 'Y', 'Z']:
-                    data = plot_data_or_copy[sensor_label].get(axis, [])
-                    feature_vector.append(data[-1] if data else 0.0)
-        
-        # Check if we have any features
-        if not feature_vector:
-            return
- 
-        print(f"Feature vector: {feature_vector}")
-
-        predicted_phase = self.parent.current_model.predict([feature_vector])[0]
-
-        print(f"Predicted phase: {predicted_phase}")
-
-        return predicted_phase
 

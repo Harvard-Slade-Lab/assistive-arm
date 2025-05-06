@@ -221,7 +221,6 @@ class TrignoBase:
                                 # Other channels, ignore or handle as needed
                                 pass
                             globalChannelIdx += 1
-
                     else:
                         print(f"No channels found for sensor {sensor_label}")
 
@@ -251,5 +250,30 @@ class TrignoBase:
         return curModes
 
     def setSampleMode(self, curSensor, setMode):
-        """Sets the sample mode for the selected sensor"""
+        """Sets the sample mode and accumulates ACC, GYRO, OR rates for global summary"""
         self.TrigBase.SetSampleMode(curSensor, setMode)
+
+        # Initialize lists to accumulate across all sensors
+        if not hasattr(self, 'all_acc_rates'):
+            self.all_acc_rates = []
+        if not hasattr(self, 'all_gyro_rates'):
+            self.all_gyro_rates = []
+        if not hasattr(self, 'all_or_rates'):
+            self.all_or_rates = []
+
+        # Get the sensor object
+        sensor_obj = self.TrigBase.GetSensorObject(curSensor)
+        sensor_label = sensor_obj.PairNumber
+
+        # Iterate through channels to collect rates
+        for channel in sensor_obj.TrignoChannels:
+            name = channel.Name
+            rate = round(channel.SampleRate, 3)
+            print(f"Sensor {sensor_label} - Channel: {name}, Sample Rate: {rate} Hz")
+
+            if "ACC" in name and "ORIENTATION" not in name:
+                self.all_acc_rates.append(rate)
+            elif "GYRO" in name:
+                self.all_gyro_rates.append(rate)
+            elif "ORIENTATION" in name and "ACCURACY" not in name:
+                self.all_or_rates.append(rate)

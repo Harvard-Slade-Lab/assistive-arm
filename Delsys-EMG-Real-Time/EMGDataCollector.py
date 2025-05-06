@@ -248,6 +248,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     selected_mode = modes[mode_index]
                     self.base.setSampleMode(sensor_index, selected_mode)
                     print(f"Set mode '{selected_mode}' for sensor {label}")
+
+                # After all sensors are configured, compute the final 3-element vector
+                acc_freq = max(self.base.all_acc_rates) if self.base.all_acc_rates else 0.0
+                gyro_freq = max(self.base.all_gyro_rates) if self.base.all_gyro_rates else 0.0
+                or_freq = max(self.base.all_or_rates) if self.base.all_or_rates else 0.0
+                self.frequency_vector = [acc_freq, gyro_freq, or_freq]
+                print(f"\n✅ Final Sampling Frequency Vector [ACC, GYRO, OR]: {self.frequency_vector}")        
             else:
                 for label, sensor_index in self.sensor_label_to_index.items():
                     self.base.setSampleMode(sensor_index, default_mode)
