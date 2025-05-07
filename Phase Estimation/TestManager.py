@@ -17,6 +17,7 @@ import DataLoaderYinkai
 import CyclicSegmentationManager
 from sklearn.metrics import mean_squared_error
 import Interpolation
+from EulerTransform import quaternion_to_euler
 
 def handle_test_decision(choice, model, frequencies, segment_choice, load_choice, plot_flag_segment, plot_flag_interp):
     """Handle user decision about testing"""
@@ -416,6 +417,9 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
         acc = acc_data[indices["acc"]]
         gyro = gyro_data[indices["gyro"]]
         or_data_item = or_data[indices["or"]]
+
+        euler_data_item = quaternion_to_euler(or_data_item, frequencies[2])
+        or_data_item = euler_data_item
         
         print(f"Processing data set from timestamp: {timestamp}")
         

@@ -7,6 +7,7 @@ import itertools
 from scipy.interpolate import interp1d
 import CyclicSegmentationManager
 from Segmentation_Methods import GyroSaggitalSegm
+from EulerTransform import quaternion_to_euler
 
 def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=True, interpPlot_flag=True):
     X = []
@@ -24,6 +25,10 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         acc = acc_data[indices["acc"]]
         gyro = gyro_data[indices["gyro"]]
         or_data_item = or_data[indices["or"]]
+
+        euler_data_item = quaternion_to_euler(or_data_item, frequencies[2])
+        or_data_item = euler_data_item
+        
         
         print(f"Processing data set from timestamp: {timestamp}")
 
@@ -87,7 +92,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
 
 
                 # # Concatenate features for X matrix
-                # features = np.concatenate([gyro_interp.values, abs_filtered_gyro_derivative.values], axis=1)
+                # features = np.concatenate([or_interp.values], axis=1)
 
                 X1.append(features)
                 dataset_length = len(features)
@@ -107,7 +112,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
             abs_filtered_gyro_cols = [f"ABSGYRO_{col}" for col in pd.DataFrame(abs_filtered_gyro_derivative_interp).columns]
             or_cols = [f"OR_{col}" for col in or_interp.columns]
             feature_names = acc_cols + gyro_cols + abs_filtered_gyro_cols
-            # feature_names = gyro_cols + abs_filtered_gyro_cols
+            # feature_names = or_cols
             # Print number of columns in X
             print(f"Number of features in X: {len(X1[0][0])}")
             X.extend(X1)
@@ -239,7 +244,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
     return X_matrix, Y_matrix, sorted_timestamps, segment_lengths, feature_names
 
 # Visualization function remains unchanged
-def visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, feature_names):
+def visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, feature_names, frequencies):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
     
     # Create separate axes for different sensor types
@@ -254,7 +259,9 @@ def visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, featur
     gyro_color = 'blue'
     or_color = 'green'
     
-    time_steps = np.arange(X.shape[0])
+    # Calculate time steps using the minimum frequency
+    min_frequency = min(frequencies)
+    time_steps = np.arange(X.shape[0]) / min_frequency
     
     # Plot concatenated signals with different scales
     for i, name in enumerate(feature_names):
@@ -289,18 +296,18 @@ def visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, featur
     ax1.grid(True)
     
     # Plot progress indicators (Y matrix)
-    ax2.plot(Y, label="Progress Indicators")
+    ax2.plot(time_steps, Y, label="Progress Indicators")
     
     ax2.set_title("Dataset Progress Indicators (0 to 1)")
-    ax2.set_xlabel("Time Steps")
+    ax2.set_xlabel("Time (seconds)")
     ax2.set_ylabel("Progress")
     ax2.grid(True)
     
     # Add vertical lines to separate different datasets
     current_pos = np.cumsum(segment_lengths)[:-1]  # Exclude the last cumulative position
     for pos in current_pos:
-        ax1.axvline(x=pos, color='r', linestyle='--', alpha=0.5)
-        ax2.axvline(x=pos, color='r', linestyle='--', alpha=0.5)
+        ax1.axvline(x=pos / min_frequency, color='r', linestyle='--', alpha=0.5)
+        ax2.axvline(x=pos / min_frequency, color='r', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.show()
 

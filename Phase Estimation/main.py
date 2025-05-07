@@ -69,7 +69,7 @@ try:
         print(f"Column {i}: {name}")
 
     # Visualize matrices
-    MatrixCreator.visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, feature_names)
+    MatrixCreator.visualize_matrices(X, Y, timestamps, segment_choice, segment_lengths, feature_names, frequencies)
     
     # User interaction
     print("\nRegression Options:")
