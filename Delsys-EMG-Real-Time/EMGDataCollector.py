@@ -439,6 +439,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Reset data structures
             if self.plot:
                 self.data_processor.reset_plot_data()
+                self.plotter.reset_plotting_data()
             for sensor_label in self.complete_emg_data:
                 self.complete_emg_data[sensor_label] = []
             for sensor_label in self.complete_acc_data:
@@ -547,6 +548,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             # Reset data logger
             self.log_entries = []
             self.trial_number += 1
+
+            # Save Euler angles to file
+            self.plotter.save_orientation_data()
 
     def start_collection(self):
         print("Starting data collection...")

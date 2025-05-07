@@ -5,6 +5,7 @@ import threading
 import os
 import joblib
 from Phase_Estimation.RealTime_PhaseEst import estimated_phase
+from Phase_Estimation.EulerTransformRealTime import quaternion_to_euler
 
 class Plotter:
     def __init__(self, parent):
@@ -17,13 +18,15 @@ class Plotter:
         """Initialize the plot for EMG, ACC, GYRO, OR, and Phase Estimation."""
         self.parent.setWindowTitle(f'Subject {self.parent.subject_number} Trial {self.parent.trial_number}')
         sensor_labels = list(self.parent.sensor_names.keys())
-        total_rows = len(sensor_labels)
+        total_rows = len(sensor_labels)+1
         self.parent.plot_layout = QtWidgets.QGridLayout(self.parent.plot_widget)
 
         self.emg_plots = {}
         self.acc_plots = {}
         self.gyro_plots = {}
         self.or_plots = {}
+        self.phase_plots = {}
+        self.pw_or_eul = {}
 
         # Phase Estimation Plot
         self.phase_plot = pg.PlotWidget(title='Estimated Phase')
@@ -33,6 +36,16 @@ class Plotter:
         self.parent.plot_layout.addWidget(self.phase_plot, 0, 4, total_rows, 1)
         self.phase_history = []
         self.phase_time = []
+
+        # Euler Orientation Plot
+        self.pw_or_eul = pg.PlotWidget(title='Euler Orientation')
+        self.pw_or_eul.setLabel('left', 'Orientation', units='deg')
+        self.pw_or_eul.setLabel('bottom', 'Time', units='s')
+        self.pw_or_eul.showGrid(x=True, y=True)
+        self.parent.plot_layout.addWidget(self.pw_or_eul, 0, 5, total_rows, 1)
+        self.eul_history = []
+        self.eul_time = []
+
 
         for i, sensor_label in enumerate(sensor_labels):
             sensor_name = self.parent.sensor_names.get(sensor_label, f"Sensor {sensor_label}")
@@ -78,6 +91,9 @@ class Plotter:
                 pw_or.showGrid(x=True, y=True)
                 self.parent.plot_layout.addWidget(pw_or, i, 3)
                 self.or_plots[sensor_label] = pw_or
+            else:
+                self.parent.plot_layout.addWidget(QtWidgets.QWidget(), i, 3)
+                
 
     def update_plot(self):
         """Update the plot with new data and estimate phase."""
@@ -86,6 +102,7 @@ class Plotter:
             plot_data_acc_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_acc.items()}
             plot_data_gyro_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_gyro.items()}
             plot_data_or_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_or.items()}
+        
 
         # Calculate elapsed time based on EMG data
         elapsed_times = []
@@ -169,6 +186,27 @@ class Plotter:
                 self.phase_plot.plot(self.phase_time, self.phase_history, pen='y', name='Predicted Phase')
                 self.phase_plot.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
                 self.phase_plot.setYRange(0, 1)
+            
+        # Euler Orientation Plot
+        plot_data_or_copy_eul = quaternion_to_euler(plot_data_or_copy)
+        # Check if the data is not empty and contains valid values
+        if plot_data_or_copy_eul is not None:
+            predicted_euler = plot_data_or_copy_eul[-1,:]
+            self.eul_history.append(predicted_euler)
+            self.eul_time.append(self.parent.total_elapsed_time + elapsed_time)
+
+            self.pw_or_eul.clear()
+
+            eul_array = np.array(self.eul_history)
+            if eul_array.ndim == 2 and eul_array.shape[1] == 3:
+                labels = ['Roll', 'Pitch', 'Yaw']
+                colors = ['r', 'g', 'b']
+                for i in range(3):
+                    self.pw_or_eul.plot(self.eul_time, eul_array[:, i], pen=pg.mkPen(colors[i]), name=labels[i])
+
+            self.pw_or_eul.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
+            self.pw_or_eul.setYRange(-180, 180)
+            self.pw_or_eul.addLegend()
 
         # Check if it reached the window size, increment the cumulative time
         window_reached = any(len(data) >= self.parent.emg_window_sizes[sensor_label] for sensor_label, data in self.parent.plot_data_emg.items())
@@ -216,4 +254,12 @@ class Plotter:
                     y_min = y.min()
                     y_max = y.max()
                     self.or_plots[sensor_label].setYRange(y_min, y_max)
+
+    def reset_plotting_data(self):
+        """Reset the plotting data."""
+        self.phase_history = []
+        self.phase_time = []
+        self.eul_history = []
+        self.eul_time = []
+
 

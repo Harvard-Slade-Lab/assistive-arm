@@ -1,7 +1,6 @@
 import threading
 import queue
 import numpy as np
-
 class DataProcessor:
     def __init__(self, parent):
         self.parent = parent
@@ -17,6 +16,7 @@ class DataProcessor:
                 self.parent.plot_data_gyro[sensor_label] = {'X': [], 'Y': [], 'Z': []}
             for sensor_label in self.parent.plot_data_or:
                 self.parent.plot_data_or[sensor_label] = {'W': [], 'X': [], 'Y': [], 'Z': []}
+ 
 
     def process_remaining_data(self):
         """Process any remaining data in the queue after stopping the collection."""
