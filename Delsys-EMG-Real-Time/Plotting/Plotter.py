@@ -13,6 +13,7 @@ class Plotter:
         self.plot_timer = QtCore.QTimer()
         self.plot_timer.timeout.connect(self.update_plot)
         self.plot_timer.start(50)  # Update plot every 50 ms
+        
 
     def initialize_plot(self):
         """Initialize the plot for EMG, ACC, GYRO, OR, and Phase Estimation."""
@@ -102,6 +103,9 @@ class Plotter:
             plot_data_acc_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_acc.items()}
             plot_data_gyro_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_gyro.items()}
             plot_data_or_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_or.items()}
+            plot_data_or_copy_eul = self.parent.euler_angles.copy()
+            
+            
         
 
         # Calculate elapsed time based on EMG data
@@ -176,10 +180,10 @@ class Plotter:
 
         # Phase Estimation Plot:
         if self.parent.current_model is not None:
-            # Phase estimation and plot
-            predicted_phase = estimated_phase(self)
             # Plot Predicted Phase
+            predicted_phase = self.parent.predicted_phase
             if predicted_phase is not None:
+                
                 self.phase_history.append(predicted_phase)
                 self.phase_time.append(self.parent.total_elapsed_time + elapsed_time)
                 self.phase_plot.clear()
@@ -187,10 +191,9 @@ class Plotter:
                 self.phase_plot.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
                 self.phase_plot.setYRange(0, 1)
             
-        # Euler Orientation Plot
-        plot_data_or_copy_eul = quaternion_to_euler(plot_data_or_copy)
+
         # Check if the data is not empty and contains valid values
-        if plot_data_or_copy_eul is not None:
+        if plot_data_or_copy_eul is not None and len(plot_data_or_copy_eul) > 0:
             predicted_euler = plot_data_or_copy_eul[-1,:]
             self.eul_history.append(predicted_euler)
             self.eul_time.append(self.parent.total_elapsed_time + elapsed_time)

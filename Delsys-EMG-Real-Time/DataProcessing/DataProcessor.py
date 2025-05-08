@@ -1,6 +1,8 @@
 import threading
 import queue
 import numpy as np
+from scipy.spatial.transform import Rotation as R
+import warnings
 class DataProcessor:
     def __init__(self, parent):
         self.parent = parent
@@ -103,3 +105,9 @@ class DataProcessor:
                         self.parent.complete_or_data[sensor_label][axis].extend(data)
                     else:
                         print(f"ORIENTATION Channel index {idx} out of range in data_batch.")
+            
+            # EULER ANGLES 
+            self.parent.compute_euler_angles()
+            # Print the curent model:
+            if self.parent.current_model is not None:
+                self.parent.real_time_phase_estimator()

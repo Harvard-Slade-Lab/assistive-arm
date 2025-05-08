@@ -114,6 +114,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         self.plot_data_acc = {}
         self.plot_data_gyro = {}
         self.plot_data_or = {}
+        self.euler_angles = {}
         self.emg_window_sizes = {}
 
         self.total_elapsed_time = 0
@@ -148,6 +149,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.ui.init_ui()
             # Set up the DataProcessor
             self.data_processor = NoPlotDataProcessor(self)
+
+        self.predicted_phase = None
 
         # Set up the DataExporter
         self.data_exporter = DataExporter(self)
@@ -549,8 +552,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.log_entries = []
             self.trial_number += 1
 
-            # Save Euler angles to file
-            self.plotter.save_orientation_data()
+
 
     def start_collection(self):
         print("Starting data collection...")
@@ -1241,3 +1243,148 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 if gyro_x_mean < peak_threshold:
                     self.peak = False
                     self.segment_start_idx_imu = len(self.complete_gyro_data[self.imu_sensor_label][gyro_axis])
+
+    def compute_euler_angles(self):
+        from scipy.spatial.transform import Rotation as R
+        import warnings
+        """Compute Euler angles from the quaternion data."""
+        # Ensure the quaternion data is available and not empty
+        for idx, channel_idx in enumerate(self.base.emgChannelsIdx):
+            sensor_label = self.base.emgChannelSensors[idx]
+
+        # Get the quaternion data for the specified sensor label: 
+        last_quat = {axis: self.plot_data_or[sensor_label][axis][-1] for axis in ['W', 'X', 'Y', 'Z']}
+
+        # Convert quaternion to Euler angles (roll, pitch, yaw)
+        if last_quat == {}:
+            return None
+        
+        # Divide the quaternion data into separate lists for W, X, Y, Z components
+        w = [last_quat['W']] if last_quat['W'] is not None else []
+        x = [last_quat['X']] if last_quat['X'] is not None else []
+        y = [last_quat['Y']] if last_quat['Y'] is not None else []
+        z = [last_quat['Z']] if last_quat['Z'] is not None else []
+
+        # Ensure all components are non-empty and of the same length
+        if not (len(w) == len(x) == len(y) == len(z) > 0):
+            return None
+
+        # Convert quaternion components to a numpy array
+        quat_array = np.array([x, y, z, w]).T  # Transpose to get shape (n, 4)
+        
+        # Calculate quaternion magnitudes
+        magnitudes = np.linalg.norm(quat_array, axis=1)
+
+        # Check for invalid quaternions (magnitude close to zero)
+        if np.any(magnitudes < 1e-10):
+            return np.zeros((len(w), 3))  # Return zeros for invalid quaternions
+    
+        # Normalize the quaternions
+        quat_norm = quat_array / magnitudes[:, np.newaxis]
+        
+        # Create rotation objects
+        rotations = R.from_quat(quat_norm)
+        
+        # Convert to Euler angles (roll, pitch, yaw) in degrees
+        self.euler_angles = rotations.as_euler('xyz', degrees=True)
+        # print for debugging
+
+    def real_time_phase_estimator(self):
+        """
+        Create a feature vector by concatenating ACC, GYRO, and OR data for all sensors
+        using a single window size, predict phase using a trained model, and plot in real time.
+        """
+        # Ensure the quaternion data is available and not empty
+
+        # create a feature vector with the last data of each sensor
+        feature_vector = []
+        # Get the list of sensor labels
+        sensor_labels = list(self.sensor_names.keys())
+        do_it_once = 0
+
+        # Concatenate ACC, GYRO, and OR data for each sensor
+        for sensor_label in sensor_labels:
+            # ACC data (X, Y, Z)
+            if do_it_once == 0:
+                do_it_once = 1
+                if sensor_label in self.plot_data_acc:
+                    for axis in ['X', 'Y', 'Z']:
+                        data = self.plot_data_acc[sensor_label].get(axis, [])
+                        feature_vector.append(data[-1] if data else 0.0)
+                    
+
+            # GYRO data (X, Y, Z)
+            if sensor_label in self.plot_data_gyro:
+                for axis in ['X', 'Y', 'Z']:
+                    data = self.plot_data_gyro[sensor_label].get(axis, [])
+                    feature_vector.append(data[-1] if data else 0.0)
+            
+            # Orientation data (W, X, Y, Z)
+            if sensor_label in self.plot_data_or:
+                for axis in ['W', 'X', 'Y', 'Z']:
+                    data = self.plot_data_or[sensor_label].get(axis, [])
+                    feature_vector.append(data[-1] if data else 0.0)
+
+        # Check if we have any features
+        if not feature_vector:
+            return
+
+        # Compute the predicted phase using the trained model
+        predicted_phase = self.current_model.predict([feature_vector])[0]
+        # Convert the predicted phase to a numpy number
+        predicted_phase = np.array(predicted_phase).item()
+
+        # saturate the predicted phase between 0 and 1
+        self.predicted_phase = max(0, min(predicted_phase, 1))
+    
+
+        
+    def miaoooo(self):
+        # Get copies of the current data with thread safety
+        with self.plot_data_lock:
+            plot_data_acc_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.plot_data_acc.items()}
+            plot_data_gyro_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.plot_data_gyro.items()}
+            plot_data_or_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.plot_data_or.items()}
+        
+        # Create a feature vector by concatenating the most recent data from all sensors
+        feature_vector = []
+        
+        # Get the list of sensor labels
+        sensor_labels = list(self.sensor_names.keys())
+        do_it_once = 0
+        # Concatenate ACC, GYRO, and OR data for each sensor
+        for sensor_label in sensor_labels:
+            # ACC data (X, Y, Z)
+            if do_it_once == 0:
+                do_it_once = 1
+                if sensor_label in plot_data_acc_copy:
+                    for axis in ['X', 'Y', 'Z']:
+                        data = plot_data_acc_copy[sensor_label].get(axis, [])
+                        feature_vector.append(data[-1] if data else 0.0)
+                    
+            
+            # GYRO data (X, Y, Z)
+            if sensor_label in plot_data_gyro_copy:
+                for axis in ['X', 'Y', 'Z']:
+                    data = plot_data_gyro_copy[sensor_label].get(axis, [])
+                    feature_vector.append(data[-1] if data else 0.0)
+            
+            # Orientation data (W, X, Y, Z)
+            if sensor_label in plot_data_or_copy:
+                for axis in ['W', 'X', 'Y', 'Z']:
+                    data = plot_data_or_copy[sensor_label].get(axis, [])
+                    feature_vector.append(data[-1] if data else 0.0)
+        
+        # Check if we have any features
+        if not feature_vector:
+            return
+
+        # Compute the predicted phase using the trained model
+        predicted_phase = self.current_model.predict([feature_vector])[0]
+
+        # saturate the predicted phase between 0 and 1
+        self.predicted_phase = max(0, min(predicted_phase, 1))
+        
+
+        print(f"Predicted phase: {predicted_phase}")
+        print(f"Feature vector: {feature_vector}")

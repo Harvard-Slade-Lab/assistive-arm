@@ -39,7 +39,7 @@ def main():
     # Needs more testing though
 
     # PLOT Flags:
-    training_segmentation_flag = True
+    training_segmentation_flag = False
     current_model = None 
     appQt = QtWidgets.QApplication(sys.argv)
     collector = EMGDataCollector(current_model, plot, socket, imu_processing, mixed_processing, emg_control, real_time_processing, window_duration=window_duration, data_directory=data_directory, training_segmentation_flag=training_segmentation_flag)
