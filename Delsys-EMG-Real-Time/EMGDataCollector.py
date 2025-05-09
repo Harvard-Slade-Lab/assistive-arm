@@ -1273,7 +1273,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Convert quaternion components to a numpy array
         quat_array = np.array([x, y, z, w]).T  # Transpose to get shape (n, 4)
-        
+
         # Calculate quaternion magnitudes
         magnitudes = np.linalg.norm(quat_array, axis=1)
 
@@ -1289,8 +1289,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         
         # Convert to Euler angles (roll, pitch, yaw) in degrees
         self.euler_angles = rotations.as_euler('xyz', degrees=True)
-   
-        # Add history tracking functionality
+
+         # Add history tracking functionality
         if not hasattr(self, 'complete_euler_angles_data'):
             self.complete_euler_angles_data = []  # Initialize history list if it doesn't exist
         # Append the current Euler angles to the history
@@ -1331,9 +1331,39 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             
             # Orientation data (W, X, Y, Z)
             if sensor_label in self.plot_data_or:
-                for axis in ['W', 'X', 'Y', 'Z']:
-                    data = self.plot_data_or[sensor_label].get(axis, [])
-                    feature_vector.append(data[-1] if data else 0.0)
+                # for axis in ['W', 'X', 'Y']:
+                #     data = self.plot_data_or[sensor_label].get(axis, [])
+                #     feature_vector.append(data[-1] if data else 0.0)
+                # print(f"orientation data: {data[-1] if data else 0.0}")
+            
+                # print(f"plot_data_or type: {type(self.plot_data_or)}")
+                # print(f"euler_angles type: {type(self.euler_angles)}")
+                # print(f"euler_angles: {self.euler_angles}")
+                
+                print(f"feature_vector: {feature_vector}")
+                if type(self.euler_angles) == np.ndarray:
+                    euler_angles_vect = self.euler_angles[0]
+                    for ii in range(3):
+                        feature_vector.append(euler_angles_vect[ii])
+                else:
+                    for ii in range(3):
+                        feature_vector.append(0.0)
+
+
+            # convert euler_angles from numpy type to dict type
+
+            # if self.euler_angles is not None:
+            #     euler_angles_dict = {'Roll': self.euler_angles[0], 'Pitch': self.euler_angles[1], 'Yaw': self.euler_angles[2]}
+            # print(f"euler_angles_dict type: {type(euler_angles_dict)}")
+
+            # # Euler Orientation data 
+            # if sensor_label in self.plot_data_or:
+            #         for axis in ['Roll', 'Pitch', 'Yaw']:
+            #             data = euler_angles_dict.get(axis, [])
+            #             print(f"data: {data}")
+            # #             feature_vector.append(data[-1] if data else 0.0)
+          
+
 
         # Check if we have any features
         if not feature_vector:
