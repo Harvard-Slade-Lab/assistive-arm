@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 import warnings
 
+
 # Function to convert quaternions to Euler angles
 def quaternion_to_euler(quat_df, frequency):
     # Create a list to store the Euler angles
@@ -20,7 +21,7 @@ def quaternion_to_euler(quat_df, frequency):
         ]
         
         # Calculate quaternion magnitude
-        magnitude = np.sqrt(sum(np.array(quat) ** 2))
+        magnitude = np.linalg.norm(quat)
         
         # Check if quaternion is valid (not zero)
         if magnitude < 1e-10:  # Very close to zero
@@ -49,7 +50,6 @@ def quaternion_to_euler(quat_df, frequency):
         'Pitch (Y)': euler_angles[:, 1],
         'Yaw (Z)': euler_angles[:, 2]
     }, index=quat_df.index)
-    
     plotFlag = False
     if plotFlag:
         # Create subplots
