@@ -11,7 +11,7 @@ class DataExporter:
     def __init__(self, parent):
         self.parent = parent
 
-    def export_data_to_csv(self, filename_emg="EMG_data.csv", filename_acc="ACC_data.csv", filename_gyro="GYRO_data.csv", filename_or="ORIENTATION_data.csv", filename_or_debug="ORIENTATION_data_debug.csv"):
+    def export_data_to_csv(self, filename_emg="EMG_data.csv", filename_acc="ACC_data.csv", filename_gyro="GYRO_data.csv", filename_or="ORIENTATION_data.csv", filename_or_debug="ORIENTATION_data_debug.csv", filename_euler="Euler_Angles.csv"):
         print("Exporting collected data...")
 
         # Export EMG data
@@ -130,6 +130,23 @@ class DataExporter:
                         else:
                             row.append("")
                 f_or_debug.write(",".join(row) + '\n')
+
+        # Export Euler Angles data
+        with open(filename_euler, 'w') as f_euler:
+            # Build headers
+            headers = ['Roll', 'Pitch', 'Yaw']
+            f_euler.write(','.join(headers) + '\n')
+
+            # Write each row of Euler angle data
+            for entry in self.parent.complete_euler_angles_data:
+                # Ensure each entry is a numpy array of shape (1, 3)
+                if isinstance(entry, np.ndarray) and entry.shape == (1, 3):
+                    row = entry.flatten()  # Convert to 1D array: [roll, pitch, yaw]
+                    f_euler.write(','.join(str(value) for value in row) + '\n')
+                else:
+                    # Handle unexpected shape or data type
+                    f_euler.write(',,\n')  # Blank row in case of data error
+
 
         ################Removed to safe time####################
         # Make remote copy of the exported files

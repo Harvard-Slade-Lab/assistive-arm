@@ -534,6 +534,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             filename_gyro = f"GYRO_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
             filename_or = f"OR_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
             filename_or_debug = f"OR_Debug_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
+            filename_eulangles = f"EULANG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
             subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
             emg_folder = os.path.join(subject_folder, "Raw")
             if not os.path.exists(emg_folder):
@@ -543,10 +544,11 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             filepath_gyro = os.path.join(emg_folder, filename_gyro)
             filepath_or = os.path.join(emg_folder, filename_or)
             filepath_or_debug = os.path.join(emg_folder, filename_or_debug)
+            filepath_eulangles = os.path.join(emg_folder, filename_eulangles)
 
             # Export collected data
-            self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro, filepath_or, filepath_or_debug)
-            print(f"Trial {self.trial_number} data saved as: {filename_emg}, {filename_acc}, and {filename_gyro}")
+            self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro, filepath_or, filepath_or_debug, filepath_eulangles)
+            print(f"Trial {self.trial_number} data saved as: {filename_emg}, {filename_acc}, {filename_gyro}, {filename_or}, {filename_or_debug}, {filename_eulangles}")
 
             # Reset data logger
             self.log_entries = []
@@ -1287,7 +1289,15 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         
         # Convert to Euler angles (roll, pitch, yaw) in degrees
         self.euler_angles = rotations.as_euler('xyz', degrees=True)
-        # print for debugging
+   
+        # Add history tracking functionality
+        if not hasattr(self, 'complete_euler_angles_data'):
+            self.complete_euler_angles_data = []  # Initialize history list if it doesn't exist
+        # Append the current Euler angles to the history
+        if self.euler_angles is not None:
+            plot_data_or_copy_eul = self.euler_angles.copy()
+            self.complete_euler_angles_data.append(plot_data_or_copy_eul)
+
 
     def real_time_phase_estimator(self):
         """
@@ -1336,55 +1346,3 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # saturate the predicted phase between 0 and 1
         self.predicted_phase = max(0, min(predicted_phase, 1))
-    
-
-        
-    def miaoooo(self):
-        # Get copies of the current data with thread safety
-        with self.plot_data_lock:
-            plot_data_acc_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.plot_data_acc.items()}
-            plot_data_gyro_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.plot_data_gyro.items()}
-            plot_data_or_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.plot_data_or.items()}
-        
-        # Create a feature vector by concatenating the most recent data from all sensors
-        feature_vector = []
-        
-        # Get the list of sensor labels
-        sensor_labels = list(self.sensor_names.keys())
-        do_it_once = 0
-        # Concatenate ACC, GYRO, and OR data for each sensor
-        for sensor_label in sensor_labels:
-            # ACC data (X, Y, Z)
-            if do_it_once == 0:
-                do_it_once = 1
-                if sensor_label in plot_data_acc_copy:
-                    for axis in ['X', 'Y', 'Z']:
-                        data = plot_data_acc_copy[sensor_label].get(axis, [])
-                        feature_vector.append(data[-1] if data else 0.0)
-                    
-            
-            # GYRO data (X, Y, Z)
-            if sensor_label in plot_data_gyro_copy:
-                for axis in ['X', 'Y', 'Z']:
-                    data = plot_data_gyro_copy[sensor_label].get(axis, [])
-                    feature_vector.append(data[-1] if data else 0.0)
-            
-            # Orientation data (W, X, Y, Z)
-            if sensor_label in plot_data_or_copy:
-                for axis in ['W', 'X', 'Y', 'Z']:
-                    data = plot_data_or_copy[sensor_label].get(axis, [])
-                    feature_vector.append(data[-1] if data else 0.0)
-        
-        # Check if we have any features
-        if not feature_vector:
-            return
-
-        # Compute the predicted phase using the trained model
-        predicted_phase = self.current_model.predict([feature_vector])[0]
-
-        # saturate the predicted phase between 0 and 1
-        self.predicted_phase = max(0, min(predicted_phase, 1))
-        
-
-        print(f"Predicted phase: {predicted_phase}")
-        print(f"Feature vector: {feature_vector}")

@@ -104,6 +104,7 @@ class Plotter:
             plot_data_gyro_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_gyro.items()}
             plot_data_or_copy = {k: {ax: v[ax][:] for ax in v} for k, v in self.parent.plot_data_or.items()}
             plot_data_or_copy_eul = self.parent.euler_angles.copy()
+
             
             
         
@@ -192,24 +193,29 @@ class Plotter:
                 self.phase_plot.setYRange(0, 1)
             
 
-        # Check if the data is not empty and contains valid values
-        if plot_data_or_copy_eul is not None and len(plot_data_or_copy_eul) > 0:
-            predicted_euler = plot_data_or_copy_eul[-1,:]
-            self.eul_history.append(predicted_euler)
+        # Euler Angles Plot
+        if plot_data_or_copy_eul is not None and len(plot_data_or_copy_eul) == 1:
+            self.eul_history.append(plot_data_or_copy_eul)
             self.eul_time.append(self.parent.total_elapsed_time + elapsed_time)
-
             self.pw_or_eul.clear()
-
             eul_array = np.array(self.eul_history)
-            if eul_array.ndim == 2 and eul_array.shape[1] == 3:
+            # Reshape if necessary
+            if eul_array.ndim == 3 and eul_array.shape[2] == 3:
+                eul_array_reshaped = eul_array.reshape(-1, 3)
                 labels = ['Roll', 'Pitch', 'Yaw']
                 colors = ['r', 'g', 'b']
-                for i in range(3):
-                    self.pw_or_eul.plot(self.eul_time, eul_array[:, i], pen=pg.mkPen(colors[i]), name=labels[i])
-
+                if eul_array_reshaped.shape[0] > 1:
+                    for i in range(3):
+                        self.pw_or_eul.plot(
+                            self.eul_time,
+                            eul_array_reshaped[:, i],
+                            pen=pg.mkPen(colors[i]),
+                            name=labels[i]
+                        )
             self.pw_or_eul.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
             self.pw_or_eul.setYRange(-180, 180)
             self.pw_or_eul.addLegend()
+
 
         # Check if it reached the window size, increment the cumulative time
         window_reached = any(len(data) >= self.parent.emg_window_sizes[sensor_label] for sensor_label, data in self.parent.plot_data_emg.items())
