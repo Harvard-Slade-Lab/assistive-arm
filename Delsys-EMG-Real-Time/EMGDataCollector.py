@@ -212,7 +212,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         while True:
             project_name = input("Enter project name (n if no project defined): ").strip()
-            if project_name in ['n', 'sts', 'phasest']:
+            if project_name in ['n', 'sts', 'phasest', 'phasest2']:
                 break  # Exit the loop if a valid name is entered
             else:
                 print("Invalid project name. Please enter a valid project name.")
@@ -299,6 +299,25 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 elif self.sensor_names[label] == 'OR':
                     self.base.setSampleMode(sensor_index, modes[207]) 
             self.frequency_vector = [518.519, 518.519, 222.222]
+
+        if project_name == 'phasest2':
+            id_to_name = {"000140e6": "IMU", "00014163": "OR"}
+            self.sensor_label_to_index = {}
+            for idx, sensor in enumerate(self.base.all_scanned_sensors):
+                label = sensor.PairNumber
+                self.sensor_label_to_index[label] = idx
+                # Extract first 8 characters of the sensor ID
+                sensor_id = str(sensor.Id)[:8]
+                if sensor_id in id_to_name:
+                    self.sensor_names[label] = id_to_name[sensor_id]
+            for label, sensor_index in self.sensor_label_to_index.items():
+                # self.sensor_names[label] = sensor_names[sensor_index+1]
+                modes = self.base.getSampleModes(sensor_index)
+                if self.sensor_names[label] == 'IMU':
+                    self.base.setSampleMode(sensor_index, modes[38])
+                elif self.sensor_names[label] == 'OR':
+                    self.base.setSampleMode(sensor_index, modes[70]) 
+            self.frequency_vector = [148.148, 148.148, 74.074]
 
         # Get subject number
         self.subject_number = input("Enter subject number: ").strip()
@@ -1331,7 +1350,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             
             # Orientation data (W, X, Y, Z)
             if sensor_label in self.plot_data_or:
-                # for axis in ['W', 'X', 'Y']:
+                # for axis in ['W', 'X', 'Y', 'Z']:
                 #     data = self.plot_data_or[sensor_label].get(axis, [])
                 #     feature_vector.append(data[-1] if data else 0.0)
                 # print(f"orientation data: {data[-1] if data else 0.0}")
@@ -1340,13 +1359,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 # print(f"euler_angles type: {type(self.euler_angles)}")
                 # print(f"euler_angles: {self.euler_angles}")
                 
-                print(f"feature_vector: {feature_vector}")
+                # print(f"feature_vector: {feature_vector}")
                 if type(self.euler_angles) == np.ndarray:
                     euler_angles_vect = self.euler_angles[0]
-                    for ii in range(3):
+                    for ii in range(2):
                         feature_vector.append(euler_angles_vect[ii])
                 else:
-                    for ii in range(3):
+                    for ii in range(2):
                         feature_vector.append(0.0)
 
 

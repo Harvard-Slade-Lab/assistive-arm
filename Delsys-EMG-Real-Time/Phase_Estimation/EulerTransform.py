@@ -14,10 +14,10 @@ def quaternion_to_euler(quat_df, frequency):
     for index, row in quat_df.iterrows():
         # Extract quaternion values (x, y, z, w) - scipy order
         quat = [
-            row['ORIENTATION Sensor 1 X'],
-            row['ORIENTATION Sensor 1 Y'],
-            row['ORIENTATION Sensor 1 Z'],
-            row['ORIENTATION Sensor 1 W']
+            row['ORIENTATION OR X'],
+            row['ORIENTATION OR Y'],
+            row['ORIENTATION OR Z'],
+            row['ORIENTATION OR W']
         ]
         
         # Calculate quaternion magnitude
@@ -59,7 +59,7 @@ def quaternion_to_euler(quat_df, frequency):
         time = quat_df.index / frequency
 
         # Plot quaternions
-        for col in ['ORIENTATION Sensor 1 W', 'ORIENTATION Sensor 1 X', 'ORIENTATION Sensor 1 Y', 'ORIENTATION Sensor 1 Z']:
+        for col in ['ORIENTATION OR W', 'ORIENTATION OR X', 'ORIENTATION OR Y', 'ORIENTATION OR Z']:
             ax1.plot(time, quat_df[col], label=col.split()[-1])
         ax1.set_title('Quaternion Values')
         ax1.set_xlabel('Time (s)')
