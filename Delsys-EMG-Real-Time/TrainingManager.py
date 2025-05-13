@@ -90,5 +90,6 @@ def Training_Manager_GUI(parent=None, training_segmentation_flag=False):
 
     plt.show(block=False)  # Non-blocking for GUI compatibility
 
-    return current_model
+
+    return current_model, segment_choice
     

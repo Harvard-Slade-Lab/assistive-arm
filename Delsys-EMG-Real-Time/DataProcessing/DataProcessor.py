@@ -110,7 +110,10 @@ class DataProcessor:
             self.parent.compute_euler_angles()
             # Print the curent model:
             if self.parent.current_model is not None:
-                self.parent.real_time_phase_estimator()
+                if self.parent.segment_choice == '1':
+                    self.parent.real_time_phase_estimator_oneshot()
+                elif self.parent.segment_choice == '2':
+                    self.parent.real_time_phase_estimator_cyclic()
 
             # GYRO SAGGITAL ABSOLUTE VALUE DERIVATIVE
             self.parent.gyro_saggytal_filt_abs_derivative()

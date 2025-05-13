@@ -27,6 +27,8 @@ from EMGutils.socket import SocketServer
 
 from concurrent.futures import ThreadPoolExecutor
 
+import TrainingManager
+
 class EMGDataCollector(QtWidgets.QMainWindow):
     def __init__(self, current_model, plot=False, socket=False, imu_processing=False, mixed_processing=False, emg_control=False, real_time_processing = False, window_duration=5, data_directory="Data", training_segmentation_flag = False):
         super().__init__()
@@ -168,11 +170,12 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         self.load_activation_means()
 
+
     def train_model(self):
         from TrainingManager import Training_Manager_GUI
         print("Processing data for training...")
         
-        model= Training_Manager_GUI(parent=self, training_segmentation_flag=self.training_segmentation_flag)   
+        model, self.segment_choice= Training_Manager_GUI(parent=self, training_segmentation_flag=self.training_segmentation_flag)   
         if model:
             print("Model trained successfully.")
             self.current_model = model
@@ -1321,7 +1324,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.complete_euler_angles_data.append(plot_data_or_copy_eul)
 
 
-    def real_time_phase_estimator_Oneshot(self):
+    def real_time_phase_estimator_oneshot(self):
         """
         Create a feature vector by concatenating ACC, GYRO, and EULER ANGLES data for all sensors
         using a single window size, predict phase using a trained model, and plot in real time.
@@ -1352,16 +1355,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             
             # Orientation data (W, X, Y, Z)
             if sensor_label in self.plot_data_or:
-                # for axis in ['W', 'X', 'Y', 'Z']:
-                #     data = self.plot_data_or[sensor_label].get(axis, [])
-                #     feature_vector.append(data[-1] if data else 0.0)
-                # print(f"orientation data: {data[-1] if data else 0.0}")
-            
-                # print(f"plot_data_or type: {type(self.plot_data_or)}")
-                # print(f"euler_angles type: {type(self.euler_angles)}")
-                # print(f"euler_angles: {self.euler_angles}")
-                
-                # print(f"feature_vector: {feature_vector}")
                 if type(self.euler_angles) == np.ndarray:
                     euler_angles_vect = self.euler_angles[0]
                     for ii in range(2):
@@ -1382,7 +1375,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # saturate the predicted phase between 0 and 1
         self.predicted_phase = max(0, min(predicted_phase, 1))
 
-    def real_time_phase_estimator(self):
+    def real_time_phase_estimator_cyclic(self):
         """
         Create a feature vector by concatenating ACC, GYRO, and ABS VALUE OF THE DERIVATIVE OF SAGGITAL GYRO data for all sensors
         using a single window size, predict phase using a trained model, and plot in real time.
@@ -1392,9 +1385,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Get the list of sensor labels
         sensor_labels = list(self.sensor_names.keys())
         do_it_once = 0
-
-        print(f"Derivative abs type 1: {type(self.derivative_abs)}")
-
         # Concatenate ACC, GYRO, and OR data for each sensor
         for sensor_label in sensor_labels:
             # ACC data (X, Y, Z)
@@ -1416,21 +1406,16 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     print(f"Derivative abs last value: {self.derivative_abs[-1]}")
                 else:
                     feature_vector.append(0.0)
-
         print(f"Feature vector: {feature_vector}")
-
         # Check if we have any features
         if not feature_vector:
             return
-
         # Compute the predicted phase using the trained model
         predicted_phase = self.current_model.predict([feature_vector])[0]
         # Convert the predicted phase to a numpy number
         predicted_phase = np.array(predicted_phase).item()
         # saturate the predicted phase between 0 and 1
         self.predicted_phase = max(0, min(predicted_phase, 1))
-
-        print(f"predicted phase: {self.predicted_phase}")
 
     def gyro_saggytal_filt_abs_derivative(self):
         """
