@@ -170,6 +170,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         self.load_activation_means()
 
+        self.phase_history = []
+
 
     def train_model(self):
         from TrainingManager import Training_Manager_GUI
@@ -560,6 +562,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             filename_or = f"OR_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
             filename_or_debug = f"OR_Debug_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
             filename_eulangles = f"EULANG_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
+            filename_phasest = f"PHASEST_Profile_{self.assistive_profile_name}_Trial_{self.trial_number}_{self.what}.csv"
+
             subject_folder = os.path.join(self.data_directory, f"subject_{self.subject_number}")
             emg_folder = os.path.join(subject_folder, "Raw")
             if not os.path.exists(emg_folder):
@@ -570,10 +574,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             filepath_or = os.path.join(emg_folder, filename_or)
             filepath_or_debug = os.path.join(emg_folder, filename_or_debug)
             filepath_eulangles = os.path.join(emg_folder, filename_eulangles)
+            filepath_phasest = os.path.join(emg_folder, filename_phasest)
 
             # Export collected data
-            self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro, filepath_or, filepath_or_debug, filepath_eulangles)
-            print(f"Trial {self.trial_number} data saved as: {filename_emg}, {filename_acc}, {filename_gyro}, {filename_or}, {filename_or_debug}, {filename_eulangles}")
+            self.data_exporter.export_data_to_csv(filepath_emg, filepath_acc, filepath_gyro, 
+                                                  filepath_or, filepath_or_debug, filepath_eulangles,
+                                                  filepath_phasest)
+            print(f"Trial {self.trial_number} data saved as: {filename_emg}, {filename_acc}, {filename_gyro}, {filename_or}, {filename_or_debug}, {filename_eulangles}, {filename_phasest}")
 
             # Reset data logger
             self.log_entries = []
@@ -1329,8 +1336,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         Create a feature vector by concatenating ACC, GYRO, and EULER ANGLES data for all sensors
         using a single window size, predict phase using a trained model, and plot in real time.
         """
-        # Ensure the quaternion data is available and not empty
-
         # create a feature vector with the last data of each sensor
         feature_vector = []
         # Get the list of sensor labels
@@ -1366,7 +1371,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         # Check if we have any features
         if not feature_vector:
             return
-
         # Compute the predicted phase using the trained model
         predicted_phase = self.current_model.predict([feature_vector])[0]
         # Convert the predicted phase to a numpy number
@@ -1374,6 +1378,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # saturate the predicted phase between 0 and 1
         self.predicted_phase = max(0, min(predicted_phase, 1))
+
+        self.phase_history.append(predicted_phase)
 
     def real_time_phase_estimator_cyclic(self):
         """
@@ -1424,29 +1430,23 @@ class EMGDataCollector(QtWidgets.QMainWindow):
         """
         sensor_label = self.imu_sensor_label
         sample_rate = self.gyro_sample_rates[sensor_label]
-
         self.gyro_x = self.complete_gyro_data[self.imu_sensor_label].get('X', [])
         if len(self.gyro_x) < 20:
             print("Not enough data to filter.")
             return None, None
-        
         # --- Butterworth low-pass filter parameters ---
         cutoff = 1  # Hz
         order = 4
         nyq = 0.5 * sample_rate
         normal_cutoff = cutoff / nyq
-
         # Design filter
         b, a = butter(order, normal_cutoff, btype='low', analog=False)
-
         # Apply causal filter (lfilter)
         gyro_x_array = np.array(self.gyro_x)
         filtered_signal = lfilter(b, a, gyro_x_array)
         # Absolute value
         filtered_abs = np.abs(filtered_signal)
-
         # Derivative
         self.derivative_abs = np.gradient(filtered_abs)
-
         # Time vector
         self.derivative_abs_time = np.linspace(0, len(self.derivative_abs) / sample_rate, len(self.derivative_abs))

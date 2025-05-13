@@ -11,7 +11,10 @@ class DataExporter:
     def __init__(self, parent):
         self.parent = parent
 
-    def export_data_to_csv(self, filename_emg="EMG_data.csv", filename_acc="ACC_data.csv", filename_gyro="GYRO_data.csv", filename_or="ORIENTATION_data.csv", filename_or_debug="ORIENTATION_data_debug.csv", filename_euler="Euler_Angles.csv"):
+    def export_data_to_csv(self, filename_emg="EMG_data.csv", filename_acc="ACC_data.csv", 
+                           filename_gyro="GYRO_data.csv", filename_or="ORIENTATION_data.csv", 
+                           filename_or_debug="ORIENTATION_data_debug.csv", filename_euler="Euler_Angles.csv",
+                           filename_phase_estimation="Phase_Estimation.csv"):
         print("Exporting collected data...")
 
         # Export EMG data
@@ -146,6 +149,23 @@ class DataExporter:
                 else:
                     # Handle unexpected shape or data type
                     f_euler.write(',,\n')  # Blank row in case of data error
+
+        # Export Phase Estimation data
+        with open(filename_phase_estimation, 'w') as f_phase_estimation:
+            # Build headers
+            headers = ['Phase Estimation']
+            f_phase_estimation.write(','.join(headers) + '\n')
+            entry = self.parent.phase_history
+            print(entry)
+            print(f"Entry type: {type(entry)}")
+            # Write each row of Phase Estimation data
+            if isinstance(entry, list):
+                for value in entry:
+                    f_phase_estimation.write(f"{value}\n")
+            else:
+                # Handle unexpected data type
+                f_phase_estimation.write('\n')  # Blank row in case of data error
+
 
 
         ################Removed to safe time####################
