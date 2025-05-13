@@ -111,3 +111,6 @@ class DataProcessor:
             # Print the curent model:
             if self.parent.current_model is not None:
                 self.parent.real_time_phase_estimator()
+
+            # GYRO SAGGITAL ABSOLUTE VALUE DERIVATIVE
+            self.parent.gyro_saggytal_filt_abs_derivative()

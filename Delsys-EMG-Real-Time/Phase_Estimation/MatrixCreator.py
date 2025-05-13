@@ -25,12 +25,13 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         gyro = gyro_data[indices["gyro"]]
         or_data_item = or_data[indices["or"]]
 
-        euler_data_item = quaternion_to_euler(or_data_item, frequencies[2])
-        or_data_item = euler_data_item
+        
         
         print(f"Processing data set from timestamp: {timestamp}")
 
         if segment_choice == '1':
+            euler_data_item = quaternion_to_euler(or_data_item, frequencies[2])
+            or_data_item = euler_data_item
             # Apply the segmentation and bias correction
             gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
                 gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag

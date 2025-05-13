@@ -10,6 +10,7 @@ import re
 import scipy as sp
 from scipy.signal import find_peaks, argrelextrema
 import pandas as pd
+from scipy.signal import butter, lfilter
 
 from PyQt5 import QtWidgets
 
@@ -151,6 +152,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.data_processor = NoPlotDataProcessor(self)
 
         self.predicted_phase = None
+        self.derivative_abs = None
+        self.gyro_x = []
 
         # Set up the DataExporter
         self.data_exporter = DataExporter(self)
@@ -1318,9 +1321,9 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             self.complete_euler_angles_data.append(plot_data_or_copy_eul)
 
 
-    def real_time_phase_estimator(self):
+    def real_time_phase_estimator_Oneshot(self):
         """
-        Create a feature vector by concatenating ACC, GYRO, and OR data for all sensors
+        Create a feature vector by concatenating ACC, GYRO, and EULER ANGLES data for all sensors
         using a single window size, predict phase using a trained model, and plot in real time.
         """
         # Ensure the quaternion data is available and not empty
@@ -1341,7 +1344,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                         data = self.plot_data_acc[sensor_label].get(axis, [])
                         feature_vector.append(data[-1] if data else 0.0)
                     
-
             # GYRO data (X, Y, Z)
             if sensor_label in self.plot_data_gyro:
                 for axis in ['X', 'Y', 'Z']:
@@ -1368,22 +1370,6 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     for ii in range(2):
                         feature_vector.append(0.0)
 
-
-            # convert euler_angles from numpy type to dict type
-
-            # if self.euler_angles is not None:
-            #     euler_angles_dict = {'Roll': self.euler_angles[0], 'Pitch': self.euler_angles[1], 'Yaw': self.euler_angles[2]}
-            # print(f"euler_angles_dict type: {type(euler_angles_dict)}")
-
-            # # Euler Orientation data 
-            # if sensor_label in self.plot_data_or:
-            #         for axis in ['Roll', 'Pitch', 'Yaw']:
-            #             data = euler_angles_dict.get(axis, [])
-            #             print(f"data: {data}")
-            # #             feature_vector.append(data[-1] if data else 0.0)
-          
-
-
         # Check if we have any features
         if not feature_vector:
             return
@@ -1395,3 +1381,87 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # saturate the predicted phase between 0 and 1
         self.predicted_phase = max(0, min(predicted_phase, 1))
+
+    def real_time_phase_estimator(self):
+        """
+        Create a feature vector by concatenating ACC, GYRO, and ABS VALUE OF THE DERIVATIVE OF SAGGITAL GYRO data for all sensors
+        using a single window size, predict phase using a trained model, and plot in real time.
+        """
+        # create a feature vector with the last data of each sensor
+        feature_vector = []
+        # Get the list of sensor labels
+        sensor_labels = list(self.sensor_names.keys())
+        do_it_once = 0
+
+        print(f"Derivative abs type 1: {type(self.derivative_abs)}")
+
+        # Concatenate ACC, GYRO, and OR data for each sensor
+        for sensor_label in sensor_labels:
+            # ACC data (X, Y, Z)
+            if do_it_once == 0:
+                do_it_once = 1
+                if sensor_label in self.plot_data_acc:
+                    for axis in ['X', 'Y', 'Z']:
+                        data = self.plot_data_acc[sensor_label].get(axis, [])
+                        feature_vector.append(data[-1] if data else 0.0)
+                    
+            # GYRO data (X, Y, Z)
+            if sensor_label in self.plot_data_gyro:
+                for axis in ['X', 'Y', 'Z']:
+                    data = self.plot_data_gyro[sensor_label].get(axis, [])
+                    feature_vector.append(data[-1] if data else 0.0)
+            
+                if type(self.derivative_abs) == np.ndarray:
+                    feature_vector.append(self.derivative_abs[-1])
+                    print(f"Derivative abs last value: {self.derivative_abs[-1]}")
+                else:
+                    feature_vector.append(0.0)
+
+        print(f"Feature vector: {feature_vector}")
+
+        # Check if we have any features
+        if not feature_vector:
+            return
+
+        # Compute the predicted phase using the trained model
+        predicted_phase = self.current_model.predict([feature_vector])[0]
+        # Convert the predicted phase to a numpy number
+        predicted_phase = np.array(predicted_phase).item()
+        # saturate the predicted phase between 0 and 1
+        self.predicted_phase = max(0, min(predicted_phase, 1))
+
+        print(f"predicted phase: {self.predicted_phase}")
+
+    def gyro_saggytal_filt_abs_derivative(self):
+        """
+        Real-time causal low-pass filtering (Butterworth, 6 Hz) of sagittal gyro (X-axis),
+        computes the absolute value, and its derivative.
+        """
+        sensor_label = self.imu_sensor_label
+        sample_rate = self.gyro_sample_rates[sensor_label]
+
+        self.gyro_x = self.complete_gyro_data[self.imu_sensor_label].get('X', [])
+        if len(self.gyro_x) < 20:
+            print("Not enough data to filter.")
+            return None, None
+        
+        # --- Butterworth low-pass filter parameters ---
+        cutoff = 1  # Hz
+        order = 4
+        nyq = 0.5 * sample_rate
+        normal_cutoff = cutoff / nyq
+
+        # Design filter
+        b, a = butter(order, normal_cutoff, btype='low', analog=False)
+
+        # Apply causal filter (lfilter)
+        gyro_x_array = np.array(self.gyro_x)
+        filtered_signal = lfilter(b, a, gyro_x_array)
+        # Absolute value
+        filtered_abs = np.abs(filtered_signal)
+
+        # Derivative
+        self.derivative_abs = np.gradient(filtered_abs)
+
+        # Time vector
+        self.derivative_abs_time = np.linspace(0, len(self.derivative_abs) / sample_rate, len(self.derivative_abs))

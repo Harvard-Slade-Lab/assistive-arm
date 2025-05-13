@@ -19,7 +19,7 @@ class Plotter:
         """Initialize the plot for EMG, ACC, GYRO, OR, and Phase Estimation."""
         self.parent.setWindowTitle(f'Subject {self.parent.subject_number} Trial {self.parent.trial_number}')
         sensor_labels = list(self.parent.sensor_names.keys())
-        total_rows = len(sensor_labels)+1
+        total_rows = len(sensor_labels)+2
         self.parent.plot_layout = QtWidgets.QGridLayout(self.parent.plot_widget)
 
         self.emg_plots = {}
@@ -46,6 +46,14 @@ class Plotter:
         self.parent.plot_layout.addWidget(self.pw_or_eul, 0, 5, total_rows, 1)
         self.eul_history = []
         self.eul_time = []
+
+        # Filtered saggytal gyro Plot
+        self.gyro_filt_plot = pg.PlotWidget(title='Saggytal Gyro')
+        self.gyro_filt_plot.setLabel('left', 'Orientation', units='deg/s')
+        self.gyro_filt_plot.setLabel('bottom', 'Time', units='s')
+        self.gyro_filt_plot.showGrid(x=True, y=True)
+        self.parent.plot_layout.addWidget(self.gyro_filt_plot, 0, 6, total_rows, 1)
+
 
 
         for i, sensor_label in enumerate(sensor_labels):
@@ -215,6 +223,23 @@ class Plotter:
             self.pw_or_eul.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
             self.pw_or_eul.setYRange(-180, 180)
             self.pw_or_eul.addLegend()
+
+        # Gyro Filtered Plot
+        # Plot derivative_abs and time coming from the parent class
+        if self.parent.derivative_abs is not None:
+            self.gyro_filt_plot.clear()
+            gyro_array = np.array(self.parent.derivative_abs)
+            sensor_label = self.parent.imu_sensor_label
+            sample_rate = self.parent.gyro_sample_rates[sensor_label]
+            time_array = np.arange(len(gyro_array)) / sample_rate
+            
+            self.gyro_filt_plot.plot(
+                time_array,
+                gyro_array,
+                name='Filtered Gyro',
+            )
+            self.gyro_filt_plot.setXRange(self.parent.total_elapsed_time, self.parent.total_elapsed_time + self.parent.window_duration)
+            self.gyro_filt_plot.addLegend()
 
 
         # Check if it reached the window size, increment the cumulative time
