@@ -436,12 +436,12 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
             )
             
             # Concatenate features horizontally for this timestamp's matrix
-            features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values[:, [0]]], axis=1)
+            features = np.concatenate([acc_interp.values, gyro_interp.values, or_interp.values[:, :2]], axis=1)
             timestamp_matrices[timestamp] = features
             acc_cols = [f"ACC_{col}" for col in acc_interp.columns]
             gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
             or_cols = [f"OR_{col}" for col in or_interp.columns]
-            feature_names = acc_cols + gyro_cols + [or_cols[0]]
+            feature_names = acc_cols + gyro_cols + or_cols[:2]
 
         else:
             step_data = CyclicSegmentationManager.motion_segmenter(
@@ -467,7 +467,12 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
 
                 
                 # Concatenate features for X matrix
-                features = np.concatenate([acc_interp.values, gyro_interp.values, abs_filtered_gyro_derivative_interp.values.reshape(-1, 1)], axis=1)
+                features = np.concatenate([
+                    acc_interp.values,
+                    gyro_interp.values,
+                    abs_filtered_gyro_derivative_interp.values.reshape(-1, 1),
+                    or_interp.values[:, :2]
+                ], axis=1)
 
                 # # Concatenate features for X matrix
                 # features = np.concatenate([gyro_interp.values, abs_filtered_gyro_derivative.values], axis=1)
@@ -478,9 +483,8 @@ def create_timestamp_matrices(acc_data, gyro_data, or_data, grouped_indices, seg
             gyro_cols = [f"GYRO_{col}" for col in gyro_interp.columns]
             abs_filtered_gyro_cols = [f"ABSGYRO_{col}" for col in pd.DataFrame(abs_filtered_gyro_derivative_interp).columns]
             or_cols = [f"OR_{col}" for col in or_interp.columns]
-            feature_names = acc_cols + gyro_cols + abs_filtered_gyro_cols
-            # feature_names = gyro_cols + abs_filtered_gyro_cols
-        
+            feature_names = acc_cols + gyro_cols + abs_filtered_gyro_cols + or_cols[:2]
+            # feature_names = acc_cols + gyro_cols + abs_filtered_gyro_cols        
         
             
     
