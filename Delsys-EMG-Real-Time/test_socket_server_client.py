@@ -3,7 +3,7 @@ import time
 import struct
 
 # Configuration
-SERVER_HOST = '10.250.16.32'  # Server IP address (replace with actual server IP)
+SERVER_HOST = '10.250.72.157'  # Server IP address (replace with actual server IP)
 SERVER_PORT = 3003       # Port that matches the server's port
 
 def connect_to_server(retries=1, delay=2):

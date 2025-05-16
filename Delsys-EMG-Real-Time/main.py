@@ -8,9 +8,9 @@ def main():
 
     data_directory = "C:/Users/patty/Desktop/Nate_3rd_arm/code/assistive-arm/Data/"
     # Flag for real time plots
-    plot = False
+    plot = True
     # Flag for Socket connection (can be changed with reconnect to raspi)
-    socket = False
+    socket = True
 
     # Flag for EMG control (default is wired IMU, also needs to be changed in control script)
     emg_control = False
@@ -24,6 +24,7 @@ def main():
         imu_processing = True
         # Flag for mixed processing (start detection through IMU, stop detection through OR)
         mixed_processing = False
+
     else:
         imu_processing = False
         mixed_processing = False

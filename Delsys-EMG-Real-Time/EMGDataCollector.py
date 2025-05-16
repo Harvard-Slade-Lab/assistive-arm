@@ -431,8 +431,12 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     # Send stop signal at the end of a trial
                     self.socket_server.send_data("Stop")
 
+            print(f"Motor_running: {self.motor_running}")
             # Basics need to work without socket connection for debugging
             if self.motor_running:
+                print(f"Imu processing: {self.imu_processing}")
+                print(f"Real time processing: {self.real_time_processing}")
+                print(f"Or channels per sensor: {self.or_channels_per_sensor}")
                 if self.imu_processing or not self.real_time_processing:
                     # Get start index
                     self.segment_start_idx_imu = len(self.complete_gyro_data[self.imu_sensor_label]['X'])
@@ -459,7 +463,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     self.assistive_profile_name = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                     
             if self.socket:
-                if not self.motor_running:             
+                if not self.motor_running:
                     if self.imu_processing or not self.real_time_processing:
                         # Send profile label to socket server for next profile
                         self.socket_server.send_data(f"Profile:{self.assistive_profile_name}")
@@ -593,8 +597,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         start_time = time.time()
 
+        print(f"motor_running: {self.motor_running}")
         while self.motor_running:
             try:
+                print(f"Entered in try block")
                 # Use lock so that the data is not modified while being read
                 with self.plot_data_lock:
                     data_copy = {k: v.copy() for k, v in self.complete_or_data.items()}
@@ -608,9 +614,12 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 # Calculate roll angle with inverted sign (more intiutive)
                 roll_angle = -np.arctan2(2.0 * (qw * qx + qy * qz), 1 - 2.0 * (qx ** 2 + qy ** 2))
 
+                print(f"socket:{self.socket}\t emg control:{self.emg_control}" )
+                print(f"Roll angle: {roll_angle}")  
                 # Send roll angle to the raspberry pi if neeeded
                 if self.socket and self.emg_control:
                     # Send roll angle rounded to 5 decimal places
+                    print(f"Sending roll angle to socket server: {round(roll_angle, 5)}")
                     self.socket_server.send_roll_angle_to_pi(round(roll_angle, 5))
 
                 if self.calibration:

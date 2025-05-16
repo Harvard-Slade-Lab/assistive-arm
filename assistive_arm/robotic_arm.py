@@ -51,7 +51,7 @@ def get_target_torques(theta_1: float, theta_2: float, current_roll_angle: float
     P_EE = calculate_ee_pos(theta_1=theta_1, theta_2=theta_2)
     jacobian = get_jacobian(theta_1, theta_2)
 
-    closest_point = abs(profiles.roll_angles - current_roll_angle).argmin()
+    closest_point = abs(profiles.roll_angles - current_roll_angle).argmin() # it's an index
     force_vector = profiles.iloc[closest_point][["force_X", "force_Y"]]
 
     tau_1, tau_2 = -jacobian.T @ force_vector

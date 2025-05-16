@@ -6,7 +6,7 @@ class SocketServer:
     Handles socket communication with the Raspberry Pi server.
     Manages separate connections for roll angles and other data.
     """
-    def __init__(self, host='10.250.155.171', roll_port=3001, data_port=3002):
+    def __init__(self, host='10.250.116.196', roll_port=3001, data_port=3002):
         self.host = host
         self.roll_port = roll_port
         self.data_port = data_port
@@ -25,6 +25,7 @@ class SocketServer:
 
     def send_roll_angle_to_pi(self, data):
         """Sends roll angle data to the Raspberry Pi."""
+        print(f"Sending roll angle: {data}")
         try:
             message = struct.pack('!cf', b'r', data)
             self.roll_socket.sendall(message)

@@ -43,7 +43,7 @@ def calibrate_profile(profile, roll_angles):
 
     new_min = min(roll_angles)
     new_max = max(roll_angles)
-
+    
     # Generate the roll angles array
     profile["roll_angles"] = np.linspace(new_min, new_max, num=num_entries).tolist()
     # Generate the percentage array

@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 
 # Directory to directly save the logs to remote host (laptop used for data analysis), also need to add Host in ~/.ssh/config
-PROJECT_DIR_REMOTE = Path("/Users/nathanirniger/Desktop/MA/Project/Code/assistive-arm")
+PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data/subject_logs")
 
 class SessionManager:
     """Handles session logging and data storage."""
