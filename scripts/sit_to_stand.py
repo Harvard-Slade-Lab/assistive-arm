@@ -31,7 +31,7 @@ PORT = 3003      # Arbitrary non-privileged port
 np.set_printoptions(precision=3, suppress=True)
 
 # Directory to directly save the logs to remote host, also need to add Host in ~/.ssh/config
-PROJECT_DIR_REMOTE = Path("/Users/nathanirniger/Desktop/MA/Project/Code/assistive-arm")
+PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data")
 
 class States(Enum):
     CALIBRATING = 1

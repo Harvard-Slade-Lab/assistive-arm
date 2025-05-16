@@ -162,7 +162,7 @@ class CubemarsMotor:
 
         tries = 0
         while not self.connected:
-            print("\nSending starting command...")
+            print("\ng starting command...")
             try:
                 self.can_bus.send(self._send_message(data=start_motor_mode))
                 print("Waiting for response...")

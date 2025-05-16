@@ -56,7 +56,7 @@ def calibrate_profile(profile, roll_angles):
 
 if __name__ == "__main__":
 
-    subject_id = "Validation"
+    subject_id = "Haedo"
     subject_folder = Path(f"./subject_logs/subject_{subject_id}")
     session_manager = SessionManager(subject_id=subject_id)
 
@@ -74,9 +74,9 @@ if __name__ == "__main__":
     trigger_mode = "SOCKET" # TRIGGER, ENTER or SOCKET
 
     # Chose how many unassisted iterations
-    iterations_unassisted = 10
+    iterations_unassisted = 1
     # Chose how many repetitions for each condition
-    iterations_per_condition = 10
+    iterations_per_condition = 5
 
     # Flag to decide wether the emg IMU (True) or the wired IMU should be used for control
     emg_control = False

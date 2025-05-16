@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-PROJECT_DIR_REMOTE = Path("/Users/nathanirniger/Desktop/MA/Project/Code/assistive-arm")
+PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data")
 
 class DataExporter:
     def __init__(self, parent):

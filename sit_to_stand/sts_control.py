@@ -191,6 +191,9 @@ def control_loop_and_log(
             else:
                 print("Maximum roll angle exceeded. Stopping...")
                 break
+        # print(f"tau_1: {tau_1}, tau_2: {tau_2}")
+        # tau_1 = 0
+        # tau_2 = 0
 
         if apply_force and t >= 0.1:
             if not printed:

@@ -124,10 +124,10 @@ if __name__ == "__main__":
         elif choice == '2':
             print("Calibrating motor... Do not touch.")
             time.sleep(1)
-            limit_tracking(motor_2, direction='right', velocity=3)
+            limit_tracking(motor_2, direction='right', velocity=1.5)
             print("Sleeping...")
             time.sleep(2)
-            left_limit = limit_tracking(motor_2, direction='left', velocity=3)
+            left_limit = limit_tracking(motor_2, direction='left', velocity=1.5)
             print("Angle range: ", [0, np.rad2deg(left_limit)])
             print(f"Setting zero position to {np.rad2deg(left_limit/2): .2f}º...")
             time.sleep(1.5)
