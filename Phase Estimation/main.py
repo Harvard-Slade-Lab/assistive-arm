@@ -5,6 +5,7 @@ from tkinter.filedialog import askdirectory
 from Interpolation import interpolate_and_visualize
 import DataLoader
 import DataLoaderYinkai
+import DataLoaderIMU
 import MatrixCreator
 import TestManager
 from Regression_Methods import RidgeRegressionCV
@@ -14,7 +15,7 @@ from Regression_Methods import SVR_Reg
 from Regression_Methods import RandomForest
 
 # Frequencies:
-frequencies = [519, 519, 222]  # Gyro, Acc, OR
+frequencies = [519, 519, 519]  # Gyro, Acc, OR
 # frequencies = [370.3704, 370.3704, 74.0741]  # Gyro, Acc, OR
 
 
@@ -36,15 +37,15 @@ try:
     # Segmentation Selection:
     segment_choice = input("Select segmentation method:\n1. GyroMagnitude Segmentation\n2. ARED Segmentation\n3. SHOE Segmentation\n4. ARED_VARSegmentation\n5. Cyclic Segmentation").strip()
     # Decide to load Yinkai's choice or not
-    load_choice = input("Select loading method:\n1. Original choice\n2. Yinkai's choice").strip()
+    load_choice = input("Select loading method:\n1. Original choice\n2. Wired IMU").strip()
 
     if load_choice == '2':
         # Load and process files
-        acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderYinkai.load_and_process_files(folder_path)
+        acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderIMU.load_and_process_files(folder_path)
         print(f"Loaded {len(acc_files)} ACC files, {len(gyro_files)} GYRO files, and {len(or_files)} OR files")
         
         # Group files by timestamp
-        grouped_indices = DataLoaderYinkai.group_files_by_timestamp(acc_files, gyro_files, or_files)
+        grouped_indices = DataLoaderIMU.group_files_by_timestamp(acc_files, gyro_files, or_files)
         print(f"Found {len(grouped_indices)} complete data sets")
         if not grouped_indices:
             print("No complete data sets found. Exiting...")
@@ -59,7 +60,7 @@ try:
         if not grouped_indices:
             print("No complete data sets found. Exiting...")
 
-    # Create X and Y matrices
+     # Create X and Y matrices
     X, Y, timestamps, segment_lengths, feature_names = MatrixCreator.create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=training_segmentation_flag, interpPlot_flag=training_interpolation_flag)
     print(f"Created X matrix with shape {X.shape} and Y matrix with length {len(Y)}")
     

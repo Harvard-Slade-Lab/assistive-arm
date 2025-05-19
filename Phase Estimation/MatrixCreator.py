@@ -20,14 +20,13 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
     executed = False
     for timestamp in sorted_timestamps:
         indices = grouped_indices[timestamp]
-        
         # Get the data for this timestamp
         acc = acc_data[indices["acc"]]
         gyro = gyro_data[indices["gyro"]]
         or_data_item = or_data[indices["or"]]
 
-        euler_data_item = quaternion_to_euler(or_data_item, frequencies[2])
-        or_data_item = euler_data_item
+        # euler_data_item = quaternion_to_euler(or_data_item, frequencies[2])
+        # or_data_item = euler_data_item
         
         
         print(f"Processing data set from timestamp: {timestamp}")
