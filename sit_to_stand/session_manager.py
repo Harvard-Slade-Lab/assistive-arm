@@ -23,7 +23,6 @@ class SessionManager:
         self.yaml_path = None
 
         self.get_yaml_path("device_height_calibration")
-        self.load_device_height_calibration()
 
     def set_up_logging_dir(self):
         """Set up directories for logging."""
@@ -51,21 +50,22 @@ class SessionManager:
         #     print(f"Removing {log_path}")
         #     os.remove(log_path)
 
-    def load_device_height_calibration(self) -> pd.Series:
-        """Load the device height calibration data."""
-        # If the file exists, load the calibration data
-        if self.yaml_path is not None:
-            if self.yaml_path.exists():
-                with open(self.yaml_path, "r") as f:
-                    calibration_data = yaml.safe_load(f)
-                self.roll_angles = pd.DataFrame(calibration_data["roll_angles"])
-                self.roll_angles.index = calibration_data["Percentage"]
-                self.roll_angles.columns = ["roll_angles"]
-                self.max_roll_angle = self.roll_angles["roll_angles"].max()
-                return 1
-            else:
-                print("No calibration data found.")
-                return None
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # def load_device_height_calibration(self) -> pd.Series:
+    #     """Load the device height calibration data."""
+    #     # If the file exists, load the calibration data
+    #     if self.yaml_path is not None:
+    #         if self.yaml_path.exists():
+    #             with open(self.yaml_path, "r") as f:
+    #                 calibration_data = yaml.safe_load(f)
+    #             self.roll_angles = pd.DataFrame(calibration_data["roll_angles"])
+    #             self.roll_angles.index = calibration_data["Percentage"]
+    #             self.roll_angles.columns = ["roll_angles"]
+    #             self.max_roll_angle = self.roll_angles["roll_angles"].max()
+    #             return 1
+    #         else:
+    #             print("No calibration data found.")
+    #             return None
 
     def get_yaml_path(self, yaml_name: str) -> Path:
         yaml_file = f"{yaml_name}.yaml"

@@ -31,6 +31,9 @@ from Phase_Estimation.Regression_Methods import SVR_Reg
 # DA CAMBIARE_--------------------------
 training_segmentation_flag = False
 
+# Global Variables:
+current_model = None
+phase_baseline = None
 
 
 def calibrate_height(
@@ -49,6 +52,7 @@ def calibrate_height(
         socket_server (SocketServer): Socket server instance for communication.
         imu_reader (IMUReader): IMU reader instance for roll angle data.
     """
+    global current_model, phase_baseline
     # Use session_manager to retrieve the YAML path for calibration data
     yaml_path = session_manager.yaml_path
 
@@ -60,8 +64,9 @@ def calibrate_height(
     roll_angles = []
     start_time = 0
 
+    subject_name = input("Enter the subject name: ")
     try:
-        for training in range(1):
+        for training in range(5):
             print(f"\nTraining iteration {training + 1} of 5\n")
 
             # Wait for trigger signal and start recording based on mode
@@ -141,10 +146,11 @@ def calibrate_height(
             # Generate the file name with the current date and trial number
             file_name = f"IMU_Profile_{current_date}_Trial_{training + 1}.csv"
 
+            length_data = min(len(roll_angle), len(pitch_angle), len(yaw_angle), len(accX), len(accY), len(accZ), len(gyroX), len(gyroY), len(gyroZ))
             # Export data to CSV
             with open(file_name, "w") as f:
                 f.write("Roll,Pitch,Yaw,AccX,AccY,AccZ,GyroX,GyroY,GyroZ\n")
-                for i in range(min(len(roll_angle), len(pitch_angle), len(yaw_angle), len(accX), len(accY), len(accZ), len(gyroX), len(gyroY), len(gyroZ))):
+                for i in range(length_data):
                     f.write(f"{roll_angle[i]},{pitch_angle[i]},{yaw_angle[i]},"
                             f"{accX[i]},{accY[i]},{accZ[i]},"
                             f"{gyroX[i]},{gyroY[i]},{gyroZ[i]}\n")
@@ -152,12 +158,27 @@ def calibrate_height(
 
             # Save the file to the remote directory
             PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data/subject_logs")
-            # Create a new folder with the current date and hour
-            current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            session_remote_dir = PROJECT_DIR_REMOTE / f"session_{current_datetime}"
-            os.system(f'ssh macbook "mkdir -p {session_remote_dir}"')
+            # Create a new folder with subject_name
+            session_remote_dir = PROJECT_DIR_REMOTE / f"Subject_{subject_name}"
+            # Check remotely if the folder exists; if not, create it
+            check_and_create_cmd = f'ssh macbook "[ -d \\"{session_remote_dir}\\" ] || mkdir -p \\"{session_remote_dir}\\""'
+            os.system(check_and_create_cmd)
+            # Save the file to the remote directory
             os.system(f"scp {file_name} macbook:{session_remote_dir}")
             print(f"Data file '{file_name}' sent to remote directory.")
+
+        # Copy the folder from the macbook to the Raspi
+        folder_remote = session_remote_dir
+        folder_local = "/home/xabier/Documents/Data_AssistiveArm/Training"
+        folder_local = Path(folder_local)  # Convert string to Path
+        folder_training_raspi = folder_local / f"Subject_{subject_name}"
+        # Check if the folder exists on the Raspi
+        if not os.path.exists(folder_training_raspi):
+            os.system(f"scp -r macbook:{folder_remote} {folder_local}")
+        else:
+            print(f"Error! Folder {folder_training_raspi} already exists.")
+            print("Using old data for training.")
+
 
         # Load the Data for the Training:
         frequencies = [200, 200, 200]
@@ -166,12 +187,7 @@ def calibrate_height(
             print("No folder selected. Training cancelled.")
             
         segment_choice = input("Select segmentation method:\n1. for One Shot\n2. for Cyclic\n ")
-
-        folder_remote = session_remote_dir
-        folder_local = "/home/xabier/Documents/Data_AssistiveArm/Training"
-        os.system(f"scp -r macbook:{folder_remote} {folder_local}")
-        folder_local = Path(folder_local)  # Convert string to Path
-        folder_training_raspi = folder_local / f"session_{current_datetime}"
+   
 
         # Load and process files
         acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderIMU.load_and_process_files(folder_training_raspi)
@@ -220,10 +236,10 @@ def calibrate_height(
 
         joblib.dump(svr_model, 'svr_phase_model.joblib')
         current_model = svr_model['model']
-        print("Regression Finished!")
+        print("Training Finished!")
 
-
-
+        num_entries = length_data
+        phase_baseline = np.linspace(0, 100, num_entries)
 
 
         # # Calibration calculations
@@ -270,6 +286,7 @@ def control_loop_and_log(
         imu_reader: IMUReader,
         session_manager: SessionManager):
     
+    global current_model, phase_baseline
     # Reset the motor buffers
     motor_1.new_run = True
     motor_2.new_run = True
@@ -304,24 +321,38 @@ def control_loop_and_log(
         # Maybe want to move this into the function
         with threading.Lock():
             if imu_reader is not None:
-                roll_angle = imu_reader.imu_data.pitch
+                # here we can extract all imu data and compute the phase
+                roll_angle = imu_reader.imu_data.roll
+                pitch_angle = imu_reader.imu_data.pitch
+                yaw_angle = imu_reader.imu_data.yaw
+                accX = imu_reader.imu_data.accX
+                accY = imu_reader.imu_data.accY
+                accZ = imu_reader.imu_data.accZ
+                gyroX = imu_reader.imu_data.gyroX
+                gyroY = imu_reader.imu_data.gyroY
+                gyroZ = imu_reader.imu_data.gyroZ
+
+                # Compute the phase using the SVR model
+                current_phase = current_model.predict(np.array([[accX, accY, accZ, gyroX, gyroY, gyroZ, roll_angle, pitch_angle]]))*100
+                # Saturate the phase between 0 and 100
+                current_phase = max(0, min(current_phase[0], 100))
             else:
                 roll_angle = socket_server.roll_angle
         
         if motor_1.swapped_motors:
-            tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_2.position, theta_2=motor_1.position, current_roll_angle=roll_angle, profiles=profile)
+            tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_2.position, theta_2=motor_1.position, current_phase=current_phase, profiles=profile)
         else:
-            tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_1.position, theta_2=motor_2.position, current_roll_angle=roll_angle, profiles=profile)
+            tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_1.position, theta_2=motor_2.position, current_phase=current_phase, profiles=profile)
 
         # Stop if the roll angle is larger than the maximum roll angle
-        if roll_angle > session_manager.max_roll_angle-1.0 and t > 0.1:
+        if current_phase > 99 and t > 0.1:
             # Wait for emg collection to stop, so there is no mess with the file naming
             if socket_server is not None:
                 if apply_force:
-                    print("Maximum roll angle exceeded. Setting torques to zero.")
+                    print("Maximum phase exceeded. Setting torques to zero.")
                     apply_force = False
             else:
-                print("Maximum roll angle exceeded. Stopping...")
+                print("Maximum phase exceeded. Stopping...")
                 break
 
         if apply_force and t >= 0.1:
@@ -454,7 +485,10 @@ def collect_unpowered_data(
         socket_server (SocketServer): Socket server instance for connection control.
         imu_reader (IMUReader): IMU reader instance for roll angle data.
     """ 
-    profile = session_manager.roll_angles
+    global current_model, phase_baseline
+
+    profile = pd.DataFrame(phase_baseline)
+    profile.columns = ["phase_baseline"]
     # Add columns with zero force
     profile["force_X"] = 0
     profile["force_Y"] = 0

@@ -114,7 +114,7 @@ if __name__ == "__main__":
                     time.sleep(1)
 
                 # If the device is not calibrated for the user's height, the user will not be able to collect data
-                elif choice == States.UNPOWERED_COLLECTION and session_manager.load_device_height_calibration() is not None:
+                elif choice == States.UNPOWERED_COLLECTION:
                     can_bus, motor_1, motor_2 = setup_can_and_motors()
                     try:
                         collect_unpowered_data(
