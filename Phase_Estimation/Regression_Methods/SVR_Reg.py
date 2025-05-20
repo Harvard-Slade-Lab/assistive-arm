@@ -145,6 +145,8 @@ def enhanced_svr_regression(X, y, kernel='rbf', param_grid=None, cv=5, plot=True
         plt.ylabel('Residual Error (%)')
         
         plt.tight_layout()
+        # Save the figure
+        plt.savefig('svr_regression_analysis.png')
         plt.show()
         
         # Analyze and print SVR model details

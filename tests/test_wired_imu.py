@@ -2,6 +2,7 @@ import struct
 import can
 import os
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 
 # CAN message IDs for IMU data
@@ -129,9 +130,31 @@ if __name__ == "__main__":
     axs[2].set_xlabel("Sample Index")
 
     plt.tight_layout()
-    plt.show()
+    plt.savefig("imu_data_plot.png")
+    print("Plot saved as 'imu_data_plot.png'.")
 
-    print("Plotting complete.")
+    # Export data to CSV
+    with open("imu_data.csv", "w") as f:
+        f.write("Roll,Pitch,Yaw,AccX,AccY,AccZ,GyroX,GyroY,GyroZ\n")
+        for i in range(len(imu_data.roll)):
+            f.write(f"{imu_data.roll[i]},{imu_data.pitch[i]},{imu_data.yaw[i]},"
+                    f"{imu_data.accX[i]},{imu_data.accY[i]},{imu_data.accZ[i]},"
+                    f"{imu_data.gyroX[i]},{imu_data.gyroY[i]},{imu_data.gyroZ[i]}\n")
+    print("Data exported to 'imu_data.csv'.")
+
+    # Save the imu_data.csv to my remote directory
+    PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data/subject_logs")
+    session_remote_dir = Path(f"{PROJECT_DIR_REMOTE}") 
+    os.system(f"scp imu_data.csv macbook:{session_remote_dir}")
+    print("Data file sent to remote directory.")
+
+
+ 
+
+
+
+
+
 
 
 

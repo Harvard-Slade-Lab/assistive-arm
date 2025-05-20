@@ -1,12 +1,11 @@
-import BiasAndSegmentation
-import Interpolation
+from Phase_Estimation import BiasAndSegmentation
+from Phase_Estimation import Interpolation
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import itertools
 from scipy.interpolate import interp1d
-import CyclicSegmentationManager
-from Phase_Estimation.Segmentation_Methods import GyroSaggitalSegm
+from Phase_Estimation import CyclicSegmentationManager
 from Phase_Estimation.EulerTransform import quaternion_to_euler
 
 def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choice, frequencies, biasPlot_flag=True, interpPlot_flag=False):
@@ -30,8 +29,6 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         print(f"Processing data set from timestamp: {timestamp}")
 
         if segment_choice == '1':
-            euler_data_item = quaternion_to_euler(or_data_item, frequencies[2])
-            or_data_item = euler_data_item
             # Apply the segmentation and bias correction
             gyro_processed, acc_processed, or_processed, *_ = BiasAndSegmentation.segmentation_and_bias(
                 gyro, acc, or_data_item, timestamp=timestamp, frequencies=frequencies, plot_flag=biasPlot_flag
@@ -305,6 +302,8 @@ def visualize_matrices(X, Y, timestamps, segment_lengths, feature_names):
         ax1.axvline(x=pos, color='r', linestyle='--', alpha=0.5)
         ax2.axvline(x=pos, color='r', linestyle='--', alpha=0.5)
     plt.tight_layout()
+    # Save the plot:
+    plt.savefig("IMU Signals for Training.png")
     plt.show()
 
 

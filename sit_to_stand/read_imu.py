@@ -24,8 +24,22 @@ class IMUData:
         self.gyroY = 0.0
         self.gyroZ = 0.0
 
+class IMUDataHistory:
+    """Class history of IMU Data."""
+    def __init__(self):
+        self.roll = []
+        self.pitch = []
+        self.yaw = []
+        self.accX = []
+        self.accY = []
+        self.accZ = []
+        self.gyroX = []
+        self.gyroY = []
+        self.gyroZ = []
+
 class IMUReader:
     def __init__(self, channel='can1', bustype='socketcan', bitrate=1000000):
+        self.imu_data_history = IMUDataHistory()
         self.imu_data = IMUData()
         self.channel = channel
         self.bustype = bustype
@@ -44,22 +58,41 @@ class IMUReader:
 
         with self._lock:
             if imu_type == IMU_DATA1:  # Roll, Pitch
-                # self.imu_data.roll = self.convert_bytes_to_float(data[0:4])
-                # Currently I only need the pitch angle, inverted sign for intuition and consistancy with the EMG data
-                # In other scripts .pitch is called but then always passed as roll angle (don't get confused by this)
-                self.imu_data.pitch = -self.convert_bytes_to_float(data[4:8])
-            # elif imu_type == IMU_DATA2:  # Yaw
-            #     self.imu_data.yaw = self.convert_bytes_to_float(data[0:4])
-            # elif imu_type == IMU_DATA3:  # AccX, AccY
-            #     self.imu_data.accX = self.convert_bytes_to_float(data[0:4])
-            #     self.imu_data.accY = self.convert_bytes_to_float(data[4:8])
-            # elif imu_type == IMU_DATA4:  # AccZ
-            #     self.imu_data.accZ = self.convert_bytes_to_float(data[0:4])
-            # elif imu_type == IMU_DATA5:  # GyroX, GyroY
-            #     self.imu_data.gyroX = self.convert_bytes_to_float(data[0:4])
-            #     self.imu_data.gyroY = self.convert_bytes_to_float(data[4:8])
-            # elif imu_type == IMU_DATA6:  # GyroZ
-            #     self.imu_data.gyroZ = self.convert_bytes_to_float(data[0:4])
+                # History
+                self.imu_data_history.roll.append(self.convert_bytes_to_float(data[0:4]))
+                self.imu_data_history.pitch.append(self.convert_bytes_to_float(data[4:8]))
+                # Current
+                self.imu_data.roll = self.convert_bytes_to_float(data[0:4])
+                self.imu_data.pitch = self.convert_bytes_to_float(data[4:8])
+            elif imu_type == IMU_DATA2:  # Yaw
+                # History
+                self.imu_data_history.yaw.append(self.convert_bytes_to_float(data[0:4]))
+                # Current
+                self.imu_data.yaw = self.convert_bytes_to_float(data[0:4])
+            elif imu_type == IMU_DATA3:  # AccX, AccY
+                # History
+                self.imu_data_history.accX.append(self.convert_bytes_to_float(data[0:4]))
+                self.imu_data_history.accY.append(self.convert_bytes_to_float(data[4:8]))
+                # Current
+                self.imu_data.accX = self.convert_bytes_to_float(data[0:4])
+                self.imu_data.accY = self.convert_bytes_to_float(data[4:8])
+            elif imu_type == IMU_DATA4:  # AccZ
+                # History
+                self.imu_data_history.accZ.append(self.convert_bytes_to_float(data[0:4]))
+                # Current
+                self.imu_data.accZ = self.convert_bytes_to_float(data[0:4])
+            elif imu_type == IMU_DATA5:  # GyroX, GyroY
+                # History
+                self.imu_data_history.gyroX.append(self.convert_bytes_to_float(data[0:4]))
+                self.imu_data_history.gyroY.append(self.convert_bytes_to_float(data[4:8]))
+                # Current
+                self.imu_data.gyroX = self.convert_bytes_to_float(data[0:4])
+                self.imu_data.gyroY = self.convert_bytes_to_float(data[4:8])
+            elif imu_type == IMU_DATA6:  # GyroZ
+                # History
+                self.imu_data_history.gyroZ.append(self.convert_bytes_to_float(data[0:4]))
+                # Current
+                self.imu_data.gyroZ = self.convert_bytes_to_float(data[0:4])
 
     def read_imu_data(self):
         """Continuously read and process IMU data from the CAN bus."""

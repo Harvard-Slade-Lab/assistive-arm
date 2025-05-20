@@ -5,10 +5,7 @@ from scipy.signal import savgol_filter
 from scipy.signal import butter
 from scipy.signal import filtfilt
 from scipy.signal import find_peaks
-import Interpolation
-from Segmentation_Methods import AREDCyclicSegm
-from Segmentation_Methods import Cyclic_PeaksSegmentation
-from Segmentation_Methods import GyroSaggitalSegm
+from Phase_Estimation.Segmentation_Methods import GyroSaggitalSegm
 
 plot_flag_gyro = False  # Flag to plot gyro data
 

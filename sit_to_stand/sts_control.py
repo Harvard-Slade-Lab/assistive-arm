@@ -20,6 +20,17 @@ from session_manager import SessionManager, get_logger
 from socket_server import SocketServer
 from read_imu import IMUReader
 from sts_utils import await_trigger_signal, countdown
+from datetime import datetime
+
+import joblib
+from Phase_Estimation import DataLoaderIMU
+from Phase_Estimation import MatrixCreator
+from Phase_Estimation.Regression_Methods import SVR_Reg
+
+
+# DA CAMBIARE_--------------------------
+training_segmentation_flag = False
+
 
 
 def calibrate_height(
@@ -50,78 +61,199 @@ def calibrate_height(
     start_time = 0
 
     try:
-        await_trigger_signal(mode=mode, socket_server=socket_server)
+        for training in range(1):
+            print(f"\nTraining iteration {training + 1} of 5\n")
 
-        # Start reading from the IMU
-        if imu_reader is not None:
-            imu_reader.start_reading_imu_data()
+            # Wait for trigger signal and start recording based on mode
+            await_trigger_signal(mode=mode, socket_server=socket_server) # --> using SOCKET mode, you have to press the Button on the EMG Laptop
 
-        countdown(duration=3)
+            # Start reading from the IMU
+            if imu_reader is not None:
+                imu_reader.start_reading_imu_data()
 
-        print("Calibration started. Please perform the sit-to-stand motion.")
+            countdown(duration=3)
 
-        sts_start = time.time()
+            print("\nTraining started. Please perform the sit-to-stand motion.\n")
 
-        for t in loop:
-            if socket_server is not None:
-                if socket_server.mode_flag or socket_server.kill_flag:
+            sts_start = time.time()
+            
+            for t in loop:
+                if socket_server is not None:
+                    if socket_server.mode_flag or socket_server.kill_flag:
+                        print("Stopped recording, exiting...")
+                        break
+                if mode == "TRIGGER" and GPIO.input(17):
                     print("Stopped recording, exiting...")
                     break
-            if mode == "TRIGGER" and GPIO.input(17):
-                print("Stopped recording, exiting...")
-                break
-            elif mode == "SOCKET" and not socket_server.collect_flag:
-                print("Stopped recording, exiting...")
-                break
+                elif mode == "SOCKET" and not socket_server.collect_flag:
+                    print("Stopped recording, exiting...")
+                    break
+                
+
+
+                # with threading.Lock():
+                #     if imu_reader is not None:
+                #         roll_angle = imu_reader.imu_data.pitch
+                #     else:
+                #         roll_angle = socket_server.roll_angle
+
+                # if roll_angle is not None:
+                #     roll_angles.append(roll_angle)
+
+                # if t - start_time >= 0.05:
+                #     print(f"Roll angle: {roll_angle}", end="\r")
+                #     start_time = t
+
+
+
+
+            # Stop the IMU reader
+            if imu_reader is not None:
+                imu_reader.stop_reading_imu_data()
+
+            # Extract the acquired DATA from the Wired IMU
+            roll_angle = imu_reader.imu_data_history.roll
+            pitch_angle = imu_reader.imu_data_history.pitch
+            yaw_angle = imu_reader.imu_data_history.yaw
+            accX = imu_reader.imu_data_history.accX
+            accY = imu_reader.imu_data_history.accY
+            accZ = imu_reader.imu_data_history.accZ
+            gyroX = imu_reader.imu_data_history.gyroX
+            gyroY = imu_reader.imu_data_history.gyroY
+            gyroZ = imu_reader.imu_data_history.gyroZ
+
+            # Print the length of all the single vectors for DEBUG:
+            # print(f"Length of roll angle: {len(roll_angle)}")
+            # print(f"Length of pitch angle: {len(pitch_angle)}")
+            # print(f"Length of yaw angle: {len(yaw_angle)}")
+            # print(f"Length of accX: {len(accX)}")
+            # print(f"Length of accY: {len(accY)}")
+            # print(f"Length of accZ: {len(accZ)}")
+            # print(f"Length of gyroX: {len(gyroX)}")
+            # print(f"Length of gyroY: {len(gyroY)}")
+            # print(f"Length of gyroZ: {len(gyroZ)}")
+
+            sts_duration = time.time() - sts_start
+
+            # Get the current date and time
+            current_date = datetime.now().strftime("%Y-%m-%d")
+
+            # Generate the file name with the current date and trial number
+            file_name = f"IMU_Profile_{current_date}_Trial_{training + 1}.csv"
+
+            # Export data to CSV
+            with open(file_name, "w") as f:
+                f.write("Roll,Pitch,Yaw,AccX,AccY,AccZ,GyroX,GyroY,GyroZ\n")
+                for i in range(min(len(roll_angle), len(pitch_angle), len(yaw_angle), len(accX), len(accY), len(accZ), len(gyroX), len(gyroY), len(gyroZ))):
+                    f.write(f"{roll_angle[i]},{pitch_angle[i]},{yaw_angle[i]},"
+                            f"{accX[i]},{accY[i]},{accZ[i]},"
+                            f"{gyroX[i]},{gyroY[i]},{gyroZ[i]}\n")
+            print(f"Data exported to '{file_name}'.")
+
+            # Save the file to the remote directory
+            PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data/subject_logs")
+            # Create a new folder with the current date and hour
+            current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            session_remote_dir = PROJECT_DIR_REMOTE / f"session_{current_datetime}"
+            os.system(f'ssh macbook "mkdir -p {session_remote_dir}"')
+            os.system(f"scp {file_name} macbook:{session_remote_dir}")
+            print(f"Data file '{file_name}' sent to remote directory.")
+
+        # Load the Data for the Training:
+        frequencies = [200, 200, 200]
+        folder_path = session_remote_dir
+        if not folder_path:
+            print("No folder selected. Training cancelled.")
             
-            with threading.Lock():
-                if imu_reader is not None:
-                    roll_angle = imu_reader.imu_data.pitch
-                else:
-                    roll_angle = socket_server.roll_angle
+        segment_choice = input("Select segmentation method:\n1. for One Shot\n2. for Cyclic\n ")
 
-            if roll_angle is not None:
-                roll_angles.append(roll_angle)
+        folder_remote = session_remote_dir
+        folder_local = "/home/xabier/Documents/Data_AssistiveArm/Training"
+        os.system(f"scp -r macbook:{folder_remote} {folder_local}")
+        folder_local = Path(folder_local)  # Convert string to Path
+        folder_training_raspi = folder_local / f"session_{current_datetime}"
 
-            if t - start_time >= 0.05:
-                print(f"Roll angle: {roll_angle}", end="\r")
-                start_time = t
-        # Stop the IMU reader
-        if imu_reader is not None:
-            imu_reader.stop_reading_imu_data()
+        # Load and process files
+        acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderIMU.load_and_process_files(folder_training_raspi)
+        print(f"Loaded {len(acc_files)} ACC files, {len(gyro_files)} GYRO files, and {len(or_files)} OR files")
 
-        sts_duration = time.time() - sts_start
+        grouped_indices = DataLoaderIMU.group_files_by_timestamp(acc_files, gyro_files, or_files)
+        print(f"Found {len(grouped_indices)} complete data sets")   
 
-        print("\nRecording stopped. Processing data...\n")
+        # If you want to add fictitious trials, there is a section in create_matrices that can be modified
+        X, Y, timestamps, segment_lengths, feature_names = MatrixCreator.create_matrices(
+            acc_data, gyro_data, or_data, grouped_indices,
+            segment_choice, frequencies,
+            biasPlot_flag=training_segmentation_flag
+        )
 
-        # Calibration calculations
-        roll_angles = np.array(roll_angles)
-        new_max = roll_angles.max() - 1
-        new_min = roll_angles.min() + 1
+        print(f"Created X matrix with shape {X.shape} and Y matrix with length {len(Y)}")
 
-        # Clip roll angles
-        roll_angles = np.clip(roll_angles, new_min, new_max)
+        print("\nColumn information:")
+        for i, name in enumerate(feature_names):
+            print(f"Column {i}: {name}")
 
-        # Calculate the number of entries
-        num_entries = int(sts_duration * freq)
+        MatrixCreator.visualize_matrices(X, Y, timestamps, segment_lengths, feature_names)
 
-        # Store calibration data
-        calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
-        # Generate the roll angles array
-        calibration_data["roll_angles"] = np.linspace(new_min, new_max, num=num_entries).tolist()
-        # Generate the percentage array
-        calibration_data["Percentage"] = np.linspace(0, 100, num=num_entries).tolist()
+        print("Do you want to use FAST computation for the SVR grid search?")
+        fast_comput = input("yes or no? ")
 
-        remote_path = session_manager.session_remote_dir
+        if fast_comput == 'yes':
+            param_grid = {
+                'svr__C': [100],
+                'svr__epsilon': [0.01],
+                'svr__gamma': [0.01]
+            }
+        else:
+            param_grid = {
+                'svr__C': np.logspace(-3, 3, 7),
+                'svr__epsilon': np.logspace(-3, 0, 4),
+                'svr__gamma': np.logspace(-4, 1, 6)
+            }
 
-        # Save calibration data in YAML and sync with the remote directory
-        with open(yaml_path, "w") as f:
-            yaml.dump(calibration_data, f)
-        try:
-            os.system(f"scp {yaml_path} macbook:{remote_path}")
-        except Exception as e:
-            print(f"Error transferring YAML file: {e}")
-            
+        svr_model, y_svr = SVR_Reg.enhanced_svr_regression(
+            X, Y, kernel='rbf',
+            param_grid=param_grid,
+            plot=True,
+            frequencies=frequencies
+        )
+
+        joblib.dump(svr_model, 'svr_phase_model.joblib')
+        current_model = svr_model['model']
+        print("Regression Finished!")
+
+
+
+
+
+        # # Calibration calculations
+        # roll_angles = np.array(roll_angles)
+        # new_max = roll_angles.max() - 1
+        # new_min = roll_angles.min() + 1
+
+        # # Clip roll angles
+        # roll_angles = np.clip(roll_angles, new_min, new_max)
+
+        # # Calculate the number of entries
+        # num_entries = int(sts_duration * freq)
+
+        # # Store calibration data
+        # calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
+        # # Generate the roll angles array
+        # calibration_data["roll_angles"] = np.linspace(new_min, new_max, num=num_entries).tolist()
+        # # Generate the percentage array
+        # calibration_data["Percentage"] = np.linspace(0, 100, num=num_entries).tolist()
+
+        # remote_path = session_manager.session_remote_dir
+
+        # # Save calibration data in YAML and sync with the remote directory
+        # with open(yaml_path, "w") as f:
+        #     yaml.dump(calibration_data, f)
+        # try:
+        #     os.system(f"scp {yaml_path} macbook:{remote_path}")
+        # except Exception as e:
+        #     print(f"Error transferring YAML file: {e}")
+        
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 

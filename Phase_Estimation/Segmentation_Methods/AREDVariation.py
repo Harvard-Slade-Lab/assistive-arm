@@ -3,9 +3,6 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 from tkinter.filedialog import askdirectory
-from Interpolation import interpolate_and_visualize
-import DataLoader
-import MatrixCreator
 
 # ----------- HYPERPARAMETERS -----------------
 # Hyperparameters for bias removal
