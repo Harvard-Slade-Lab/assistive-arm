@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # Chose how much exploration is done (add the amount of informed profiles)
     exploration_iterations = 14
     # Chose how many unassisted iterations
-    iterations_unassisted = 10
+    iterations_unassisted = 2
     # Chose how many repetitions for each condition
     iterations_per_parameter_set = 3
     # Peak force
@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
                 if choice == States.CALIBRATING:
                     can_bus, motor_1, motor_2 = setup_can_and_motors()
-                    calibrate_height(
+                    phase_baseline = calibrate_height(
                         freq=freq,
                         session_manager=session_manager,
                         mode=trigger_mode,
@@ -133,7 +133,7 @@ if __name__ == "__main__":
                     shutdown_can_and_motors(can_bus, motor_1, motor_2)
                     time.sleep(1)
 
-                elif choice == States.HILO and session_manager.load_device_height_calibration() is not None:
+                elif choice == States.HILO:
                     can_bus, motor_1, motor_2 = setup_can_and_motors()
                     profile_optimizer = ForceProfileOptimizer(
                             motor_1=motor_1,
@@ -149,6 +149,7 @@ if __name__ == "__main__":
                             scale_factor_x=scale_factor_x,
                             max_time=max_time,
                             minimum_width_p=minimum_width_p,
+                            phase_baseline=phase_baseline
                         )
                     # Add informed profiles to the optimizer 8they are queued and evaluated in exploration
                     if informed:

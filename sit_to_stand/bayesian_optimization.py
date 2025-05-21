@@ -15,9 +15,8 @@ from bayes_opt.util import load_logs
 from sts_control import apply_simulation_profile
 
 
-
 class ForceProfileOptimizer:
-    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=47, scale_factor_x=1, max_time=360, minimum_width_p=0.2):   
+    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=47, scale_factor_x=1, max_time=360, minimum_width_p=0.2, phase_baseline=None):   
         self.motor_1 = motor_1
         self.motor_2 = motor_2
         self.session_manager = session_manager
@@ -29,7 +28,8 @@ class ForceProfileOptimizer:
         self.max_force = max_force
         self.scale_factor_x = scale_factor_x
         # self.max_time = max_time
-        self.max_time = len(self.session_manager.roll_angles)
+        self.phase_baseline = phase_baseline
+        self.max_time = len(self.phase_baseline)
         self.minimum_width_p = minimum_width_p
         self.minimum_distance = self.max_time * self.minimum_width_p / 2 # Minimum distance between force2_start_time and force2_peak_time / force2_peak_time and force2_end_time
 
@@ -109,11 +109,10 @@ class ForceProfileOptimizer:
     
     def get_profile_2(self, force1_peak_time, force1_peak_force, force2_start_time, force2_peak_time, force2_peak_force, force2_end_time):
         # Force 1 end time as peak time instead of end time
-        length = len(self.session_manager.roll_angles)
+        length = len(self.phase_baseline)
         base_profile = pd.DataFrame({"force_X": np.zeros(length), "force_Y": np.zeros(length)})
-        base_profile.index = self.session_manager.roll_angles.index
-        base_profile = pd.concat([self.session_manager.roll_angles, base_profile], axis=1)
-
+        base_profile["phase_baseline"] = self.phase_baseline
+  
         # X Force Profile
         grf_x = self.cubic_hermite_spline([(0, 0, 0), (force1_peak_time, force1_peak_force, 0), (self.max_time, 0, 0)])
         curve_x = [grf_x.get_state(i)[0] for i in range(self.max_time)]

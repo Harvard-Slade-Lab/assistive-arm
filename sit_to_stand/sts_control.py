@@ -66,129 +66,133 @@ def calibrate_height(
 
     subject_name = input("Enter the subject name: ")
     try:
-        for training in range(5):
-            print(f"\nTraining iteration {training + 1} of 5\n")
+        train_choice = input("Do you want to use already existing data? (y/n): ")
 
-            # Wait for trigger signal and start recording based on mode
-            await_trigger_signal(mode=mode, socket_server=socket_server) # --> using SOCKET mode, you have to press the Button on the EMG Laptop
+        if train_choice.lower() == "n":
+            for training in range(5):
+                print(f"\nTraining iteration {training + 1} of 5")
 
-            # Start reading from the IMU
-            if imu_reader is not None:
-                imu_reader.start_reading_imu_data()
+                # Wait for trigger signal and start recording based on mode
+                await_trigger_signal(mode=mode, socket_server=socket_server) # --> using SOCKET mode, you have to press the Button on the EMG Laptop
 
-            countdown(duration=3)
+                # Start reading from the IMU
+                if imu_reader is not None:
+                    imu_reader.start_reading_imu_data()
 
-            print("\nTraining started. Please perform the sit-to-stand motion.\n")
+                countdown(duration=3)
 
-            sts_start = time.time()
-            
-            for t in loop:
-                if socket_server is not None:
-                    if socket_server.mode_flag or socket_server.kill_flag:
+                print("\nTraining started. Please perform the sit-to-stand motion.\n")
+
+                sts_start = time.time()
+                
+                for t in loop:
+                    if socket_server is not None:
+                        if socket_server.mode_flag or socket_server.kill_flag:
+                            print("Stopped recording, exiting...")
+                            break
+                    if mode == "TRIGGER" and GPIO.input(17):
                         print("Stopped recording, exiting...")
                         break
-                if mode == "TRIGGER" and GPIO.input(17):
-                    print("Stopped recording, exiting...")
-                    break
-                elif mode == "SOCKET" and not socket_server.collect_flag:
-                    print("Stopped recording, exiting...")
-                    break
-                
+                    elif mode == "SOCKET" and not socket_server.collect_flag:
+                        print("Stopped recording, exiting...")
+                        break
+                    
 
 
-                # with threading.Lock():
-                #     if imu_reader is not None:
-                #         roll_angle = imu_reader.imu_data.pitch
-                #     else:
-                #         roll_angle = socket_server.roll_angle
+                    # with threading.Lock():
+                    #     if imu_reader is not None:
+                    #         roll_angle = imu_reader.imu_data.pitch
+                    #     else:
+                    #         roll_angle = socket_server.roll_angle
 
-                # if roll_angle is not None:
-                #     roll_angles.append(roll_angle)
+                    # if roll_angle is not None:
+                    #     roll_angles.append(roll_angle)
 
-                # if t - start_time >= 0.05:
-                #     print(f"Roll angle: {roll_angle}", end="\r")
-                #     start_time = t
+                    # if t - start_time >= 0.05:
+                    #     print(f"Roll angle: {roll_angle}", end="\r")
+                    #     start_time = t
 
 
 
 
-            # Stop the IMU reader
-            if imu_reader is not None:
-                imu_reader.stop_reading_imu_data()
+                # Stop the IMU reader
+                if imu_reader is not None:
+                    imu_reader.stop_reading_imu_data()
 
-            # Extract the acquired DATA from the Wired IMU
-            roll_angle = imu_reader.imu_data_history.roll
-            pitch_angle = imu_reader.imu_data_history.pitch
-            yaw_angle = imu_reader.imu_data_history.yaw
-            accX = imu_reader.imu_data_history.accX
-            accY = imu_reader.imu_data_history.accY
-            accZ = imu_reader.imu_data_history.accZ
-            gyroX = imu_reader.imu_data_history.gyroX
-            gyroY = imu_reader.imu_data_history.gyroY
-            gyroZ = imu_reader.imu_data_history.gyroZ
+                # Extract the acquired DATA from the Wired IMU
+                roll_angle = imu_reader.imu_data_history.roll
+                pitch_angle = imu_reader.imu_data_history.pitch
+                yaw_angle = imu_reader.imu_data_history.yaw
+                accX = imu_reader.imu_data_history.accX
+                accY = imu_reader.imu_data_history.accY
+                accZ = imu_reader.imu_data_history.accZ
+                gyroX = imu_reader.imu_data_history.gyroX
+                gyroY = imu_reader.imu_data_history.gyroY
+                gyroZ = imu_reader.imu_data_history.gyroZ
 
-            # Print the length of all the single vectors for DEBUG:
-            # print(f"Length of roll angle: {len(roll_angle)}")
-            # print(f"Length of pitch angle: {len(pitch_angle)}")
-            # print(f"Length of yaw angle: {len(yaw_angle)}")
-            # print(f"Length of accX: {len(accX)}")
-            # print(f"Length of accY: {len(accY)}")
-            # print(f"Length of accZ: {len(accZ)}")
-            # print(f"Length of gyroX: {len(gyroX)}")
-            # print(f"Length of gyroY: {len(gyroY)}")
-            # print(f"Length of gyroZ: {len(gyroZ)}")
+                # Print the length of all the single vectors for DEBUG:
+                # print(f"Length of roll angle: {len(roll_angle)}")
+                # print(f"Length of pitch angle: {len(pitch_angle)}")
+                # print(f"Length of yaw angle: {len(yaw_angle)}")
+                # print(f"Length of accX: {len(accX)}")
+                # print(f"Length of accY: {len(accY)}")
+                # print(f"Length of accZ: {len(accZ)}")
+                # print(f"Length of gyroX: {len(gyroX)}")
+                # print(f"Length of gyroY: {len(gyroY)}")
+                # print(f"Length of gyroZ: {len(gyroZ)}")
 
-            sts_duration = time.time() - sts_start
+                sts_duration = time.time() - sts_start
 
-            # Get the current date and time
-            current_date = datetime.now().strftime("%Y-%m-%d")
+                # Get the current date and time
+                current_date = datetime.now().strftime("%Y-%m-%d")
 
-            # Generate the file name with the current date and trial number
-            file_name = f"IMU_Profile_{current_date}_Trial_{training + 1}.csv"
+                # Generate the file name with the current date and trial number
+                file_name = f"IMU_Profile_{current_date}_Trial_{training + 1}.csv"
 
-            length_data = min(len(roll_angle), len(pitch_angle), len(yaw_angle), len(accX), len(accY), len(accZ), len(gyroX), len(gyroY), len(gyroZ))
-            # Export data to CSV
-            with open(file_name, "w") as f:
-                f.write("Roll,Pitch,Yaw,AccX,AccY,AccZ,GyroX,GyroY,GyroZ\n")
-                for i in range(length_data):
-                    f.write(f"{roll_angle[i]},{pitch_angle[i]},{yaw_angle[i]},"
-                            f"{accX[i]},{accY[i]},{accZ[i]},"
-                            f"{gyroX[i]},{gyroY[i]},{gyroZ[i]}\n")
-            print(f"Data exported to '{file_name}'.")
+                length_data = min(len(roll_angle), len(pitch_angle), len(yaw_angle), len(accX), len(accY), len(accZ), len(gyroX), len(gyroY), len(gyroZ))
+                # Export data to CSV
+                with open(file_name, "w") as f:
+                    f.write("Roll,Pitch,Yaw,AccX,AccY,AccZ,GyroX,GyroY,GyroZ\n")
+                    for i in range(length_data):
+                        f.write(f"{roll_angle[i]},{pitch_angle[i]},{yaw_angle[i]},"
+                                f"{accX[i]},{accY[i]},{accZ[i]},"
+                                f"{gyroX[i]},{gyroY[i]},{gyroZ[i]}\n")
+                print(f"Data exported to '{file_name}'.")
 
-            # Save the file to the remote directory
-            PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data/subject_logs")
-            # Create a new folder with subject_name
-            session_remote_dir = PROJECT_DIR_REMOTE / f"Subject_{subject_name}"
-            # Check remotely if the folder exists; if not, create it
-            check_and_create_cmd = f'ssh macbook "[ -d \\"{session_remote_dir}\\" ] || mkdir -p \\"{session_remote_dir}\\""'
-            os.system(check_and_create_cmd)
-            # Save the file to the remote directory
-            os.system(f"scp {file_name} macbook:{session_remote_dir}")
-            print(f"Data file '{file_name}' sent to remote directory.")
+                # Save the file to the remote directory
+                PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data/subject_logs")
+                # Create a new folder with subject_name
+                session_remote_dir = PROJECT_DIR_REMOTE / f"Subject_{subject_name}"
+                # Check remotely if the folder exists; if not, create it
+                check_and_create_cmd = f'ssh macbook "[ -d \\"{session_remote_dir}\\" ] || mkdir -p \\"{session_remote_dir}\\""'
+                os.system(check_and_create_cmd)
+                # Save the file to the remote directory
+                os.system(f"scp {file_name} macbook:{session_remote_dir}")
+                print(f"Data file '{file_name}' sent to remote directory.")
 
-        # Copy the folder from the macbook to the Raspi
-        folder_remote = session_remote_dir
-        folder_local = "/home/xabier/Documents/Data_AssistiveArm/Training"
-        folder_local = Path(folder_local)  # Convert string to Path
-        folder_training_raspi = folder_local / f"Subject_{subject_name}"
-        # Check if the folder exists on the Raspi
-        if not os.path.exists(folder_training_raspi):
-            os.system(f"scp -r macbook:{folder_remote} {folder_local}")
+            # Copy the folder from the macbook to the Raspi
+            folder_remote = session_remote_dir
+            folder_local = "/home/xabier/Documents/Data_AssistiveArm/Training"
+            folder_local = Path(folder_local)  # Convert string to Path
+            folder_training_raspi = folder_local / f"Subject_{subject_name}"
+            # Check if the folder exists on the Raspi
+            if not os.path.exists(folder_training_raspi):
+                os.system(f"scp -r macbook:{folder_remote} {folder_local}")
+            else:
+                print(f"Error! Folder {folder_training_raspi} already exists.")
+                print("Using old data for training.")
         else:
-            print(f"Error! Folder {folder_training_raspi} already exists.")
-            print("Using old data for training.")
+             folder_local = "/home/xabier/Documents/Data_AssistiveArm/Training"
+             folder_local = Path(folder_local)  # Convert string to Path
+             folder_training_raspi = folder_local / f"Subject_{subject_name}"
+
 
 
         # Load the Data for the Training:
         frequencies = [200, 200, 200]
-        folder_path = session_remote_dir
-        if not folder_path:
-            print("No folder selected. Training cancelled.")
-            
+
         segment_choice = input("Select segmentation method:\n1. for One Shot\n2. for Cyclic\n ")
    
-
         # Load and process files
         acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderIMU.load_and_process_files(folder_training_raspi)
         print(f"Loaded {len(acc_files)} ACC files, {len(gyro_files)} GYRO files, and {len(or_files)} OR files")
@@ -238,7 +242,9 @@ def calibrate_height(
         current_model = svr_model['model']
         print("Training Finished!")
 
-        num_entries = length_data
+        num_entries = segment_lengths[0]
+        print(f"Segmentation lengths: {segment_lengths[0]}")
+
         phase_baseline = np.linspace(0, 100, num_entries)
 
 
@@ -272,6 +278,8 @@ def calibrate_height(
         
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
+
+    return phase_baseline
 
 def control_loop_and_log(
         motor_1: CubemarsMotor,
@@ -354,6 +362,9 @@ def control_loop_and_log(
             else:
                 print("Maximum phase exceeded. Stopping...")
                 break
+
+        tau_1 = 0
+        tau_2 = 0
 
         if apply_force and t >= 0.1:
             if not printed:
