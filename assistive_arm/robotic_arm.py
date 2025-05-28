@@ -57,5 +57,9 @@ def get_target_torques(theta_1: float, theta_2: float, current_phase: float, pro
     tau_1, tau_2 = -jacobian.T @ force_vector
 
     index = current_phase
+    force_vector = np.array([force_vector.force_X, force_vector.force_Y]).reshape((2, 1))
 
-    return tau_1, tau_2, P_EE, index
+    return tau_1, tau_2, P_EE, index, closest_point, force_vector
+
+
+

@@ -54,6 +54,7 @@ class SocketServer:
                         print(f"Command Server connected by {addr}")
                         while not self.stop_server:
                             data = conn.recv(1024)
+                            print(f"Received data: {data}")
                             if not data:
                                 break
                             self.process_command_data(data.decode('utf-8', errors='replace').strip())

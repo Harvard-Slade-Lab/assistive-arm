@@ -36,6 +36,22 @@ current_model = None
 phase_baseline = None
 
 
+# Socket server for sending force data to the MacBook
+import socket
+import pickle
+
+# Socket setup (do this once)
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+mac_ip = '10.250.76.72'  # e.g., '192.168.1.100'
+mac_port = 9999
+
+
+def send_data(data):
+    """Send any serializable object to Mac"""
+    sock.sendto(pickle.dumps(data), (mac_ip, mac_port))
+    time.sleep(0.01)  # small pause to prevent flooding
+
+
 def calibrate_height(
         freq: int,
         session_manager: SessionManager,
@@ -53,20 +69,14 @@ def calibrate_height(
         imu_reader (IMUReader): IMU reader instance for roll angle data.
     """
     global current_model, phase_baseline
-    # Use session_manager to retrieve the YAML path for calibration data
-    yaml_path = session_manager.yaml_path
 
     # Set up the real-time control loop
     loop = SoftRealtimeLoop(dt=1 / freq, report=False, fade=0)
 
-    # Data for calibration
-    calibration_data = dict()
-    roll_angles = []
-    start_time = 0
-
-    subject_name = input("Enter the subject name: ")
     try:
         train_choice = input("Do you want to use already existing data? (y/n): ")
+        # If you want to use already existing data, specify a subject name equal to an already present folder
+        subject_name = input("Enter the subject name: ")
 
         if train_choice.lower() == "n":
             for training in range(5):
@@ -96,24 +106,6 @@ def calibrate_height(
                     elif mode == "SOCKET" and not socket_server.collect_flag:
                         print("Stopped recording, exiting...")
                         break
-                    
-
-
-                    # with threading.Lock():
-                    #     if imu_reader is not None:
-                    #         roll_angle = imu_reader.imu_data.pitch
-                    #     else:
-                    #         roll_angle = socket_server.roll_angle
-
-                    # if roll_angle is not None:
-                    #     roll_angles.append(roll_angle)
-
-                    # if t - start_time >= 0.05:
-                    #     print(f"Roll angle: {roll_angle}", end="\r")
-                    #     start_time = t
-
-
-
 
                 # Stop the IMU reader
                 if imu_reader is not None:
@@ -160,6 +152,7 @@ def calibrate_height(
                 print(f"Data exported to '{file_name}'.")
 
                 # Save the file to the remote directory
+                # Define the remote directory path
                 PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data/subject_logs")
                 # Create a new folder with subject_name
                 session_remote_dir = PROJECT_DIR_REMOTE / f"Subject_{subject_name}"
@@ -185,13 +178,11 @@ def calibrate_height(
              folder_local = "/home/xabier/Documents/Data_AssistiveArm/Training"
              folder_local = Path(folder_local)  # Convert string to Path
              folder_training_raspi = folder_local / f"Subject_{subject_name}"
-
-
-
+                    
         # Load the Data for the Training:
         frequencies = [200, 200, 200]
 
-        segment_choice = input("Select segmentation method:\n1. for One Shot\n2. for Cyclic\n ")
+        segment_choice = input("Select segmentation method:\n1. for One Shot\n2. for Cyclic\nEnter your choice: ")
    
         # Load and process files
         acc_data, gyro_data, or_data, acc_files, gyro_files, or_files = DataLoaderIMU.load_and_process_files(folder_training_raspi)
@@ -245,37 +236,9 @@ def calibrate_height(
         num_entries = segment_lengths[0]
         print(f"Segmentation lengths: {segment_lengths[0]}")
 
+        # Create baseline for the phase estimation:
         phase_baseline = np.linspace(0, 100, num_entries)
 
-
-        # # Calibration calculations
-        # roll_angles = np.array(roll_angles)
-        # new_max = roll_angles.max() - 1
-        # new_min = roll_angles.min() + 1
-
-        # # Clip roll angles
-        # roll_angles = np.clip(roll_angles, new_min, new_max)
-
-        # # Calculate the number of entries
-        # num_entries = int(sts_duration * freq)
-
-        # # Store calibration data
-        # calibration_data["new_range"] = {"min": float(new_min), "max": float(new_max)}
-        # # Generate the roll angles array
-        # calibration_data["roll_angles"] = np.linspace(new_min, new_max, num=num_entries).tolist()
-        # # Generate the percentage array
-        # calibration_data["Percentage"] = np.linspace(0, 100, num=num_entries).tolist()
-
-        # remote_path = session_manager.session_remote_dir
-
-        # # Save calibration data in YAML and sync with the remote directory
-        # with open(yaml_path, "w") as f:
-        #     yaml.dump(calibration_data, f)
-        # try:
-        #     os.system(f"scp {yaml_path} macbook:{remote_path}")
-        # except Exception as e:
-        #     print(f"Error transferring YAML file: {e}")
-        
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
@@ -348,9 +311,17 @@ def control_loop_and_log(
                 roll_angle = socket_server.roll_angle
         
         if motor_1.swapped_motors:
-            tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_2.position, theta_2=motor_1.position, current_phase=current_phase, profiles=profile)
+            tau_1, tau_2, P_EE, index, closest_point, force_vector = get_target_torques(theta_1=motor_2.position, theta_2=motor_1.position, current_phase=current_phase, profiles=profile)
         else:
-            tau_1, tau_2, P_EE, index = get_target_torques(theta_1=motor_1.position, theta_2=motor_2.position, current_phase=current_phase, profiles=profile)
+            tau_1, tau_2, P_EE, index, closest_point, force_vector = get_target_torques(theta_1=motor_1.position, theta_2=motor_2.position, current_phase=current_phase, profiles=profile)
+
+        # Send cursor update
+        send_data({
+            "type": "cursor",
+            "index": int(closest_point),
+            "force": force_vector.flatten().tolist()
+        })
+
 
         # Stop if the roll angle is larger than the maximum roll angle
         if current_phase > 99 and t > 0.1:
@@ -362,7 +333,8 @@ def control_loop_and_log(
             else:
                 print("Maximum phase exceeded. Stopping...")
                 break
-
+            
+        # Set torques to zero for Debugging:
         tau_1 = 0
         tau_2 = 0
 
@@ -447,6 +419,10 @@ def apply_simulation_profile(
     
     # Countdown before starting
     countdown(duration=1)
+
+    # Send full profile to Mac (only once)
+    force_profile = profile[["force_X", "force_Y"]]
+    send_data({"type": "profile", "data": force_profile})
 
     try:
         # Run the control loop, passing session_manager and server
