@@ -31,7 +31,7 @@ class UISetup:
             first_page_layout = QtWidgets.QVBoxLayout(first_page_buttons)
 
         self.parent.record_mvic_button = QtWidgets.QPushButton("Record MVIC")
-        self.parent.calibration_button = QtWidgets.QPushButton("Calibrate Height")
+        self.parent.calibration_button = QtWidgets.QPushButton("Start Training Trial")
         self.parent.start_unassisted_button = QtWidgets.QPushButton("Start Unassisted Trial")
         self.parent.start_button = QtWidgets.QPushButton("Start Trial")
         self.parent.select_mode_button = QtWidgets.QPushButton("Select Mode on Raspi")
@@ -133,28 +133,28 @@ class UISetup:
         self.switch_to_second_page()
 
     def start_unassisted_trial(self):
-        self.parent.check_calibration()
+        # self.parent.check_calibration()
 
-        if self.parent.max_roll_angle is None and self.parent.real_time_processing and not self.parent.imu_processing:
-            QtWidgets.QMessageBox.information(self.parent, "Error", "Please calibrate the height first.")
-            return 
-        else:
-            self.parent.what = "Unpowered"
-            self.parent.mvic = False
-            self.parent.unassisted = True
-            self.parent.calibration = False
-            self.parent.start_trial()
-            self.toggle_motor()
-            self.switch_to_second_page()
+        # if self.parent.max_roll_angle is None and self.parent.real_time_processing and not self.parent.imu_processing:
+        #     QtWidgets.QMessageBox.information(self.parent, "Error", "Please calibrate the height first.")
+        #     return 
+        # else:
+        self.parent.what = "Unpowered"
+        self.parent.mvic = False
+        self.parent.unassisted = True
+        self.parent.calibration = False
+        self.parent.start_trial()
+        self.toggle_motor()
+        self.switch_to_second_page()
 
     def start_trial(self):
-        self.parent.check_calibration()
+        # self.parent.check_calibration()
         self.parent.check_unassisted()
 
-        if self.parent.max_roll_angle is None and self.parent.real_time_processing and not self.parent.imu_processing:
-            QtWidgets.QMessageBox.information(self.parent, "Error", "Please calibrate the height first.")
-            return
-        elif self.parent.unassisted_mean is None and self.parent.real_time_processing:
+        # if self.parent.max_roll_angle is None and self.parent.real_time_processing and not self.parent.imu_processing:
+        #     QtWidgets.QMessageBox.information(self.parent, "Error", "Please calibrate the height first.")
+        #     return
+        if self.parent.unassisted_mean is None and self.parent.real_time_processing:
             QtWidgets.QMessageBox.information(self.parent, "Error", "Please collect unpowered data first.")
             return
         else:

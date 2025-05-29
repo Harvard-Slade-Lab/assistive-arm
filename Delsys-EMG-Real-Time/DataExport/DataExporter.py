@@ -281,25 +281,25 @@ class DataExporter:
         # Save roll angle limits as a two-value npy file locally
         filename_roll_angle = "roll_angle_limits.npy"
         
-        # Ensure subject folder exists
-        subject_folder = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}")
-        if not os.path.exists(subject_folder):
-            os.makedirs(subject_folder)
+        # # Ensure subject folder exists
+        # subject_folder = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}")
+        # if not os.path.exists(subject_folder):
+        #     os.makedirs(subject_folder)
         
-        # Combine min and max roll angles into an array and write to a npy file
-        roll_angles = np.array([min_roll_angle, max_roll_angle])
-        filepath_roll = os.path.join(subject_folder, filename_roll_angle)
-        np.save(filepath_roll, roll_angles)
+        # # Combine min and max roll angles into an array and write to a npy file
+        # roll_angles = np.array([min_roll_angle, max_roll_angle])
+        # filepath_roll = os.path.join(subject_folder, filename_roll_angle)
+        # np.save(filepath_roll, roll_angles)
 
 
     def load_roll_angle_limits_from_npy(self):
         filename_roll_angle = "roll_angle_limits.npy"
-        filepath_roll = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", filename_roll_angle)
+        # filepath_roll = os.path.join(self.parent.data_directory, f"subject_{self.parent.subject_number}", filename_roll_angle)
         
-        # Load roll angles from npy if it exists
-        try:
-            roll_angles = np.load(filepath_roll)
-            return roll_angles[0], roll_angles[1]  # Return min and max roll angles
-        except Exception as e:
-            print(f"Error loading roll angles from file: {e}, record roll angle limits first")
-            return None, None
+        # # Load roll angles from npy if it exists
+        # try:
+        #     roll_angles = np.load(filepath_roll)
+        #     return roll_angles[0], roll_angles[1]  # Return min and max roll angles
+        # except Exception as e:
+        #     print(f"Error loading roll angles from file: {e}, record roll angle limits first")
+        #     return None, None
