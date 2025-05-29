@@ -138,46 +138,45 @@ def calibrate_height(
                 # Get the current date and time
                 current_date = datetime.now().strftime("%Y-%m-%d")
 
+                # Define the local folder where the data should be saved (not in working dir)
+                folder_local = Path("/home/xabier/Documents/Data_AssistiveArm/Training")
+                folder_training_raspi = folder_local / f"Subject_{subject_name}"
+                folder_training_raspi.mkdir(parents=True, exist_ok=True)  # Create folder if not exists
+
                 # Generate the file name with the current date and trial number
                 file_name = f"IMU_Profile_{current_date}_Trial_{training + 1}.csv"
+                full_local_path = folder_training_raspi / file_name  # Full path to file
 
-                length_data = min(len(roll_angle), len(pitch_angle), len(yaw_angle), len(accX), len(accY), len(accZ), len(gyroX), len(gyroY), len(gyroZ))
-                # Export data to CSV
-                with open(file_name, "w") as f:
+                # Determine minimum data length to avoid index errors
+                length_data = min(len(roll_angle), len(pitch_angle), len(yaw_angle),
+                                len(accX), len(accY), len(accZ),
+                                len(gyroX), len(gyroY), len(gyroZ))
+
+                # Export data to CSV at the target local path
+                with open(full_local_path, "w") as f:
                     f.write("Roll,Pitch,Yaw,AccX,AccY,AccZ,GyroX,GyroY,GyroZ\n")
                     for i in range(length_data):
                         f.write(f"{roll_angle[i]},{pitch_angle[i]},{yaw_angle[i]},"
                                 f"{accX[i]},{accY[i]},{accZ[i]},"
                                 f"{gyroX[i]},{gyroY[i]},{gyroZ[i]}\n")
-                print(f"Data exported to '{file_name}'.")
+                print(f"Data exported to '{full_local_path}'.")
 
                 # Save the file to the remote directory
-                # Define the remote directory path
                 PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data/subject_logs")
-                # Create a new folder with subject_name
                 session_remote_dir = PROJECT_DIR_REMOTE / f"Subject_{subject_name}"
+
                 # Check remotely if the folder exists; if not, create it
                 check_and_create_cmd = f'ssh macbook "[ -d \\"{session_remote_dir}\\" ] || mkdir -p \\"{session_remote_dir}\\""'
                 os.system(check_and_create_cmd)
-                # Save the file to the remote directory
-                os.system(f"scp {file_name} macbook:{session_remote_dir}")
-                print(f"Data file '{file_name}' sent to remote directory.")
 
-            # Copy the folder from the macbook to the Raspi
-            folder_remote = session_remote_dir
-            folder_local = "/home/xabier/Documents/Data_AssistiveArm/Training"
-            folder_local = Path(folder_local)  # Convert string to Path
-            folder_training_raspi = folder_local / f"Subject_{subject_name}"
-            # Check if the folder exists on the Raspi
-            if not os.path.exists(folder_training_raspi):
-                os.system(f"scp -r macbook:{folder_remote} {folder_local}")
-            else:
-                print(f"Error! Folder {folder_training_raspi} already exists.")
-                print("Using old data for training.")
+                # Send file to remote directory
+                os.system(f"scp {full_local_path} macbook:{session_remote_dir}")
+                print(f"Data file '{file_name}' sent to remote directory.")
         else:
-             folder_local = "/home/xabier/Documents/Data_AssistiveArm/Training"
-             folder_local = Path(folder_local)  # Convert string to Path
-             folder_training_raspi = folder_local / f"Subject_{subject_name}"
+            # Check if the folder exists, otherwise raise an error
+            folder_training_raspi = Path(f"/home/xabier/Documents/Data_AssistiveArm/Training/Subject_{subject_name}")
+            if not folder_training_raspi.exists():
+                raise FileNotFoundError(f"Folder '{folder_training_raspi}' does not exist. Please create it or choose a different subject name.")
                     
         # Load the Data for the Training:
         frequencies = [200, 200, 200]

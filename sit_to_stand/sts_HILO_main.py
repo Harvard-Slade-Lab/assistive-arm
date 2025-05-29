@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
             # Display menu for user input
             print("\nOptions:")
-            print("1 - Calibrate Height")
+            print("1 - Train the model")
             print("2 - Collect unpowered data")
             print("3 - HILO")
             print("0 - Exit")
