@@ -333,9 +333,9 @@ def control_loop_and_log(
                 print("Maximum phase exceeded. Stopping...")
                 break
             
-        # Set torques to zero for Debugging:
-        tau_1 = 0
-        tau_2 = 0
+        # # Set torques to zero for Debugging:
+        # tau_1 = 0
+        # tau_2 = 0
 
         if apply_force and t >= 0.1:
             if not printed:

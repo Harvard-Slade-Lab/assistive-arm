@@ -20,6 +20,7 @@ from sts_control import calibrate_height, collect_unpowered_data, apply_simulati
 # Set options
 np.set_printoptions(precision=3, suppress=True)
 
+counter_iterations = 0
 
 class States(Enum):
     CALIBRATING = 1
@@ -46,9 +47,9 @@ if __name__ == "__main__":
     # Chose how much exploration is done (add the amount of informed profiles)
     exploration_iterations = 14
     # Chose how many unassisted iterations
-    iterations_unassisted = 2
+    iterations_unassisted = 10
     # Chose how many repetitions for each condition
-    iterations_per_parameter_set = 3
+    iterations_per_parameter_set = 1
     # Peak force
     max_force = 47
     # Scale factor for force in x
@@ -158,6 +159,7 @@ if __name__ == "__main__":
                     # Explorate the space exploration iterations - iterations done, so they are not done again when reloading
                     if exploration_iterations > len(profile_optimizer.optimizer.space):
                         for exploration_iteration in range(exploration_iterations - len(profile_optimizer.optimizer.space)):
+                            print(f"\n\nExploration completion percentage: {100 * (exploration_iteration + 1) / exploration_iterations:.2f}%\n\n")
                             if socket_server.mode_flag or socket_server.kill_flag:
                                 break
                             else:
@@ -165,7 +167,11 @@ if __name__ == "__main__":
                         
                     # Optimize until the server stops (Kill command is sent) or the user exits
                     while not socket_server.stop_server and not socket_server.kill_flag and not socket_server.mode_flag:
+                        print(f"\n\nStarting optimization iteration number: {counter_iterations+1}\n\n")
+                        counter_iterations += 1
+
                         profile_optimizer.optimize()
+
 
                     profile_optimizer.log_to_remote()
 

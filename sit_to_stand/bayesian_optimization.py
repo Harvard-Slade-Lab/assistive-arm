@@ -337,13 +337,24 @@ class ForceProfileOptimizer:
 
 
         # Added profile
-        force1_end_time_p = 0.8
-        force1_peak_force_p = 1.0
+        # force1_end_time_p = 0.8
+        # force1_peak_force_p = 1.0
 
-        force2_start_time_p = 0.2
-        force2_peak_time_p = 0.65
-        force2_end_time_p = 1.0
-        force2_peak_force_p = 0.7
+        # force2_start_time_p = 0.2
+        # force2_peak_time_p = 0.65
+        # force2_end_time_p = 1.0
+        # force2_peak_force_p = 0.7
+
+        print("First Informed Iteration...")
+
+        force1_end_time_p = 0.5
+        force1_peak_force_p = 0.86
+
+        force2_start_time_p = 0.0865
+        force2_peak_time_p = 0.4419
+        force2_end_time_p = 0.5148
+        force2_peak_force_p = 0.71
+
 
         # Define the initial points
         initial_points = {
@@ -360,6 +371,8 @@ class ForceProfileOptimizer:
             self.optimizer.probe(params=initial_points, lazy=True)
         else:
             print("Informed points already in optimizer space.")
+
+        print("Second Informed Iteration...")
 
         # Added profile
         force1_end_time_p = 0.5
@@ -386,6 +399,7 @@ class ForceProfileOptimizer:
         else:
             print("Informed points already in optimizer space.")
 
+        print("Third Informed Iteration...")
 
         # Added profile
         force1_end_time_p = 0.8
@@ -412,15 +426,24 @@ class ForceProfileOptimizer:
         else:
             print("Informed points already in optimizer space.")
 
-        
+        print("Fourth Informed Iteration...")
         # Added profile (best mean opt 3 rep)
-        force1_end_time_p = 0.1
-        force1_peak_force_p = 0.94
+        # force1_end_time_p = 0.1
+        # force1_peak_force_p = 0.94
 
-        force2_start_time_p = 0.004
-        force2_peak_time_p = 0.37
-        force2_end_time_p = 0.64
-        force2_peak_force_p = 0.98
+        # force2_start_time_p = 0.004
+        # force2_peak_time_p = 0.37
+        # force2_end_time_p = 0.64
+        # force2_peak_force_p = 0.98
+
+        force1_end_time_p = 0.5
+        force1_peak_force_p = 0.86
+
+        force2_start_time_p = 0.0865
+        force2_peak_time_p = 0.4419
+        force2_end_time_p = 0.5148
+        force2_peak_force_p = 0.71
+
 
         # Define the initial points
         initial_points = {
