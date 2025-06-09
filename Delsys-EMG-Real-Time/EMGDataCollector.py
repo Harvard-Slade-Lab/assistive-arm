@@ -442,7 +442,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 print(f"Or channels per sensor: {self.or_channels_per_sensor}")
                 if self.imu_processing or not self.real_time_processing:
                     # Get start index
-                    self.segment_start_idx_imu = len(self.complete_gyro_data[self.imu_sensor_label]['X'])
+                    self.segment_start_idx_imu = len(self.complete_gyro_data[self.imu_sensor_label]['X']) # Should be 0 since we ar at the beginning of a trial
                 elif self.or_channels_per_sensor:
                     self.executor.submit(self.send_roll_angle)
             else:
@@ -460,6 +460,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     current_segment_end_idx_imu = len(self.complete_gyro_data[imu_key]['X'])
                     current_profile_name = self.assistive_profile_name
                     # Process the data in a separate thread
+    
                     self.extract_relevant_emg_imu_ared(current_segment_start_idx_imu, current_segment_end_idx_imu, current_profile_name)
 
                 if self.imu_processing or not self.real_time_processing:
@@ -1328,6 +1329,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
             print(f"Assisted area: {assisted_area}")
             if self.socket:
                 self.socket_server.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}")
+                print(f"\n\nScore sent: {score}, Tag: {current_assistive_profile_name}\n\n")
         
         
         
