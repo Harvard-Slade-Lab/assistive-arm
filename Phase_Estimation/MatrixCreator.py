@@ -44,15 +44,14 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         # Create filter coefficients
         sos = create_offline_filter(FILTER_CUTOFF, SAMPLE_RATE, FILTER_ORDER)
 
-        # Process complete historical datasets
-        def filter_historical_data(data_array: np.ndarray) -> np.ndarray:
-            """Apply zero-phase filtering to entire historical dataset"""
-            return sosfiltfilt(sos, data_array, axis=0)
+        acc_columns = ['ACC X', 'ACC Y', 'ACC Z']
+        gyro_columns = ['GYRO X', 'GYRO Y', 'GYRO Z']
+        or_columns = ['ORIENTATION ROLL', 'ORIENTATION PITCH', 'ORIENTATION YAW']
 
         # Apply filtering to raw data arrays before processing
-        acc = filter_historical_data(acc)
-        gyro = filter_historical_data(gyro)
-        or_data_item = filter_historical_data(or_data_item)
+        acc = sosfiltfilt(acc)
+        gyro = sosfiltfilt(gyro)
+        or_data_item = sosfiltfilt(or_data_item)
 
 
         
