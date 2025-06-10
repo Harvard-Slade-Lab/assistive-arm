@@ -473,17 +473,16 @@ def apply_simulation_profile(
             from datetime import datetime
             import matplotlib.pyplot as plt
 
-            time_axis = np.arange(len(phase_hist)) / freq
 
-            # Set the base path to your Mac folder — adjust this to your mounted path
-            base_mac_path = "/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Plots"  # <-- Replace with your actual mount path
+            # Save the file to the remote directory
+            PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Plots")
+            session_remote_dir = PROJECT_DIR_REMOTE / f"Subject_{subject_name}"
 
-            # Create the dynamic folder name
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            figures_folder = os.path.join(base_mac_path, f"figures_{today_str}_{subject_name}")
+            # Check remotely if the folder exists; if not, create it
+            check_and_create_cmd = f'ssh macbook "[ -d \\"{session_remote_dir}\\" ] || mkdir -p \\"{session_remote_dir}\\""'
+            os.system(check_and_create_cmd)
 
-            # Create the folder if it doesn't exist
-            os.makedirs(figures_folder, exist_ok=True)
+            time_axis = np.arange(len(phase_hist)) / 100
 
             # Create the figure
             fig, axs = plt.subplots(3, 1, figsize=(10, 15))
@@ -509,10 +508,17 @@ def apply_simulation_profile(
 
             plt.tight_layout()
 
-            # Save plot in the new/existing folder
-            plot_path = os.path.join(figures_folder, "control_loop_plots.png")
-            plt.savefig(plot_path)
-            print(f"Plot saved to: {plot_path}")
+            # Save plot in the new/existing folder with current date and time as the name
+            current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            plot_filename = f"control_loop_plots_{current_datetime}.png"
+            plot_path = os.path.join(session_remote_dir, plot_filename)
+
+            plt.savefig("control_loop_plots.png")  # Save locally first
+
+            # Copy the plot to the remote directory changing the name to plot_filename
+            os.system(f"scp control_loop_plots.png macbook:{plot_path}")
+            print(f"Plot saved to remote directory: {plot_path}")
+   
 
         
 
