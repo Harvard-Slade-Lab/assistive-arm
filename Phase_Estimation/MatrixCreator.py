@@ -49,9 +49,9 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         or_columns = ['ORIENTATION ROLL', 'ORIENTATION PITCH', 'ORIENTATION YAW']
 
         # Apply filtering to raw data arrays before processing
-        acc = sosfiltfilt(acc)
-        gyro = sosfiltfilt(gyro)
-        or_data_item = sosfiltfilt(or_data_item)
+        acc = sosfiltfilt(sos, acc, axis=0)
+        gyro = sosfiltfilt(sos, gyro, axis=0)
+        or_data_item = sosfiltfilt(sos, or_data_item, axis=0)
 
 
         
