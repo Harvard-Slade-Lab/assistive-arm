@@ -473,6 +473,8 @@ def apply_simulation_profile(
             from datetime import datetime
             import matplotlib.pyplot as plt
 
+            time_axis = np.arange(len(phase_hist)) / freq
+
             # Set the base path to your Mac folder — adjust this to your mounted path
             base_mac_path = "/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Plots"  # <-- Replace with your actual mount path
 
@@ -485,18 +487,24 @@ def apply_simulation_profile(
 
             # Create the figure
             fig, axs = plt.subplots(3, 1, figsize=(10, 15))
-            axs[0].plot(tau_hist["tau_1"], label='Tau Motor 1')
-            axs[0].plot(tau_hist["tau_2"], label='Tau Motor 2')
+            axs[0].plot(time_axis, tau_hist["tau_1"], label='Tau Motor 1')
+            axs[0].plot(time_axis, tau_hist["tau_2"], label='Tau Motor 2')
             axs[0].set_title('Motor Torques')
+            axs[0].set_xlabel('Time [s]')
+            axs[0].set_ylabel('Torque [Nm]')
             axs[0].legend()
 
-            axs[1].plot(force_hist["force_X"], label='Force X')
-            axs[1].plot(force_hist["force_Y"], label='Force Y')
+            axs[1].plot(time_axis, force_hist["force_X"], label='Force X')
+            axs[1].plot(time_axis, force_hist["force_Y"], label='Force Y')
             axs[1].set_title('Force Vectors')
+            axs[1].set_xlabel('Time [s]')
+            axs[1].set_ylabel('Force [N]')
             axs[1].legend()
 
-            axs[2].plot(phase_hist, label='Estimated Phase')
+            axs[2].plot(time_axis, phase_hist, label='Estimated Phase')
             axs[2].set_title('Estimated Phase Over Time')
+            axs[2].set_xlabel('Time [s]')
+            axs[2].set_ylabel('Phase [%]')
             axs[2].legend()
 
             plt.tight_layout()
