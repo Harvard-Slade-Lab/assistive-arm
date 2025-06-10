@@ -332,7 +332,7 @@ def control_loop_and_log(
         # Send cursor update
         send_data({
             "type": "cursor",
-            "index": int(closest_point),
+            "index": int(current_phase),
             "force": force_vector.flatten().tolist()
         })
 
