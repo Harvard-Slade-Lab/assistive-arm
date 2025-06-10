@@ -26,37 +26,40 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
 
 
         ############### FILTERING ##################
-        from scipy.signal import butter, sosfiltfilt
+        from scipy.signal import butter, lfilter, lfilter_zi
         import numpy as np
 
         def create_offline_filter(cutoff_freq: float, sample_rate: float, order: int = 5):
-            """Design identical filter to real-time system using SOS coefficients"""
+            """Design identical filter to real-time system using (b, a) coefficients"""
             nyq = 0.5 * sample_rate
             normal_cutoff = cutoff_freq / nyq
-            sos = butter(order, normal_cutoff, btype='low', output='sos')
-            return sos
+            b, a = butter(order, normal_cutoff, btype='low')
+            return b, a
 
         # Example configuration (use same values as real-time system)
-        FILTER_CUTOFF = 5.0    # Hz (match real-time parameter)
-        SAMPLE_RATE = 100.0    # Hz (match IMU configuration)
-        FILTER_ORDER = 4       # Match real-time filter order
+        FILTER_CUTOFF = 5.0    # Hz
+        SAMPLE_RATE = 100.0    # Hz 
+        FILTER_ORDER = 4
 
         # Create filter coefficients
-        sos = create_offline_filter(FILTER_CUTOFF, SAMPLE_RATE, FILTER_ORDER)
+        b, a = create_offline_filter(FILTER_CUTOFF, SAMPLE_RATE, FILTER_ORDER)
 
+        # Column definitions
         acc_columns = ['ACC X', 'ACC Y', 'ACC Z']
         gyro_columns = ['GYRO X', 'GYRO Y', 'GYRO Z']
-        or_columns = ['ORIENTATION ROLL', 'ORIENTATION PITCH', 'ORIENTATION YAW']
 
-        # Apply filtering to raw data arrays before processing
-        acc = pd.DataFrame(
-                data=sosfiltfilt(sos, acc, axis=0),
-                columns=acc_columns
-            )
-        gyro = pd.DataFrame(
-                data=sosfiltfilt(sos, gyro, axis=0),
-                columns=gyro_columns
-        )        
+        def filter_dataframe(data: np.ndarray, columns: list) -> pd.DataFrame:
+            """Apply lfilter to each channel with proper initialization"""
+            filtered = np.zeros_like(data)
+            for i in range(data.shape[1]):
+                # Initialize filter state to match real-time behavior
+                zi = lfilter_zi(b, a) * data[0, i]
+                filtered[:, i], _ = lfilter(b, a, data[:, i], zi=zi)
+            return pd.DataFrame(filtered, columns=columns)
+
+        # Apply filtering to raw data arrays
+        acc = filter_dataframe(acc, acc_columns)
+        gyro = filter_dataframe(gyro, gyro_columns)     
         
         print(f"Processing data set from timestamp: {timestamp}")
 
