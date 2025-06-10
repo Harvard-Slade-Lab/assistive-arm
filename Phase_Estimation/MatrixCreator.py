@@ -56,14 +56,7 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         gyro = pd.DataFrame(
                 data=sosfiltfilt(sos, gyro, axis=0),
                 columns=gyro_columns
-            )
-        or_data_item = pd.DataFrame(
-                data=sosfiltfilt(sos, or_data_item, axis=0),
-                columns=or_columns
-            )
-
-
-        
+        )        
         
         print(f"Processing data set from timestamp: {timestamp}")
 
