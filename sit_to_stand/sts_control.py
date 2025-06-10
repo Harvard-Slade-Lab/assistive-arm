@@ -241,7 +241,7 @@ def calibrate_height(
     except KeyboardInterrupt:
         print("Keyboard interrupt detected. Shutting down...")
 
-    return phase_baseline
+    return phase_baseline, subject_name
 
 def control_loop_and_log(
         motor_1: CubemarsMotor,
@@ -403,7 +403,8 @@ def apply_simulation_profile(
         profile_name: str,
         mode: Literal["TRIGGER", "ENTER", "SOCKET"],
         socket_server: SocketServer,
-        imu_reader: IMUReader):
+        imu_reader: IMUReader,
+        subject_name: str = None):
     """
     Apply a calibrated profile to simulate an assistive arm motion.
 
@@ -468,8 +469,21 @@ def apply_simulation_profile(
 
         # Plot tau_hist and force_hist and phase_hist if they are not None doing a subplot
         if tau_hist is not None and force_hist is not None and phase_hist is not None:
+            import os
+            from datetime import datetime
             import matplotlib.pyplot as plt
 
+            # Set the base path to your Mac folder — adjust this to your mounted path
+            base_mac_path = "/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Plots"  # <-- Replace with your actual mount path
+
+            # Create the dynamic folder name
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            figures_folder = os.path.join(base_mac_path, f"figures_{today_str}_{subject_name}")
+
+            # Create the folder if it doesn't exist
+            os.makedirs(figures_folder, exist_ok=True)
+
+            # Create the figure
             fig, axs = plt.subplots(3, 1, figsize=(10, 15))
             axs[0].plot(tau_hist["tau_1"], label='Tau Motor 1')
             axs[0].plot(tau_hist["tau_2"], label='Tau Motor 2')
@@ -486,7 +500,13 @@ def apply_simulation_profile(
             axs[2].legend()
 
             plt.tight_layout()
-            plt.savefig("control_loop_plots.png")
+
+            # Save plot in the new/existing folder
+            plot_path = os.path.join(figures_folder, "control_loop_plots.png")
+            plt.savefig(plot_path)
+            print(f"Plot saved to: {plot_path}")
+
+        
 
         # Save or delete the log based on success
         session_manager.save_log_or_delete(log_path=log_path, successful=success)

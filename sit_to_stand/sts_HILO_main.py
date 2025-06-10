@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
                 if choice == States.CALIBRATING:
                     can_bus, motor_1, motor_2 = setup_can_and_motors()
-                    phase_baseline = calibrate_height(
+                    phase_baseline, subject_name = calibrate_height(
                         freq=freq,
                         session_manager=session_manager,
                         mode=trigger_mode,
@@ -152,7 +152,8 @@ if __name__ == "__main__":
                             scale_factor_x=scale_factor_x,
                             max_time=max_time,
                             minimum_width_p=minimum_width_p,
-                            phase_baseline=phase_baseline
+                            phase_baseline=phase_baseline,
+                            subject_name=subject_name
                         )
                     # Add informed profiles to the optimizer 8they are queued and evaluated in exploration
                     if informed:

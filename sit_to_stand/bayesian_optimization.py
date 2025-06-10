@@ -16,7 +16,7 @@ from sts_control import apply_simulation_profile
 
 
 class ForceProfileOptimizer:
-    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=47, scale_factor_x=1, max_time=360, minimum_width_p=0.2, phase_baseline=None):   
+    def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=47, scale_factor_x=1, max_time=360, minimum_width_p=0.2, phase_baseline=None, subject_name=None):   
         self.motor_1 = motor_1
         self.motor_2 = motor_2
         self.session_manager = session_manager
@@ -29,6 +29,7 @@ class ForceProfileOptimizer:
         self.scale_factor_x = scale_factor_x
         # self.max_time = max_time
         self.phase_baseline = phase_baseline
+        self.subject_name = subject_name
         self.max_time = len(self.phase_baseline)
         self.minimum_width_p = minimum_width_p
         self.minimum_distance = self.max_time * self.minimum_width_p / 2 # Minimum distance between force2_start_time and force2_peak_time / force2_peak_time and force2_end_time
@@ -206,7 +207,8 @@ class ForceProfileOptimizer:
                 profile_name = profile_name,
                 mode=self.trigger_mode,
                 socket_server=self.socket_server,
-                imu_reader=self.imu_reader
+                imu_reader=self.imu_reader,
+                subject_name=self.subject_name,
             )
 
             # Check if the most recent (correct) score was received
