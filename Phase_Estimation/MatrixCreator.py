@@ -24,6 +24,37 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         gyro = gyro_data[indices["gyro"]]
         or_data_item = or_data[indices["or"]]
 
+
+        ############### FILTERING ##################
+        from scipy.signal import butter, sosfiltfilt
+        import numpy as np
+
+        def create_offline_filter(cutoff_freq: float, sample_rate: float, order: int = 5):
+            """Design identical filter to real-time system using SOS coefficients"""
+            nyq = 0.5 * sample_rate
+            normal_cutoff = cutoff_freq / nyq
+            sos = butter(order, normal_cutoff, btype='low', output='sos')
+            return sos
+
+        # Example configuration (use same values as real-time system)
+        FILTER_CUTOFF = 5.0    # Hz (match real-time parameter)
+        SAMPLE_RATE = 100.0    # Hz (match IMU configuration)
+        FILTER_ORDER = 4       # Match real-time filter order
+
+        # Create filter coefficients
+        sos = create_offline_filter(FILTER_CUTOFF, SAMPLE_RATE, FILTER_ORDER)
+
+        # Process complete historical datasets
+        def filter_historical_data(data_array: np.ndarray) -> np.ndarray:
+            """Apply zero-phase filtering to entire historical dataset"""
+            return sosfiltfilt(sos, data_array, axis=0)
+
+        # Apply filtering to raw data arrays before processing
+        acc = filter_historical_data(acc)
+        gyro = filter_historical_data(gyro)
+        or_data_item = filter_historical_data(or_data_item)
+
+
         
         
         print(f"Processing data set from timestamp: {timestamp}")
