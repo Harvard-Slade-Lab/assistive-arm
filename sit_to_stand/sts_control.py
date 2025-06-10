@@ -179,7 +179,7 @@ def calibrate_height(
                 raise FileNotFoundError(f"Folder '{folder_training_raspi}' does not exist. Please create it or choose a different subject name.")
                     
         # Load the Data for the Training:
-        frequencies = [200, 200, 200]
+        frequencies = [100, 100, 100]
 
         segment_choice = input("Select segmentation method:\n1. for One Shot\n2. for Cyclic\nEnter your choice: ")
    
@@ -254,7 +254,10 @@ def control_loop_and_log(
         log_path: Path,
         socket_server: SocketServer,
         imu_reader: IMUReader,
-        session_manager: SessionManager):
+        session_manager: SessionManager,
+        tau_history: dict = None,
+        force_vector_history: dict = None,
+        phase_history: list = None):
     
     global current_model, phase_baseline
     # Reset the motor buffers
@@ -314,13 +317,24 @@ def control_loop_and_log(
         else:
             tau_1, tau_2, P_EE, index, closest_point, force_vector = get_target_torques(theta_1=motor_1.position, theta_2=motor_2.position, current_phase=current_phase, profiles=profile)
 
+        # Create a history of the motor torques and force vectors for plotting
+        if tau_history is not None:
+            tau_history["tau_1"].append(tau_1)
+            tau_history["tau_2"].append(tau_2)
+
+            force_vector_history["force_X"].append(force_vector[0])
+            force_vector_history["force_Y"].append(force_vector[1])
+
+        if phase_history is not None:
+            # Create a history of the current_phase for plotting
+            phase_history.append(current_phase)
+
         # Send cursor update
         send_data({
             "type": "cursor",
             "index": int(closest_point),
             "force": force_vector.flatten().tolist()
         })
-
 
         # Stop if the roll angle is larger than the maximum roll angle
         if current_phase > 99 and t > 0.1:
@@ -333,9 +347,9 @@ def control_loop_and_log(
                 print("Maximum phase exceeded. Stopping...")
                 break
             
-        # # Set torques to zero for Debugging:
-        # tau_1 = 0
-        # tau_2 = 0
+        # Set torques to zero for Debugging:
+        tau_1 = 0
+        tau_2 = 0
 
         if apply_force and t >= 0.1:
             if not printed:
@@ -374,7 +388,7 @@ def control_loop_and_log(
 
     session_manager.save_log_or_delete(log_path=log_path, successful=success)
 
-    return success
+    return success, tau_history, force_vector_history, phase_history
 
 
 def apply_simulation_profile(
@@ -423,9 +437,16 @@ def apply_simulation_profile(
     force_profile = profile[["force_X", "force_Y"]]
     send_data({"type": "profile", "data": force_profile})
 
+    # Initialize history dictionaries for torques, force vectors, estimated phase:
+    tau_history = {"tau_1": [],
+                   "tau_2": []}
+    force_vector_history = {"force_X": [],
+                            "force_Y": []}
+    phase_history = []
+
     try:
         # Run the control loop, passing session_manager and server
-        success = control_loop_and_log(
+        success, tau_hist, force_hist, phase_hist = control_loop_and_log(
             motor_1=motor_1,
             motor_2=motor_2,
             logger=logger,
@@ -436,8 +457,33 @@ def apply_simulation_profile(
             log_path=log_path,
             socket_server=socket_server,
             imu_reader=imu_reader,
-            session_manager=session_manager
+            session_manager=session_manager,
+            tau_history=tau_history, 
+            force_vector_history=force_vector_history,
+            phase_history=phase_history
         )
+
+        # Plot tau_hist and force_hist and phase_hist if they are not None doing a subplot
+        if tau_hist is not None and force_hist is not None and phase_hist is not None:
+            import matplotlib.pyplot as plt
+
+            fig, axs = plt.subplots(3, 1, figsize=(10, 15))
+            axs[0].plot(tau_hist["tau_1"], label='Tau Motor 1')
+            axs[0].plot(tau_hist["tau_2"], label='Tau Motor 2')
+            axs[0].set_title('Motor Torques')
+            axs[0].legend()
+
+            axs[1].plot(force_hist["force_X"], label='Force X')
+            axs[1].plot(force_hist["force_Y"], label='Force Y')
+            axs[1].set_title('Force Vectors')
+            axs[1].legend()
+
+            axs[2].plot(phase_hist, label='Estimated Phase')
+            axs[2].set_title('Estimated Phase Over Time')
+            axs[2].legend()
+
+            plt.tight_layout()
+            plt.savefig("control_loop_plots.png")
 
         # Save or delete the log based on success
         session_manager.save_log_or_delete(log_path=log_path, successful=success)
@@ -513,7 +559,7 @@ def collect_unpowered_data(
                 print(f"Recording to {log_path}")
 
                 # Start the control loop for data collection without force application
-                success = control_loop_and_log(
+                success, _, _, _= control_loop_and_log(
                     motor_1=motor_1,
                     motor_2=motor_2,
                     logger=logger,
