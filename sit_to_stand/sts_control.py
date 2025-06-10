@@ -306,7 +306,7 @@ def control_loop_and_log(
                 gyroZ = imu_reader.imu_data.gyroZ
 
                 # Compute the phase using the SVR model
-                current_phase = current_model.predict(np.array([[roll_angle, pitch_angle]]))*100
+                current_phase = current_model.predict(np.array([[accZ, gyroX, gyroY, gyroZ, roll_angle, pitch_angle]]))*100
                 # current_phase = current_model.predict(np.array([[accX, accY, accZ, gyroX, gyroY, gyroZ, roll_angle, pitch_angle]]))*100
 
                 
