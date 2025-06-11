@@ -368,88 +368,88 @@ class ForceProfileOptimizer:
         # force2_end_time_p = 1.0
         # force2_peak_force_p = 0.7
 
-        print("First Informed Iteration...")
+        # print("First Informed Iteration...")
 
-        force1_end_time_p = 0.5
-        force1_peak_force_p = 0.86
+        # force1_end_time_p = 0.5
+        # force1_peak_force_p = 0.86
 
-        force2_start_time_p = 0.0865
-        force2_peak_time_p = 0.4419
-        force2_end_time_p = 0.5148
-        force2_peak_force_p = 0.71
+        # force2_start_time_p = 0.0865
+        # force2_peak_time_p = 0.4419
+        # force2_end_time_p = 0.5148
+        # force2_peak_force_p = 0.71
 
 
-        # Define the initial points
-        initial_points = {
-            "force1_end_time_p": force1_end_time_p,
-            "force1_peak_force_p": force1_peak_force_p,
-            "force2_start_time_p": force2_start_time_p,
-            "force2_peak_time_p": force2_peak_time_p,
-            "force2_peak_force_p": force2_peak_force_p,
-            "force2_end_time_p": force2_end_time_p
-        }
+        # # Define the initial points
+        # initial_points = {
+        #     "force1_end_time_p": force1_end_time_p,
+        #     "force1_peak_force_p": force1_peak_force_p,
+        #     "force2_start_time_p": force2_start_time_p,
+        #     "force2_peak_time_p": force2_peak_time_p,
+        #     "force2_peak_force_p": force2_peak_force_p,
+        #     "force2_end_time_p": force2_end_time_p
+        # }
 
-        # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
-        if initial_points not in self.optimizer.space.params:
-            self.optimizer.probe(params=initial_points, lazy=True)
-        else:
-            print("Informed points already in optimizer space.")
+        # # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
+        # if initial_points not in self.optimizer.space.params:
+        #     self.optimizer.probe(params=initial_points, lazy=True)
+        # else:
+        #     print("Informed points already in optimizer space.")
 
-        print("Second Informed Iteration...")
+        # print("Second Informed Iteration...")
 
-        # Added profile
-        force1_end_time_p = 0.5
-        force1_peak_force_p = 0.5
+        # # Added profile
+        # force1_end_time_p = 0.5
+        # force1_peak_force_p = 0.5
 
-        force2_start_time_p = 0.2
-        force2_peak_time_p = 0.5
-        force2_end_time_p = 1.0
-        force2_peak_force_p = 0.9
+        # force2_start_time_p = 0.2
+        # force2_peak_time_p = 0.5
+        # force2_end_time_p = 1.0
+        # force2_peak_force_p = 0.9
 
-        # Define the initial points
-        initial_points = {
-            "force1_end_time_p": force1_end_time_p,
-            "force1_peak_force_p": force1_peak_force_p,
-            "force2_start_time_p": force2_start_time_p,
-            "force2_peak_time_p": force2_peak_time_p,
-            "force2_peak_force_p": force2_peak_force_p,
-            "force2_end_time_p": force2_end_time_p
-        }
+        # # Define the initial points
+        # initial_points = {
+        #     "force1_end_time_p": force1_end_time_p,
+        #     "force1_peak_force_p": force1_peak_force_p,
+        #     "force2_start_time_p": force2_start_time_p,
+        #     "force2_peak_time_p": force2_peak_time_p,
+        #     "force2_peak_force_p": force2_peak_force_p,
+        #     "force2_end_time_p": force2_end_time_p
+        # }
 
-        # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
-        if initial_points not in self.optimizer.space.params:
-            self.optimizer.probe(params=initial_points, lazy=True)
-        else:
-            print("Informed points already in optimizer space.")
+        # # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
+        # if initial_points not in self.optimizer.space.params:
+        #     self.optimizer.probe(params=initial_points, lazy=True)
+        # else:
+        #     print("Informed points already in optimizer space.")
 
-        print("Third Informed Iteration...")
+        # print("Third Informed Iteration...")
 
-        # Added profile
-        force1_end_time_p = 0.8
-        force1_peak_force_p = 1.0
+        # # Added profile
+        # force1_end_time_p = 0.8
+        # force1_peak_force_p = 1.0
 
-        force2_start_time_p = 0.2
-        force2_peak_time_p = 0.7
-        force2_end_time_p = 1.0
-        force2_peak_force_p = 0.4
+        # force2_start_time_p = 0.2
+        # force2_peak_time_p = 0.7
+        # force2_end_time_p = 1.0
+        # force2_peak_force_p = 0.4
 
-        # Define the initial points
-        initial_points = {
-            "force1_end_time_p": force1_end_time_p,
-            "force1_peak_force_p": force1_peak_force_p,
-            "force2_start_time_p": force2_start_time_p,
-            "force2_peak_time_p": force2_peak_time_p,
-            "force2_peak_force_p": force2_peak_force_p,
-            "force2_end_time_p": force2_end_time_p
-        }
+        # # Define the initial points
+        # initial_points = {
+        #     "force1_end_time_p": force1_end_time_p,
+        #     "force1_peak_force_p": force1_peak_force_p,
+        #     "force2_start_time_p": force2_start_time_p,
+        #     "force2_peak_time_p": force2_peak_time_p,
+        #     "force2_peak_force_p": force2_peak_force_p,
+        #     "force2_end_time_p": force2_end_time_p
+        # }
 
-        # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
-        if initial_points not in self.optimizer.space.params:
-            self.optimizer.probe(params=initial_points, lazy=True)
-        else:
-            print("Informed points already in optimizer space.")
+        # # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
+        # if initial_points not in self.optimizer.space.params:
+        #     self.optimizer.probe(params=initial_points, lazy=True)
+        # else:
+        #     print("Informed points already in optimizer space.")
 
-        print("Fourth Informed Iteration...")
+        # print("Fourth Informed Iteration...")
         # Added profile (best mean opt 3 rep)
         # force1_end_time_p = 0.1
         # force1_peak_force_p = 0.94
@@ -459,7 +459,7 @@ class ForceProfileOptimizer:
         # force2_end_time_p = 0.64
         # force2_peak_force_p = 0.98
 
-        force1_end_time_p = 0.5
+        force1_end_time_p = 0.2760
         force1_peak_force_p = 0.86
 
         force2_start_time_p = 0.0865

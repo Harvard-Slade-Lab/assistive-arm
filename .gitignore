@@ -201,3 +201,20 @@ torque_profiles/
 paper_figures/
 .DS_STORE
 paper_figures/
+
+# Files to ignore for simulation purpose
+
+# Ignore everything under this folder (recursively)
+scripts/visualization/data/**
+
+# Ignore specific file types recursively under scripts/simulation/
+scripts/simulation/**/*.txt
+scripts/simulation/**/*.sto
+scripts/simulation/**/*.json
+scripts/simulation/**/*.osim
+scripts/simulation/**/*.ipynb
+scripts/simulation/**/*.png
+
+
+
+
