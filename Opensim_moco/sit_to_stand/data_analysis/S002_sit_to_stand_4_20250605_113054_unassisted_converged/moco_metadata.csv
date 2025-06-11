@@ -1,0 +1,2 @@
+inDegrees,num_controls,num_derivatives,num_input_controls,num_iterations,num_multipliers,num_parameters,num_slacks,num_states,objective,objective_control_effort,objective_state_tracking,solver_duration,status,success,DataType,version,OpenSimVersion
+no,65,0,0,604,2,0,2,102,0.060959,0.032859,0.0281,1588.56057,Solve_Succeeded,True,double,3,4.5-2024-07-22-fc2981e9e
