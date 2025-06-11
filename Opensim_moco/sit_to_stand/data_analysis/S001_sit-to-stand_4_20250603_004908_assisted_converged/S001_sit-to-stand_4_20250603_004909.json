@@ -1,0 +1,305 @@
+{
+    "subject": "S001",
+    "motion": "sit-to-stand_4",
+    "opencap_data_path": "./data/OpenCapData/",
+    "osim_model_path": "OpenSimData/Model/LaiUhlrich2022_scaled.osim",
+    "moco_path": "./sim_result",
+    "note": "[Assisted case]",
+    "initial_guess": true,
+    "previous_solution_path": "./sim_result/S001_sit-to-stand_4_20250603_000509_unassisted_converged/S001_sit-to-stand_4_20250603_000509.sto",
+    "check_model": false,
+    "print_optimum_force": true,
+    "print_control_weight": true,
+    "add_contact_dynamics": true,
+    "t0": 1.3,
+    "tf": 3,
+    "mesh_interval": 0.05,
+    "max_iterations": 1000,
+    "convergence_tolerance": 0.001,
+    "constraint_tolerance": 0.001,
+    "state_extra_bound_size": 0.25,
+    "tracking_weight_global_state": 1,
+    "tracking_weight_individual_state": 1,
+    "control_effort_weight_global": 0.05,
+    "control_effort_weight_muscles": 0.5,
+    "control_effort_weight_reserve_actuator": 15,
+    "control_effort_weight_coord_actuators": 0.1,
+    "opt_force_coord_actuator": 250,
+    "opt_force_reserve_actuator": 250,
+    "reserve_actuator_control_bound": [
+        -1,
+        1
+    ],
+    "coord_actuator_control_bound": [
+        -1,
+        1
+    ],
+    "robot_assistance": true,
+    "opt_force_robot_assistance": 100,
+    "robot_assistance_control_bound": [
+        -1,
+        1
+    ],
+    "control_effort_weight_robot_assistance": 0.1,
+    "muscles_to_remove": [
+        "addlong",
+        "addbrev",
+        "addmagDist",
+        "addmagIsch",
+        "addmagProx",
+        "addmagMid",
+        "fdl",
+        "ehl",
+        "fhl",
+        "gaslat",
+        "glmin1",
+        "glmin2",
+        "glmin3",
+        "perlong",
+        "edl",
+        "grac",
+        "iliacus",
+        "perbrev",
+        "piri",
+        "sart",
+        "semiten",
+        "tfl",
+        "tibpost",
+        "vasint"
+    ],
+    "floor_ref_marker": [
+        "ankle",
+        "calc",
+        "5meta",
+        "toe"
+    ],
+    "floor_offset": 0.05,
+    "foot_contact_marker": [
+        "calc",
+        "5meta",
+        "toe"
+    ],
+    "foot_socket": [
+        "toes",
+        "calcn"
+    ],
+    "chair_ref_marker": [
+        "thigh3",
+        "knee",
+        "PSIS"
+    ],
+    "chair_height": 0.48,
+    "stiffness": 1000000,
+    "dissipation": 2.0,
+    "static_friction": 0.8,
+    "dynamic_friction": 0.8,
+    "viscous_friction": 0.5,
+    "transition_velocity": 0.2,
+    "hip_contact_spheres": {
+        "s8_l": {
+            "radius": 0.12,
+            "location": [
+                -0.15,
+                -0.1,
+                -0.1
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "pelvis"
+        },
+        "s8_r": {
+            "radius": 0.12,
+            "location": [
+                -0.15,
+                -0.1,
+                0.1
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "pelvis"
+        }
+    },
+    "foot_contact_spheres": {
+        "s1_r": {
+            "radius": 0.04,
+            "location": [
+                0.0019,
+                -0.01,
+                -0.0038
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "calcn_r"
+        },
+        "s2_r": {
+            "radius": 0.02,
+            "location": [
+                0.1484,
+                -0.01,
+                -0.0287
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "calcn_r"
+        },
+        "s3_r": {
+            "radius": 0.02,
+            "location": [
+                0.133,
+                -0.01,
+                0.0516
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "calcn_r"
+        },
+        "s4_r": {
+            "radius": 0.02,
+            "location": [
+                0.0662,
+                -0.01,
+                0.0264
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "calcn_r"
+        },
+        "s5_r": {
+            "radius": 0.02,
+            "location": [
+                0.06,
+                -0.01,
+                -0.0188
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "toes_r"
+        },
+        "s6_r": {
+            "radius": 0.02,
+            "location": [
+                0.045,
+                -0.01,
+                0.0619
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "toes_r"
+        },
+        "s1_l": {
+            "radius": 0.04,
+            "location": [
+                0.0019,
+                -0.01,
+                0.0038
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "calcn_l"
+        },
+        "s2_l": {
+            "radius": 0.02,
+            "location": [
+                0.1484,
+                -0.01,
+                0.0287
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "calcn_l"
+        },
+        "s3_l": {
+            "radius": 0.02,
+            "location": [
+                0.133,
+                -0.01,
+                -0.0516
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "calcn_l"
+        },
+        "s4_l": {
+            "radius": 0.02,
+            "location": [
+                0.0662,
+                -0.01,
+                -0.0264
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "calcn_l"
+        },
+        "s5_l": {
+            "radius": 0.02,
+            "location": [
+                0.06,
+                -0.01,
+                0.0188
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "toes_l"
+        },
+        "s6_l": {
+            "radius": 0.02,
+            "location": [
+                0.045,
+                -0.01,
+                -0.0619
+            ],
+            "orientation": [
+                0,
+                0,
+                0
+            ],
+            "socket_frame": "toes_l"
+        }
+    },
+    "cur_moco_path": "./sim_result/S001_sit-to-stand_4_20250603_004908",
+    "marker_data_path": "./data/OpenCapData/S001/MarkerData/sit-to-stand_4.trc",
+    "kinematic_data_path": "./data/OpenCapData/S001/OpenSimData/Kinematics/sit-to-stand_4.mot",
+    "chair_coord_x": -0.12483695,
+    "chair_coord_y": 0.5928317750000001,
+    "chair_coord_z": 0.69716455,
+    "osim_model_name": "S001_sit-to-stand_4_20250603_004909"
+}
