@@ -2,11 +2,28 @@ import socket
 import threading
 import struct
 import numpy as np
+import time
 
 # Configuration
 HOST = '0.0.0.0'  # Listen on all available interfaces
 PORT_ROLL_ANGLE = 3001  # Port for roll angles
 PORT_COMMANDS = 3002  # Port for commands
+
+# ---------------------------------------------------------------------
+# This is another socket server that sends data from Raspberry Pi to MacBook
+# Socket server for sending Start and Stop data to the MacBook
+import socket
+import pickle
+# Socket setup (do this once)
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+mac_ip = '10.250.76.72'  # e.g., '192.168.1.100'
+mac_port = 9999
+
+def send_data(data):
+    """Send any serializable object to Mac"""
+    sock.sendto(pickle.dumps(data), (mac_ip, mac_port))
+    time.sleep(0.01)  # small pause to prevent flooding
+# ---------------------------------------------------------------------
 
 class SocketServer:
     """Handles both roll angle and command servers."""
@@ -55,6 +72,10 @@ class SocketServer:
                         while not self.stop_server:
                             data = conn.recv(1024)
                             print(f"Received data: {data}")
+
+                            # Forward the raw command to the Mac via UDP
+                            send_data(data)
+
                             if not data:
                                 break
                             self.process_command_data(data.decode('utf-8', errors='replace').strip())

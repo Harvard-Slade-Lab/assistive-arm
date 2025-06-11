@@ -264,7 +264,7 @@ class RefinedMotionSegmenter:
         plt.grid(True)
         
         plt.tight_layout()
-        plt.show()
+      
 
 def AREDSegmentation(raw_magnitude, timestamp, plot_flag=False):
 

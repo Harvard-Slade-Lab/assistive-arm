@@ -257,7 +257,8 @@ def control_loop_and_log(
         session_manager: SessionManager,
         tau_history: dict = None,
         force_vector_history: dict = None,
-        phase_history: list = None):
+        phase_history: list = None,
+        unfilt_phase_history: list = None):
     
     global current_model, phase_baseline
     # Reset the motor buffers
@@ -272,6 +273,8 @@ def control_loop_and_log(
     loop = SoftRealtimeLoop(dt=1 / freq, report=False, fade=0)
     success = True
     printed = False
+
+    filtered_phase = 0  # or initialize with first current_phase if preferred
 
     for t in loop:
         if socket_server is not None:
@@ -291,23 +294,6 @@ def control_loop_and_log(
             success = False
             break
         
-        from scipy.signal import butter, lfilter
-        # Filter parameters
-        # Set your desired cutoff frequency and sample rate
-        cutoff = 5.0       # Hz (change as needed)
-        fs = 100.0         # Hz (change as needed)
-        order = 4
-
-        # Create Butterworth filter coefficients
-        b, a = butter(order, cutoff / (0.5 * fs), btype='low')
-
-        # Each channel needs its own filter state
-        zi_accX = np.zeros(max(len(a), len(b)) - 1)
-        zi_accY = np.zeros_like(zi_accX)
-        zi_accZ = np.zeros_like(zi_accX)
-        zi_gyroX = np.zeros_like(zi_accX)
-        zi_gyroY = np.zeros_like(zi_accX)
-        zi_gyroZ = np.zeros_like(zi_accX)
 
         # Maybe want to move this into the function
         with threading.Lock():
@@ -323,26 +309,17 @@ def control_loop_and_log(
                 gyroY = imu_reader.imu_data.gyroY
                 gyroZ = imu_reader.imu_data.gyroZ
 
-                # Filter each channel and update the filter state
-                filtered_accX, zi_accX = lfilter(b, a, [accX], zi=zi_accX)
-                filtered_accY, zi_accY = lfilter(b, a, [accY], zi=zi_accY)
-                filtered_accZ, zi_accZ = lfilter(b, a, [accZ], zi=zi_accZ)
-                filtered_gyroX, zi_gyroX = lfilter(b, a, [gyroX], zi=zi_gyroX)
-                filtered_gyroY, zi_gyroY = lfilter(b, a, [gyroY], zi=zi_gyroY)
-                filtered_gyroZ, zi_gyroZ = lfilter(b, a, [gyroZ], zi=zi_gyroZ)
-
-                # Use the filtered values for prediction
-                current_phase = current_model.predict(
-                    np.array([[filtered_accX[0], filtered_accY[0], filtered_accZ[0],
-                            filtered_gyroX[0], filtered_gyroY[0], filtered_gyroZ[0],
-                            roll_angle, pitch_angle]])
-                ) * 100
-
                 # Compute the phase using the SVR model
-                # current_phase = current_model.predict(np.array([[gyroX, gyroY, gyroZ, roll_angle, pitch_angle]]))*100
+                current_phase = current_model.predict(np.array([[gyroX, gyroY, gyroZ, roll_angle, pitch_angle]]))*100
                 # current_phase = current_model.predict(np.array([[accX, accY, accZ, gyroX, gyroY, gyroZ, roll_angle, pitch_angle]]))*100
-
+                unfilt_current_phase = current_phase
+               
+                alpha = 0.3  # smoothing factor (0 < alpha < 1), smaller = smoother
                 
+                # Apply EMA filter
+                filtered_phase = alpha * current_phase + (1 - alpha) * filtered_phase
+                current_phase = filtered_phase
+     
                 # Saturate the phase between 0 and 100
                 current_phase = max(0, min(current_phase[0], 100))
             else:
@@ -361,9 +338,18 @@ def control_loop_and_log(
             force_vector_history["force_X"].append(force_vector[0])
             force_vector_history["force_Y"].append(force_vector[1])
 
+            # Send full history to macbook through socket server for real-time plotting
+            send_data({
+                "type": "force_history",
+                "force_X": force_vector_history["force_X"],
+                "force_Y": force_vector_history["force_Y"]
+            })
+
+
         if phase_history is not None:
             # Create a history of the current_phase for plotting
             phase_history.append(current_phase)
+            unfilt_phase_history.append(unfilt_current_phase)
 
         # Send cursor update
         send_data({
@@ -424,7 +410,7 @@ def control_loop_and_log(
 
     session_manager.save_log_or_delete(log_path=log_path, successful=success)
 
-    return success, tau_history, force_vector_history, phase_history
+    return success, tau_history, force_vector_history, phase_history, unfilt_phase_history
 
 
 def apply_simulation_profile(
@@ -480,10 +466,11 @@ def apply_simulation_profile(
     force_vector_history = {"force_X": [],
                             "force_Y": []}
     phase_history = []
+    unfilt_phase_history = []
 
     try:
         # Run the control loop, passing session_manager and server
-        success, tau_hist, force_hist, phase_hist = control_loop_and_log(
+        success, tau_hist, force_hist, phase_hist, unfilt_phase_hist = control_loop_and_log(
             motor_1=motor_1,
             motor_2=motor_2,
             logger=logger,
@@ -497,7 +484,8 @@ def apply_simulation_profile(
             session_manager=session_manager,
             tau_history=tau_history, 
             force_vector_history=force_vector_history,
-            phase_history=phase_history
+            phase_history=phase_history,
+            unfilt_phase_history=unfilt_phase_history
         )
 
         # Plot tau_hist and force_hist and phase_hist if they are not None doing a subplot
@@ -534,6 +522,7 @@ def apply_simulation_profile(
             axs[1].legend()
 
             axs[2].plot(time_axis, phase_hist, label='Estimated Phase')
+            axs[2].plot(time_axis, unfilt_phase_hist, label='Unfiltered Phase', linestyle='--')
             axs[2].set_title('Estimated Phase Over Time')
             axs[2].set_xlabel('Time [s]')
             axs[2].set_ylabel('Phase [%]')
@@ -629,7 +618,7 @@ def collect_unpowered_data(
                 print(f"Recording to {log_path}")
 
                 # Start the control loop for data collection without force application
-                success, _, _, _= control_loop_and_log(
+                success, _, _, _, _= control_loop_and_log(
                     motor_1=motor_1,
                     motor_2=motor_2,
                     logger=logger,
