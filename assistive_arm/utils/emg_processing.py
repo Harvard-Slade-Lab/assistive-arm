@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import scipy as sp
+from scipy.signal import argrelextrema
+from scipy.signal import find_peaks
 
 import matplotlib.pyplot as plt
 
@@ -102,3 +104,108 @@ def interpolate_dataframe_to_length(df, target_length, reference_column=None):
     interpolated_df.index.name = df.index.name
 
     return interpolated_df
+
+
+
+def apply_lowpass_filter(df: pd.DataFrame, cutoff_freq: float, sampling_freq: float, filter_order=4) -> pd.DataFrame:
+    """
+    Apply a low-pass filter to the first 7 columns of the given DataFrame.
+
+    Parameters:
+    - df: pandas.DataFrame with the data to be filtered.
+    - cutoff_freq: The cutoff frequency for the low-pass filter (in Hz).
+    - sampling_freq: The sampling frequency of the data (in Hz).
+    - filter_order: The order of the Butterworth filter (default is 4).
+
+    Returns:
+    - df_filtered: DataFrame with the low-pass filtered values.
+    """
+    # Normalize the cutoff frequency with respect to Nyquist frequency
+    nyquist_freq = sampling_freq / 2
+    normalized_cutoff = cutoff_freq / nyquist_freq
+
+    # Design a Butterworth low-pass filter
+    b, a = sp.signal.butter(filter_order, normalized_cutoff, btype='low')
+
+    # Create a copy of the DataFrame to hold the filtered data
+    df_filtered = df.copy()
+
+    # Apply the filter to data
+    for col in df.columns:
+        df_filtered[col] = sp.signal.filtfilt(b, a, df[col])
+
+    return df_filtered
+
+
+def extract_time(df):
+    """
+    Detect the start and end of a sit-to-stand motion based on angular acceleration in z-axis.
+    
+    Parameters:
+    - df: pandas.DataFrame with the data
+    Returns:
+    start_time (float): Time when the motion starts.
+    end_time (float): Time when the motion ends.
+    """
+    # Find the global minimum in X velocity
+    minimum = np.argmin(df['GYRO IMU X'])
+
+    # First derivative (rate of change) to detect where the acceleration starts decreasing
+    acc_z_diff = np.diff(df['ACC IMU Z'])
+    # Find all acceleration-change extremas
+    maxima = argrelextrema(acc_z_diff, np.greater)[0]
+    # Get the two maxima closest to the global minimum
+    maxima.sort()
+
+    try:
+        # Maximum in acc z diff before global minimum is a good way to detect the start of the motion
+        start_idx = maxima[np.searchsorted(maxima, minimum) - 1]
+
+        # Less conservative (stops earlier)
+        gyro_x_diff = np.diff(df['GYRO IMU X'])
+        gyro_x_diff_diff = np.diff(gyro_x_diff)
+        minima = argrelextrema(gyro_x_diff_diff, np.less)[0]
+        end_idx = minima[np.searchsorted(minima, minimum)]
+    except Exception as e:
+        print(e)
+        start_idx = None
+        end_idx = None
+
+    return df.iloc[start_idx].name, df.iloc[end_idx].name
+
+
+
+def segmentation(imu_df):
+    """
+    Segmentation of incoming data based on angular acceleration in z-axis.
+    Parameters:
+    - imu_df: pandas.DataFrame with the imu data
+    Returns:
+    - df_segmented: DataFrame with the segmented data.
+    """
+
+    intermediate_df = imu_df.copy()
+    filtered_intermediate_df = apply_lowpass_filter(intermediate_df, 1, 519)
+
+    # Find maxima in angular velocity in x-axis, that exceed a certain threshold
+    maxima = find_peaks(filtered_intermediate_df['GYRO IMU X'], height=50)[0]
+
+    # Add first and last index to the maxima list
+    maxima = np.insert(maxima, 0, 0)
+    maxima = np.append(maxima, len(imu_df)-1)
+    
+    # Extract relevant times between two maxima
+    for i in range(len(maxima)-1):
+        start_idx = maxima[i]
+        end_idx = maxima[i+1]
+
+        # Create a new dataframe with the relevant data
+        imu_df_segmented = imu_df.iloc[start_idx:end_idx]
+
+        # Extract the start and end index of the motion
+        start_time, end_time = extract_time(imu_df_segmented)
+
+        if start_time is not None and end_time is not None:
+            return start_time, end_time
+        
+    return None, None

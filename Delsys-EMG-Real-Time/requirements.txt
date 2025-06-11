@@ -3,3 +3,4 @@ Vispy
 Scipy
 pythonnet
 numpy
+pyqtgraph

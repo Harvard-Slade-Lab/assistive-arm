@@ -31,7 +31,7 @@ PORT = 3003      # Arbitrary non-privileged port
 np.set_printoptions(precision=3, suppress=True)
 
 # Directory to directly save the logs to remote host, also need to add Host in ~/.ssh/config
-PROJECT_DIR_REMOTE = Path("/Users/nathanirniger/Desktop/MA/Project/Code/assistive-arm")
+PROJECT_DIR_REMOTE = Path("/Users/filippo.mariani/Desktop/Universita/Harvard/Third_Arm_Data/subject_logs")
 
 class States(Enum):
     CALIBRATING = 1
@@ -178,10 +178,16 @@ def get_logger(log_name: str, session_manager: SessionManager, profile_details: 
                    "target_tau_2", "measured_tau_2", "theta_2", "velocity_2", "EE_X", "EE_Y"]
 
     # Use session_manager to determine the next sample number
-    sample_num = get_next_sample_number(session_manager.session_dir, f"{log_name}_{server.profile_name}")
+    if not server:
+        sample_num = get_next_sample_number(session_manager.session_dir, log_name)
+    else: 
+        sample_num = get_next_sample_number(session_manager.session_dir, f"{log_name}_{server.profile_name}")
     
     # Format log file path
-    log_file = f"{log_name}_{server.profile_name}_{sample_num:02}.csv"  # session_manager.profile_name
+    if not server:
+        log_file = f"{log_name}_{sample_num:02}.csv"
+    else:
+        log_file = f"{log_name}_{server.profile_name}_{sample_num:02}.csv"  # session_manager.profile_name
     log_path = session_manager.session_dir / log_file
     log_path.touch(exist_ok=True)  # Ensure the file is created
 
@@ -564,7 +570,7 @@ def control_loop_and_log(
             profiles=profile
         )
         
-        if apply_force:
+        if apply_force and t >= 0.1:
             motor_1.send_torque(desired_torque=tau_1, safety=False)
             motor_2.send_torque(desired_torque=tau_2, safety=False)
         else:
@@ -749,8 +755,10 @@ if __name__ == "__main__":
 
     if trigger_mode == "SOCKET":
         socket_server = SocketServer()
+    else:
+        socket_server = None
 
-    unadjusted_profile_dir = Path(f"./torque_profiles/zero_force_profile.csv")
+    unadjusted_profile_dir = Path(f"./torque_profiles/simulation_profile_Camille_xy.csv")
     # ./torque_profiles/simulation_profile_Camille.csv
     # ./torque_profiles/simulation_profile_Camille_scalex_scaley.csv
     # ./torque_profiles/simulation_profile_Camille_xy.csv
@@ -839,7 +847,8 @@ if __name__ == "__main__":
 
                 elif choice == States.EXIT:
                     print("Exiting...")
-                    socket_server.stop()
+                    if trigger_mode == "SOCKET":
+                        socket_server.stop()
                     break
 
                 # Optionally load a new profile if the user wants to switch profiles
@@ -865,4 +874,5 @@ if __name__ == "__main__":
     finally:
         # Ensure cleanup of GPIO and socket server resources
         GPIO.cleanup()
-        socket_server.stop()
+        if trigger_mode == "SOCKET":
+            socket_server.stop()

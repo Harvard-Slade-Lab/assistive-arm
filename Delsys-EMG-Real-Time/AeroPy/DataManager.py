@@ -3,39 +3,15 @@ This is the class that handles the data that is output from the Delsys Trigno Ba
 Create an instance of this and pass it a reference to the Trigno base for initialization.
 See CollectDataController.py for a usage example.
 """
-import socket
 import numpy as np
 import queue
 
 class DataKernel():
-    def __init__(self, trigno_base, host='10.250.116.137', port=3003):
+    def __init__(self, trigno_base):
         self.TrigBase = trigno_base
         self.packetCount = 0
         self.sampleCount = 0
         self.allcollectiondata = [[] for _ in self.TrigBase.channel_guids]
-        self.channel1time = []
-        self.host = host
-        self.port = port
-        self.socket = None
-
-    def connect_to_server(self):
-        """Connect to the Raspberry Pi server."""
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.connect((self.host, self.port))
-
-    def send_data(self, data):
-        """Send data to the Raspberry Pi."""
-        try:
-            if self.socket:
-                byte_data = data.encode('utf-8')
-                self.socket.sendall(byte_data)
-        except BrokenPipeError:
-            print("Connection closed by the server.")
-    
-    def close_connection(self):
-        """Close the connection to the server."""
-        if self.socket:
-            self.socket.close()
 
     def processData(self, data_queue):
         """Processes the data from the DelsysAPI and places it in the data_queue argument"""

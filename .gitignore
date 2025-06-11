@@ -17,11 +17,17 @@ Delsys-EMG-Real-Time/matlab_files.txt
 Delsys-EMG-Real-Time/python_files.txt
 Delsys-EMG-Real-Time/*.png
 
+# Validation profiles
+sit_to_stand/validation_profiles/
+
+# Get Python
+GetPython.py
+
 # Data
 Data/
 
 # license
-Delsys-EMG-Real-Time/AeroPy/TrignoBase.py
+# Delsys-EMG-Real-Time/AeroPy/TrignoBase.py
 Delsys-EMG-Real-Time/lic/
 
 
