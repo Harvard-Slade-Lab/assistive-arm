@@ -196,7 +196,7 @@ paper_figures/
 .DS_STORE
 paper_figures/
 
-# Files to ignore for simulation purpose
+#------- Files to ignore for simulation purpose -------#
 
 # Ignore everything under this folder (recursively)
 scripts/visualization/data/**
@@ -208,7 +208,6 @@ scripts/simulation/**/*.json
 scripts/simulation/**/*.osim
 scripts/simulation/**/*.ipynb
 scripts/simulation/**/*.png
-
-
-
-
+scripts/simulation/**/*.csv
+scripts/simulation/**/*.mot
+scripts/simulation/**/*.trc
