@@ -51,6 +51,21 @@ def send_data(data):
     sock.sendto(pickle.dumps(data), (mac_ip, mac_port))
     time.sleep(0.01)  # small pause to prevent flooding
 
+def mva_filter(input_data, window_size): 
+    """
+    Simple moving average filter.
+    input: 1D list or array
+    Returns: list, same length as input
+    """
+    if window_size < 1:
+        raise ValueError("Window_size must be at least 1")
+    filtered = []
+    for i in range(len(input_data)):
+        start = max(0, i - window_size + 1)
+        window = input_data[start:i+1]
+        avg = sum(window) / len(window)
+        filtered.append(avg)
+    return filtered
 
 def calibrate_height(
         freq: int,
@@ -122,16 +137,18 @@ def calibrate_height(
                 gyroY = imu_reader.imu_data_history.gyroY
                 gyroZ = imu_reader.imu_data_history.gyroZ
 
-                # Print the length of all the single vectors for DEBUG:
-                # print(f"Length of roll angle: {len(roll_angle)}")
-                # print(f"Length of pitch angle: {len(pitch_angle)}")
-                # print(f"Length of yaw angle: {len(yaw_angle)}")
-                # print(f"Length of accX: {len(accX)}")
-                # print(f"Length of accY: {len(accY)}")
-                # print(f"Length of accZ: {len(accZ)}")
-                # print(f"Length of gyroX: {len(gyroX)}")
-                # print(f"Length of gyroY: {len(gyroY)}")
-                # print(f"Length of gyroZ: {len(gyroZ)}")
+                ### apply moving average filter
+                roll_angle = mva_filter(input_data=roll_angle, order=5)
+                pitch_angle = mva_filter(input_data = pitch_angle, order=5)
+                yaw_angle = mva_filter(input_data = yaw_angle, order=5)
+
+                accX = mva_filter(input_data=accX, order=5)
+                accY = mva_filter(input_data=accY, order=5)
+                accZ = mva_filter(input_data=accZ, order=5)
+
+                gyroX = mva_filter(input_data=gyroX, order=5)
+                gyroY = mva_filter(input_data=gyroY, order=5)
+                gyroZ = mva_filter(input_data=gyroZ, order=5)
 
                 sts_duration = time.time() - sts_start
 
@@ -294,20 +311,30 @@ def control_loop_and_log(
             success = False
             break
         
-
         # Maybe want to move this into the function
         with threading.Lock():
             if imu_reader is not None:
                 # here we can extract all imu data and compute the phase
-                roll_angle = imu_reader.imu_data.roll
-                pitch_angle = imu_reader.imu_data.pitch
-                yaw_angle = imu_reader.imu_data.yaw
-                accX = imu_reader.imu_data.accX
-                accY = imu_reader.imu_data.accY
-                accZ = imu_reader.imu_data.accZ
-                gyroX = imu_reader.imu_data.gyroX
-                gyroY = imu_reader.imu_data.gyroY
-                gyroZ = imu_reader.imu_data.gyroZ
+
+                # roll_angle = imu_reader.imu_data.roll
+                # pitch_angle = imu_reader.imu_data.pitch
+                # yaw_angle = imu_reader.imu_data.yaw
+                # accX = imu_reader.imu_data.accX
+                # accY = imu_reader.imu_data.accY
+                # accZ = imu_reader.imu_data.accZ
+                # gyroX = imu_reader.imu_data.gyroX
+                # gyroY = imu_reader.imu_data.gyroY
+                # gyroZ = imu_reader.imu_data.gyroZ
+
+                # read most recent samples based on the window_size
+                # apply moving average filter
+                window_size = 5
+
+                roll_angle = np.mean(imu_reader.imu_data_history.roll[-window_size:])
+                pitch_angle = np.mean(imu_reader.imu_data_history.pitch[-window_size:])
+                gyroX = np.mean(imu_reader.imu_data_history.gyroX[-window_size:])
+                gyroY = np.mean(imu_reader.imu_data_history.gyroY[-window_size:])
+                gyroZ = np.mean(imu_reader.imu_data_history.gyroZ[-window_size:])
 
                 # Compute the phase using the SVR model
                 current_phase = current_model.predict(np.array([[gyroX, gyroY, gyroZ, roll_angle, pitch_angle]]))*100
