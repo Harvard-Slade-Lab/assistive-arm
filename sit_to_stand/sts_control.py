@@ -344,6 +344,7 @@ def control_loop_and_log(
                 "force_X": force_vector_history["force_X"],
                 "force_Y": force_vector_history["force_Y"]
             })
+            #test
 
 
         if phase_history is not None:
