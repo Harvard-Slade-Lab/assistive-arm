@@ -330,11 +330,18 @@ def control_loop_and_log(
                 # apply moving average filter
                 window_size = 5
 
-                roll_angle = np.mean(imu_reader.imu_data_history.roll[-window_size:])
-                pitch_angle = np.mean(imu_reader.imu_data_history.pitch[-window_size:])
-                gyroX = np.mean(imu_reader.imu_data_history.gyroX[-window_size:])
-                gyroY = np.mean(imu_reader.imu_data_history.gyroY[-window_size:])
-                gyroZ = np.mean(imu_reader.imu_data_history.gyroZ[-window_size:])
+                if len(imu_reader.imu_data_history.roll) < 10:
+                    roll_angle = imu_reader.imu_data.roll
+                    pitch_angle = imu_reader.imu_data.pitch
+                    gyroX = imu_reader.imu_data.gyroX
+                    gyroY = imu_reader.imu_data.gyroY
+                    gyroZ = imu_reader.imu_data.gyroZ
+                else:
+                    roll_angle = np.mean(imu_reader.imu_data_history.roll[-window_size:])
+                    pitch_angle = np.mean(imu_reader.imu_data_history.pitch[-window_size:])
+                    gyroX = np.mean(imu_reader.imu_data_history.gyroX[-window_size:])
+                    gyroY = np.mean(imu_reader.imu_data_history.gyroY[-window_size:])
+                    gyroZ = np.mean(imu_reader.imu_data_history.gyroZ[-window_size:])
 
                 # Compute the phase using the SVR model
                 current_phase = current_model.predict(np.array([[gyroX, gyroY, gyroZ, roll_angle, pitch_angle]]))*100
