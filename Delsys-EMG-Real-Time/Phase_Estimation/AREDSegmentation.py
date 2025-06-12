@@ -231,38 +231,76 @@ class RefinedMotionSegmenter:
         
         return refined_start, refined_end, ared_signal, threshold, rough_start, rough_end
     
-    def plot_segmentation(self, magnitude, motion_start, motion_end, rough_start, rough_end, ared_signal=None, threshold=None, frequency=None):
-        """
-        Plot gyroscope data with motion segmentation.
-        """
+    def plot_segmentation(self, magnitude, motion_start, motion_end, rough_start, rough_end, ared_signal=None, threshold=None, frequency=None, emg_start_idx=None, emg_end_idx=None, relevant_emg_filtered=None, complete_emg_data=None, emg_sampling_frequencies=None, sensor_names=None, emg_sensor_label=None):
+       # Create a single figure with 3 vertical subplots
+        fig, axs = plt.subplots(3, 1, figsize=(14, 15))
+        print("frequency:", frequency)
+        # ---------- Plot 1: Gyroscope Magnitude with Motion Segmentation ----------
         if frequency is None:
             time = np.arange(len(magnitude))
             xlabel = 'Samples'
         else:
             time = np.arange(len(magnitude)) / frequency
             xlabel = 'Time (s)'
-        
-        plt.figure(figsize=(12, 6))
-        
-        plt.plot(time, magnitude, 'purple', label='Magnitude')
-        
+
+        axs[0].plot(time, magnitude, 'purple', label='Magnitude')
+
         if ared_signal is not None and threshold is not None:
-            plt.plot(time, ared_signal, 'blue', alpha=0.5, label='ARED Signal')
-            plt.axhline(y=threshold, color='g', linestyle='--', label=f'Threshold ({threshold:.2f})')
+            axs[0].plot(time, ared_signal, 'blue', alpha=0.5, label='ARED Signal')
+            axs[0].axhline(y=threshold, color='g', linestyle='--', label=f'Threshold ({threshold:.2f})')
+
+        axs[0].axvline(x=time[motion_start], color='orange', linestyle='-', label='Motion Start')
+        axs[0].axvline(x=time[motion_end], color='orange', linestyle='-', label='Motion End')
+        axs[0].plot(time[rough_start], ared_signal[rough_start], 'r*', markersize=10, label='Rough Start')
+        axs[0].plot(time[rough_end], ared_signal[rough_end], 'b*', markersize=10, label='Rough End')
+
+        axs[0].set_xlabel(xlabel)
+        axs[0].set_ylabel('Magnitude')
+        axs[0].set_title('Signal Magnitude with Motion Segmentation')
+        axs[0].legend()
+        axs[0].grid(True)
+
+        # ---------- Plot 2: Full EMG signal with segmentation markers ----------
+
+        # print sensor names and labels
+        print("Sensor Names and Labels:")
+        for label, name in sensor_names.items():
+            print(f"{label}: {name}")
+        # print complete_emg_data for each sensor
+        print("Complete EMG Data for each sensor:")
         
-        plt.axvline(x=time[motion_start], color='orange', linestyle='-', label='Motion Start')
-        plt.axvline(x=time[motion_end], color='orange', linestyle='-', label='Motion End')
         
-        # Plot rough_start and rough_end as stars
-        plt.plot(time[rough_start], ared_signal[rough_start], 'r*', markersize=10, label='Rough Start')
-        plt.plot(time[rough_end], ared_signal[rough_end], 'b*', markersize=10, label='Rough End')
+        emg_data = complete_emg_data[emg_sensor_label]
+        full_emg_length = len(emg_data)
+        time_full = np.arange(full_emg_length) / emg_sampling_frequencies[emg_sensor_label]
+        # print emg_data for each sensor
+        axs[1].plot(time_full, emg_data, label='VM_R', alpha=0.6)
         
-        plt.xlabel(xlabel)
-        plt.ylabel('Magnitude')
-        plt.title('Signal Magnitude with Motion Segmentation')
-        plt.legend()
-        plt.grid(True)
-        
+
+        start_time = emg_start_idx / emg_sampling_frequencies[emg_sensor_label]
+        end_time = emg_end_idx / emg_sampling_frequencies[emg_sensor_label]
+        axs[1].axvline(x=start_time, color='green', linestyle='--', linewidth=2, label='Start Index')
+        axs[1].axvline(x=end_time, color='red', linestyle='--', linewidth=2, label='End Index')
+
+        axs[1].set_title('Full EMG Signal with Segmentation Markers')
+        axs[1].set_xlabel('Time (s)')
+        axs[1].set_ylabel('Amplitude')
+        axs[1].legend()
+        axs[1].grid(True)
+
+        # ---------- Plot 3: Filtered Relevant EMG Segment ----------
+        segment_duration = len(relevant_emg_filtered) / emg_sampling_frequencies[emg_sensor_label]
+        time_segment = np.linspace(0, segment_duration, len(relevant_emg_filtered))
+
+        for channel in relevant_emg_filtered.columns:
+            axs[2].plot(time_segment, relevant_emg_filtered[channel], label=channel)
+
+        axs[2].set_title('Filtered Relevant EMG Segment')
+        axs[2].set_xlabel('Time (s)')
+        axs[2].set_ylabel('Amplitude (Filtered)')
+        axs[2].legend()
+        axs[2].grid(True)
+
         plt.tight_layout()
         plt.show()
 
@@ -292,12 +330,10 @@ def AREDSegmentation(raw_magnitude, timestamp, plot_flag=False):
     print(f"Motion detected: Start={motion_start}, End={motion_end}")
     
     # Visualize the segmentation
-    if plot_flag:
-        segmenter.plot_segmentation(magnitude_np, motion_start, motion_end, rough_start, rough_end, ared_signal, threshold, frequency)
+    # if plot_flag:
+    #     segmenter.plot_segmentation(magnitude_np, motion_start, motion_end, rough_start, rough_end, ared_signal, threshold, frequency)
 
     start_idx = motion_start
     end_idx = motion_end
 
-    return start_idx, end_idx
-
-    
+    return start_idx, end_idx, magnitude_np, motion_start, motion_end, rough_start, rough_end, ared_signal, threshold, segmenter
