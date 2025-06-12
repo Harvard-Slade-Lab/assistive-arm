@@ -1254,7 +1254,7 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
         # Segment using AREDSegmentation
         try:
-            local_start_idx, local_end_idx = AREDSegmentation.AREDSegmentation(raw_magnitude, 1, plot_flag=True)
+            local_start_idx, local_end_idx, magnitude_np, motion_start, motion_end, rough_start, rough_end, ared_signal, threshold, segmenter = AREDSegmentation.AREDSegmentation(raw_magnitude, 1, plot_flag=True)
         except Exception as e:
             print(f"AREDSegmentation failed: {e}")
             if self.socket:
@@ -1273,13 +1273,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     
         # Print local indices
-        print(f"Local Start Index: {local_start_idx}, Local End Index: {local_end_idx}")
-
         print(f"IMU Start: {imu_start_idx}, IMU End: {imu_end_idx}")
 
         # Convert IMU indices to EMG indices
         ratio = self.emg_sampling_frequencies[self.emg_sensor_label] / self.acc_sample_rates[self.imu_sensor_label]
         emg_start_idx = int(np.round(imu_start_idx * ratio))
+        # Add some buffer to the start index to ensure we capture the entire motion
+        emg_start_idx = emg_start_idx - int(0.15 * self.emg_sampling_frequencies[self.emg_sensor_label])  # 0.15 seconds buffer
         emg_end_idx = int(np.round(imu_end_idx * ratio))
 
         print(f"EMG Start: {emg_start_idx}, EMG End: {emg_end_idx}")
@@ -1310,8 +1310,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 self.unassisted_mean = unassisted_area
             else:
                 self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + unassisted_area) / self.unassisted_counter
-            print(f"Unassisted area: {unassisted_area}")
-            print(f"Unassisted mean: {self.unassisted_mean}")
+            print(f"\n\nUnassisted area: {unassisted_area}")
+            print(f"Unassisted mean: {self.unassisted_mean}\n\n")
             self.data_exporter.export_unassisted_mean_to_npy(self.unassisted_mean)
             score = np.sum(self.unassisted_mean)
         else:
@@ -1325,59 +1325,23 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     vm_count += 1
 
             score = score / vm_count  # Optional: average across only VM channels # Average the score (doesn't matter as optimizer is invariant to lin transformations but gives more intuition to the score)
-            print(f"Score: {score}")
-            print(f"Assisted area: {assisted_area}")
+            
+            print(f"\n\nAssisted area: {assisted_area}")
+            print(f"Score: {score}\n\n")
+            
             if self.socket:
                 self.socket_server.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}")
                 print(f"\n\nScore sent: {score}, Tag: {current_assistive_profile_name}\n\n")
         
         
+        # print complete emg data
+        print(f"Complete EMG data length: {len(complete_emg_data)}")
         
+        segmenter.plot_segmentation(magnitude_np, motion_start, motion_end, rough_start, rough_end, ared_signal, threshold,
+                                    frequency=self.acc_sample_rates[self.imu_sensor_label], emg_start_idx=emg_start_idx,
+                                    emg_end_idx=emg_end_idx, relevant_emg_filtered=relevant_emg_filtered, complete_emg_data=self.complete_emg_data, 
+                                    emg_sampling_frequencies=self.emg_sampling_frequencies, sensor_names=self.sensor_names, emg_sensor_label=self.emg_sensor_label)
         
-        
-        # Plot 1: Full EMG signal with segmentation markers
-        fig, ax1 = plt.subplots(figsize=(12, 6))
-
-        # Create time axis for full EMG
-        full_emg_length = len(self.complete_emg_data[self.emg_sensor_label])
-        time_full = np.arange(full_emg_length) / self.emg_sampling_frequencies[self.emg_sensor_label]
-
-        # Plot each EMG signal
-        for sensor_label in self.complete_emg_data:
-            if self.sensor_names[sensor_label] not in ['IMU', 'OR']:
-                emg_data = self.complete_emg_data[sensor_label]
-                ax1.plot(time_full[:len(emg_data)], emg_data, label=self.sensor_names[sensor_label], alpha=0.6)
-
-        # Add vertical lines for segmentation
-        start_time = emg_start_idx / self.emg_sampling_frequencies[self.emg_sensor_label]
-        end_time = emg_end_idx / self.emg_sampling_frequencies[self.emg_sensor_label]
-        ax1.axvline(x=start_time, color='green', linestyle='--', linewidth=2, label='Start Index')
-        ax1.axvline(x=end_time, color='red', linestyle='--', linewidth=2, label='End Index')
-
-        ax1.set_title('Full EMG Signal with Segmentation Markers')
-        ax1.set_xlabel('Time (s)')
-        ax1.set_ylabel('Amplitude')
-        ax1.legend()
-        ax1.grid(True)
-        plt.tight_layout()
-        plt.show()
-
-        # Plot 2: Filtered EMG segment (relevant part only)
-        fig, ax2 = plt.subplots(figsize=(10, 5))
-
-        segment_duration = len(relevant_emg_filtered) / self.emg_sampling_frequencies[self.emg_sensor_label]
-        time_segment = np.linspace(0, segment_duration, len(relevant_emg_filtered))
-
-        for channel in relevant_emg_filtered.columns:
-            ax2.plot(time_segment, relevant_emg_filtered[channel], label=channel)
-
-        ax2.set_title('Filtered Relevant EMG Segment')
-        ax2.set_xlabel('Time (s)')
-        ax2.set_ylabel('Amplitude (Filtered)')
-        ax2.legend()
-        ax2.grid(True)
-        plt.tight_layout()
-        plt.show()
 
 
 

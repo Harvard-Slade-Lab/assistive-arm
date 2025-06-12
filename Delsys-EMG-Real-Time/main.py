@@ -10,7 +10,7 @@ def main():
     # Flag for real time plots
     plot = True
     # Flag for Socket connection (can be changed with reconnect to raspi)
-    socket = True
+    socket = False
 
     # Flag for EMG control (default is wired IMU, also needs to be changed in control script)
     emg_control = False
