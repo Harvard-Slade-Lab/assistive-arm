@@ -3,29 +3,34 @@
 
 import os
 import sys
+import numpy as np
 from datetime import datetime
 
 import opensim as osim
 
 from utils_simulation import load_params
-from moco_helper_refactor import (
-    get_model_refactor,
+from moco_helper import (
+    get_model,
     get_tracking_problem,
     set_state_bounds,
-    set_moco_problem_weights,
+    set_control_input_weights,
+    set_control_input_bound,
     set_state_tracking_weights,
     set_moco_problem_solver_settings,
+    set_optimal_forces,
     extract_osim_GRF,
     print_optimal_force_values,
     print_control_effort_weight
 )
-
 
 def main():
     # Load parameters from config
     params = load_params()
     subj = params['subject']
     motion = params['motion']
+
+    # Print note of current simulation
+    print(f"#----------- Notes of current sim: {params['note']} -----------#\n")
 
     # Set up output directory
     current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -40,8 +45,11 @@ def main():
     osim_model_path = os.path.join(subject_dir, params['osim_model_path'])
 
     # Load and initialize the model
-    model = get_model_refactor(subject_name=subj, model_path=osim_model_path, params=params)
+    model = get_model(subject_name=subj, model_path=osim_model_path, params=params)
     model.initSystem()
+
+    # Print out all the optimal force values
+    print_optimal_force_values(model= model)
 
     # Optional: model check only, skip optimization
     if params.get('check_model', False):
@@ -49,26 +57,15 @@ def main():
         sys.exit(0)
 
     # Set up tracking problem from kinematics
-    tracking_problem = get_tracking_problem(
-        model=model,
-        kinematics_path=params['kinematic_data_path'],
-        t_0=params['t0'],
-        t_f=params['tf'],
-        mesh_interval=params['mesh_interval'],
-        tracking_weight=params['tracking_weight'],
-        control_effort_weight=params['control_effort_weight'],
-    )
-
+    tracking_problem = get_tracking_problem(model=model, kinematics_path=params['kinematic_data_path'], params=params)
     study = tracking_problem.initialize()
 
     # Configure problem weights and bounds
-    set_state_tracking_weights(moco_study=study, params=params) # this is for tracking kinematics
-    set_moco_problem_weights(model=model, moco_study=study, params=params) # this is for control effort
     set_state_bounds(moco_study=study, params=params)
+    set_state_tracking_weights(moco_study=study, params=params) # this is for tracking kinematics
+    set_control_input_weights(model=model, moco_study=study, params=params) # this is for control effort
+    set_control_input_bound(model=model, moco_study=study, params=params)
     set_moco_problem_solver_settings(moco_study=study, params=params, nb_max_iterations=params['max_iterations'])
-    
-    if params['print_optimum_force']:
-        print_optimal_force_values(model)
 
     # Solve the problem
     solution = study.solve()
@@ -85,7 +82,7 @@ def main():
     print(f"Solution written to: {solution_path}")
 
     # Extract GRFs if specified
-    if params.get("osim_GRF", False):
+    if params.get("add_contact_dynamics", False):
         extract_osim_GRF(model, solution, params)
 
 if __name__ == '__main__':
