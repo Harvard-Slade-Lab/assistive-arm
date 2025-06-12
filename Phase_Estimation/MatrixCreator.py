@@ -1,5 +1,7 @@
 from Phase_Estimation import BiasAndSegmentation
 from Phase_Estimation import Interpolation
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend (no GUI)
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -24,7 +26,42 @@ def create_matrices(acc_data, gyro_data, or_data, grouped_indices, segment_choic
         gyro = gyro_data[indices["gyro"]]
         or_data_item = or_data[indices["or"]]
 
-        
+
+        # ############### FILTERING ##################
+        # from scipy.signal import butter, lfilter, lfilter_zi
+        # import numpy as np
+
+        # def create_offline_filter(cutoff_freq: float, sample_rate: float, order: int = 5):
+        #     """Design identical filter to real-time system using (b, a) coefficients"""
+        #     nyq = 0.5 * sample_rate
+        #     normal_cutoff = cutoff_freq / nyq
+        #     b, a = butter(order, normal_cutoff, btype='low')
+        #     return b, a
+
+        # # Example configuration (use same values as real-time system)
+        # FILTER_CUTOFF = 5.0    # Hz
+        # SAMPLE_RATE = 100.0    # Hz 
+        # FILTER_ORDER = 4
+
+        # # Create filter coefficients
+        # b, a = create_offline_filter(FILTER_CUTOFF, SAMPLE_RATE, FILTER_ORDER)
+
+        # # Column definitions
+        # acc_columns = ['ACC X', 'ACC Y', 'ACC Z']
+        # gyro_columns = ['GYRO X', 'GYRO Y', 'GYRO Z']
+
+        # def filter_dataframe(data: np.ndarray, columns: list) -> pd.DataFrame:
+        #     """Apply lfilter to each channel with proper initialization"""
+        #     filtered = np.zeros_like(data)
+        #     for i in range(data.shape[1]):
+        #         # Initialize filter state to match real-time behavior
+        #         zi = lfilter_zi(b, a) * data[0, i]
+        #         filtered[:, i], _ = lfilter(b, a, data[:, i], zi=zi)
+        #     return pd.DataFrame(filtered, columns=columns)
+
+        # # Apply filtering to raw data arrays
+        # acc = filter_dataframe(acc, acc_columns)
+        # gyro = filter_dataframe(gyro, gyro_columns)     
         
         print(f"Processing data set from timestamp: {timestamp}")
 
@@ -308,7 +345,7 @@ def visualize_matrices(X, Y, timestamps, segment_lengths, feature_names):
     plt.tight_layout()
     # Save the plot:
     plt.savefig("IMU Signals for Training.png")
-    plt.show()
+
 
 
 # Functions to create rotation matrices for 3D transformations

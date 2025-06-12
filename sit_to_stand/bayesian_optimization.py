@@ -14,6 +14,20 @@ from bayes_opt.util import load_logs
 
 from sts_control import apply_simulation_profile
 
+# Socket server for sending force data to the MacBook
+import socket
+import pickle
+
+# Socket setup (do this once)
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+mac_ip = '10.250.76.72'  # e.g., '192.168.1.100'
+mac_port = 9999
+
+def send_data(data):
+    """Send any serializable object to Mac"""
+    sock.sendto(pickle.dumps(data), (mac_ip, mac_port))
+    time.sleep(0.01)  # small pause to prevent flooding
+
 
 class ForceProfileOptimizer:
     def __init__(self, motor_1, motor_2, kappa, freq, iterations, session_manager, trigger_mode, socket_server, imu_reader, max_force=47, scale_factor_x=1, max_time=360, minimum_width_p=0.2, phase_baseline=None, subject_name=None):   
@@ -53,6 +67,7 @@ class ForceProfileOptimizer:
 
         self.optimizer = None
         self.load_optimizer()
+        self.send_data = send_data
 
         # Set up logging directories
         self.profile_dir = session_manager.session_dir / "profiles"
@@ -76,6 +91,8 @@ class ForceProfileOptimizer:
             force2_end_time > force2_peak_time and
             force2_peak_time > force2_start_time
         )
+
+
     
     def get_logger(self, profile_name, profile_path):
         logger = logging.getLogger(profile_name)
@@ -260,6 +277,10 @@ class ForceProfileOptimizer:
                 logger.info(f"Profile Name: {profile_name}, Score: {score}")
                 print(f"Score: {score}")
 
+                # Send score to the macbook for real-time plotting:
+                self.send_data({"type": "score", "value": score})
+
+
         # Get mean score over last iterations
         mean_score = np.mean(scores)
         
@@ -347,88 +368,88 @@ class ForceProfileOptimizer:
         # force2_end_time_p = 1.0
         # force2_peak_force_p = 0.7
 
-        print("First Informed Iteration...")
+        # print("First Informed Iteration...")
 
-        force1_end_time_p = 0.5
-        force1_peak_force_p = 0.86
+        # force1_end_time_p = 0.5
+        # force1_peak_force_p = 0.86
 
-        force2_start_time_p = 0.0865
-        force2_peak_time_p = 0.4419
-        force2_end_time_p = 0.5148
-        force2_peak_force_p = 0.71
+        # force2_start_time_p = 0.0865
+        # force2_peak_time_p = 0.4419
+        # force2_end_time_p = 0.5148
+        # force2_peak_force_p = 0.71
 
 
-        # Define the initial points
-        initial_points = {
-            "force1_end_time_p": force1_end_time_p,
-            "force1_peak_force_p": force1_peak_force_p,
-            "force2_start_time_p": force2_start_time_p,
-            "force2_peak_time_p": force2_peak_time_p,
-            "force2_peak_force_p": force2_peak_force_p,
-            "force2_end_time_p": force2_end_time_p
-        }
+        # # Define the initial points
+        # initial_points = {
+        #     "force1_end_time_p": force1_end_time_p,
+        #     "force1_peak_force_p": force1_peak_force_p,
+        #     "force2_start_time_p": force2_start_time_p,
+        #     "force2_peak_time_p": force2_peak_time_p,
+        #     "force2_peak_force_p": force2_peak_force_p,
+        #     "force2_end_time_p": force2_end_time_p
+        # }
 
-        # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
-        if initial_points not in self.optimizer.space.params:
-            self.optimizer.probe(params=initial_points, lazy=True)
-        else:
-            print("Informed points already in optimizer space.")
+        # # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
+        # if initial_points not in self.optimizer.space.params:
+        #     self.optimizer.probe(params=initial_points, lazy=True)
+        # else:
+        #     print("Informed points already in optimizer space.")
 
-        print("Second Informed Iteration...")
+        # print("Second Informed Iteration...")
 
-        # Added profile
-        force1_end_time_p = 0.5
-        force1_peak_force_p = 0.5
+        # # Added profile
+        # force1_end_time_p = 0.5
+        # force1_peak_force_p = 0.5
 
-        force2_start_time_p = 0.2
-        force2_peak_time_p = 0.5
-        force2_end_time_p = 1.0
-        force2_peak_force_p = 0.9
+        # force2_start_time_p = 0.2
+        # force2_peak_time_p = 0.5
+        # force2_end_time_p = 1.0
+        # force2_peak_force_p = 0.9
 
-        # Define the initial points
-        initial_points = {
-            "force1_end_time_p": force1_end_time_p,
-            "force1_peak_force_p": force1_peak_force_p,
-            "force2_start_time_p": force2_start_time_p,
-            "force2_peak_time_p": force2_peak_time_p,
-            "force2_peak_force_p": force2_peak_force_p,
-            "force2_end_time_p": force2_end_time_p
-        }
+        # # Define the initial points
+        # initial_points = {
+        #     "force1_end_time_p": force1_end_time_p,
+        #     "force1_peak_force_p": force1_peak_force_p,
+        #     "force2_start_time_p": force2_start_time_p,
+        #     "force2_peak_time_p": force2_peak_time_p,
+        #     "force2_peak_force_p": force2_peak_force_p,
+        #     "force2_end_time_p": force2_end_time_p
+        # }
 
-        # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
-        if initial_points not in self.optimizer.space.params:
-            self.optimizer.probe(params=initial_points, lazy=True)
-        else:
-            print("Informed points already in optimizer space.")
+        # # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
+        # if initial_points not in self.optimizer.space.params:
+        #     self.optimizer.probe(params=initial_points, lazy=True)
+        # else:
+        #     print("Informed points already in optimizer space.")
 
-        print("Third Informed Iteration...")
+        # print("Third Informed Iteration...")
 
-        # Added profile
-        force1_end_time_p = 0.8
-        force1_peak_force_p = 1.0
+        # # Added profile
+        # force1_end_time_p = 0.8
+        # force1_peak_force_p = 1.0
 
-        force2_start_time_p = 0.2
-        force2_peak_time_p = 0.7
-        force2_end_time_p = 1.0
-        force2_peak_force_p = 0.4
+        # force2_start_time_p = 0.2
+        # force2_peak_time_p = 0.7
+        # force2_end_time_p = 1.0
+        # force2_peak_force_p = 0.4
 
-        # Define the initial points
-        initial_points = {
-            "force1_end_time_p": force1_end_time_p,
-            "force1_peak_force_p": force1_peak_force_p,
-            "force2_start_time_p": force2_start_time_p,
-            "force2_peak_time_p": force2_peak_time_p,
-            "force2_peak_force_p": force2_peak_force_p,
-            "force2_end_time_p": force2_end_time_p
-        }
+        # # Define the initial points
+        # initial_points = {
+        #     "force1_end_time_p": force1_end_time_p,
+        #     "force1_peak_force_p": force1_peak_force_p,
+        #     "force2_start_time_p": force2_start_time_p,
+        #     "force2_peak_time_p": force2_peak_time_p,
+        #     "force2_peak_force_p": force2_peak_force_p,
+        #     "force2_end_time_p": force2_end_time_p
+        # }
 
-        # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
-        if initial_points not in self.optimizer.space.params:
-            self.optimizer.probe(params=initial_points, lazy=True)
-        else:
-            print("Informed points already in optimizer space.")
+        # # Very unlikely but usefull if optimizer was loaded (as they would already be in the space)
+        # if initial_points not in self.optimizer.space.params:
+        #     self.optimizer.probe(params=initial_points, lazy=True)
+        # else:
+        #     print("Informed points already in optimizer space.")
 
-        print("Fourth Informed Iteration...")
+        # print("Fourth Informed Iteration...")
         # Added profile (best mean opt 3 rep)
         # force1_end_time_p = 0.1
         # force1_peak_force_p = 0.94
@@ -438,7 +459,7 @@ class ForceProfileOptimizer:
         # force2_end_time_p = 0.64
         # force2_peak_force_p = 0.98
 
-        force1_end_time_p = 0.5
+        force1_end_time_p = 0.2760
         force1_peak_force_p = 0.86
 
         force2_start_time_p = 0.0865
@@ -462,7 +483,7 @@ class ForceProfileOptimizer:
             self.optimizer.probe(params=initial_points, lazy=True)
         else:
             print("Informed points already in optimizer space.")
-
+        # hello world
 
         # # Add profiles with extreme times and zero force
         # initial_points = {

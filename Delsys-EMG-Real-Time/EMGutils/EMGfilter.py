@@ -3,7 +3,6 @@ import pandas as pd
 import scipy as sp
 
 
-
 def apply_lowpass_filter(df: pd.DataFrame, cutoff_freq: float, sampling_freq: float, filter_order=4) -> pd.DataFrame:
     """
     Apply a low-pass filter to the first 7 columns of the given DataFrame.
