@@ -1273,13 +1273,13 @@ class EMGDataCollector(QtWidgets.QMainWindow):
 
     
         # Print local indices
-        print(f"Local Start Index: {local_start_idx}, Local End Index: {local_end_idx}")
-
         print(f"IMU Start: {imu_start_idx}, IMU End: {imu_end_idx}")
 
         # Convert IMU indices to EMG indices
         ratio = self.emg_sampling_frequencies[self.emg_sensor_label] / self.acc_sample_rates[self.imu_sensor_label]
         emg_start_idx = int(np.round(imu_start_idx * ratio))
+        # Add some buffer to the start index to ensure we capture the entire motion
+        emg_start_idx = emg_start_idx - int(0.15 * self.emg_sampling_frequencies[self.emg_sensor_label])  # 0.15 seconds buffer
         emg_end_idx = int(np.round(imu_end_idx * ratio))
 
         print(f"EMG Start: {emg_start_idx}, EMG End: {emg_end_idx}")
@@ -1310,8 +1310,8 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                 self.unassisted_mean = unassisted_area
             else:
                 self.unassisted_mean = (self.unassisted_mean * (self.unassisted_counter - 1) + unassisted_area) / self.unassisted_counter
-            print(f"Unassisted area: {unassisted_area}")
-            print(f"Unassisted mean: {self.unassisted_mean}")
+            print(f"\n\nUnassisted area: {unassisted_area}")
+            print(f"Unassisted mean: {self.unassisted_mean}\n\n")
             self.data_exporter.export_unassisted_mean_to_npy(self.unassisted_mean)
             score = np.sum(self.unassisted_mean)
         else:
@@ -1325,8 +1325,10 @@ class EMGDataCollector(QtWidgets.QMainWindow):
                     vm_count += 1
 
             score = score / vm_count  # Optional: average across only VM channels # Average the score (doesn't matter as optimizer is invariant to lin transformations but gives more intuition to the score)
-            print(f"Score: {score}")
-            print(f"Assisted area: {assisted_area}")
+            
+            print(f"\n\nAssisted area: {assisted_area}")
+            print(f"Score: {score}\n\n")
+            
             if self.socket:
                 self.socket_server.send_data(f"Score_{score}_Tag_{current_assistive_profile_name}")
                 print(f"\n\nScore sent: {score}, Tag: {current_assistive_profile_name}\n\n")

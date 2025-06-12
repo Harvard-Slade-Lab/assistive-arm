@@ -7,13 +7,14 @@ from scipy import signal
 # ----------- HYPERPARAMETERS -----------------
 # Hyperparameters for bias removal
 bias_average_window = 1000 # Number of samples to average for bias removal
-frequency = 519
 
 # Hyperparameters for motion segmentation
-window_size = 20           # Size of the sliding window 
-threshold_factor = 0.1     # Factor to scale down the threshold (30% of Otsu's threshold)
-min_duration = 1          # Minimum duration of a motion segment in samples
+window_size = 50           # Size of the sliding window 
+threshold_factor = 0.2     # Factor to scale down the threshold (30% of Otsu's threshold)
+min_duration = 500          # Minimum duration of a motion segment in samples
 refinement_threshold = 0.005 # Threshold for edge refinement (5% of peak value)
+merge_threshold = 50       # Threshold for merging segments (in samples)
+# ---------------------------------------------
 
 class RefinedMotionSegmenter:
     def __init__(self, window_size=20, threshold_factor=0.003, min_duration=1000, refinement_threshold=0.005):
@@ -200,7 +201,6 @@ class RefinedMotionSegmenter:
             return 0, len(magnitude) - 1, ared_signal, threshold
         
         # Step 7.1: Merge segments if the distance between them is below a threshold
-        merge_threshold = 500  # Define a threshold for merging segments (in samples)
         merged_segments = []
         current_start, current_end = valid_segments[0]
 
@@ -260,7 +260,20 @@ class RefinedMotionSegmenter:
         axs[0].legend()
         axs[0].grid(True)
 
-        # ---------- Plot 2: Full EMG signal with segmentation markers ----------
+        # ---------- Plot 2: Filtered Relevant EMG Segment ----------
+        segment_duration = len(relevant_emg_filtered) / emg_sampling_frequencies[emg_sensor_label]
+        time_segment = np.linspace(0, segment_duration, len(relevant_emg_filtered))
+
+        for channel in relevant_emg_filtered.columns:
+            axs[1].plot(time_segment, relevant_emg_filtered[channel], label=channel)
+
+        axs[1].set_title('Filtered Relevant EMG Segment')
+        axs[1].set_xlabel('Time (s)')
+        axs[1].set_ylabel('Amplitude (Filtered)')
+        axs[1].legend()
+        axs[1].grid(True)
+
+        # # ---------- Plot 3: Full EMG signal with segmentation markers ----------
 
         # print sensor names and labels
         print("Sensor Names and Labels:")
@@ -268,40 +281,26 @@ class RefinedMotionSegmenter:
             print(f"{label}: {name}")
         # print complete_emg_data for each sensor
         print("Complete EMG Data for each sensor:")
-        
-        
+
         emg_data = complete_emg_data[emg_sensor_label]
         full_emg_length = len(emg_data)
         time_full = np.arange(full_emg_length) / emg_sampling_frequencies[emg_sensor_label]
         # print emg_data for each sensor
-        axs[1].plot(time_full, emg_data, label='VM_R', alpha=0.6)
-        
+        axs[2].plot(time_full, emg_data, label='VM_R', alpha=0.6)
 
         start_time = emg_start_idx / emg_sampling_frequencies[emg_sensor_label]
         end_time = emg_end_idx / emg_sampling_frequencies[emg_sensor_label]
-        axs[1].axvline(x=start_time, color='green', linestyle='--', linewidth=2, label='Start Index')
-        axs[1].axvline(x=end_time, color='red', linestyle='--', linewidth=2, label='End Index')
+        axs[2].axvline(x=start_time, color='green', linestyle='--', linewidth=2, label='Start Index (includes buffer)')
+        axs[2].axvline(x=end_time, color='red', linestyle='--', linewidth=2, label='End Index')
 
-        axs[1].set_title('Full EMG Signal with Segmentation Markers')
-        axs[1].set_xlabel('Time (s)')
-        axs[1].set_ylabel('Amplitude')
-        axs[1].legend()
-        axs[1].grid(True)
-
-        # ---------- Plot 3: Filtered Relevant EMG Segment ----------
-        segment_duration = len(relevant_emg_filtered) / emg_sampling_frequencies[emg_sensor_label]
-        time_segment = np.linspace(0, segment_duration, len(relevant_emg_filtered))
-
-        for channel in relevant_emg_filtered.columns:
-            axs[2].plot(time_segment, relevant_emg_filtered[channel], label=channel)
-
-        axs[2].set_title('Filtered Relevant EMG Segment')
+        axs[2].set_title('Full EMG Signal with Segmentation Markers')
         axs[2].set_xlabel('Time (s)')
-        axs[2].set_ylabel('Amplitude (Filtered)')
+        axs[2].set_ylabel('Amplitude')
         axs[2].legend()
         axs[2].grid(True)
 
         plt.tight_layout()
+        plt.show()
       
 
 def AREDSegmentation(raw_magnitude, timestamp, plot_flag=False):
