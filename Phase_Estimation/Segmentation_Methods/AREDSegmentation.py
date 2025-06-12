@@ -14,6 +14,7 @@ window_size = 20           # Size of the sliding window
 threshold_factor = 0.1     # Factor to scale down the threshold (30% of Otsu's threshold)
 min_duration = 1          # Minimum duration of a motion segment in samples
 refinement_threshold = 0.005 # Threshold for edge refinement (5% of peak value)
+merge_threshold = 50 # Threshold for merging segments (in samples)
 
 class RefinedMotionSegmenter:
     def __init__(self, window_size=20, threshold_factor=0.003, min_duration=1000, refinement_threshold=0.005):
@@ -200,7 +201,7 @@ class RefinedMotionSegmenter:
             return 0, len(magnitude) - 1, ared_signal, threshold
         
         # Step 7.1: Merge segments if the distance between them is below a threshold
-        merge_threshold = 500  # Define a threshold for merging segments (in samples)
+        merge_threshold = merge_threshold  # Define a threshold for merging segments (in samples)
         merged_segments = []
         current_start, current_end = valid_segments[0]
 

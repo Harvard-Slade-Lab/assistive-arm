@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # Chose how much exploration is done (add the amount of informed profiles)
     exploration_iterations = 14
     # Chose how many unassisted iterations
-    iterations_unassisted = 1
+    iterations_unassisted = 10
     # Chose how many repetitions for each condition
     iterations_per_parameter_set = 1
     # Peak force

@@ -314,7 +314,7 @@ def control_loop_and_log(
                 # current_phase = current_model.predict(np.array([[accX, accY, accZ, gyroX, gyroY, gyroZ, roll_angle, pitch_angle]]))*100
                 unfilt_current_phase = current_phase
                
-                alpha = 0.3  # smoothing factor (0 < alpha < 1), smaller = smoother
+                alpha = 0.4  # smoothing factor (0 < alpha < 1), smaller = smoother
                 
                 # Apply EMA filter
                 filtered_phase = alpha * current_phase + (1 - alpha) * filtered_phase
@@ -370,9 +370,9 @@ def control_loop_and_log(
                 print("Maximum phase exceeded. Stopping...")
                 break
             
-        # Set torques to zero for Debugging:
-        tau_1 = 0
-        tau_2 = 0
+        # # Set torques to zero for Debugging:
+        # tau_1 = 0
+        # tau_2 = 0
 
         if apply_force and t >= 0.1:
             if not printed:
